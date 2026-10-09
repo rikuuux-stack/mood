@@ -31,9 +31,17 @@
 
 ## Organisation
 - `index.html`, `css/`, `js/` (pas d'étape de build, modules ES).
-- `js/config.js` : `mode: 'mock'` (maquette : mur vide, aucun envoi) ou `'live'` (Supabase).
+- `js/config.js` : `mode: 'live'` (Supabase, projet `ovvdtthnykqvgarrjina`, Mumbai). `?mock` dans l'URL force la maquette (mur vide, aucun envoi) — utile pour tester sans serveur.
 - **Le mur démarre vide** (demande de Félix) : plus aucun faux contenu sur le site. Les exemples servant aux tests sont dans `tests/fixtures.mjs` et ne sont jamais affichés.
-- `js/data.js` : seul point d'accès aux données.
+- `js/data.js` : seul point d'accès aux données. `js/captcha.js` : Turnstile (chargé à l'ouverture d'une fenêtre).
+
+## Serveur (Supabase)
+- `supabase/migrations/` : tables `posts`, `reports`, `admins` en RLS **sans aucune politique** + droits retirés à anon/authenticated ; la seule lecture publique est la vue `wall` (dépôts `approved`, sans IP/statut/signalements). Buckets : `pending` privé, `published` public en lecture. 3 signalements → `hidden` (déclencheur). Le compte rikuuux@gmail.com devient admin automatiquement (déclencheur sur auth.users).
+- `supabase/functions/` (Deno, `.js`) : `submit` (contrôles gratuits → captcha → limite 3/h 10/j par IP hachée → fichiers dans `pending` → ligne `pending` → e-mail Resend), `report`, `moderate` (admin : liste, approve = déplacement pending→published, reject, remove, restore). RIKU connecté peut déposer via `submit` : publié directement, `is_riku`.
+- `supabase/functions/_shared/budget.js` est une COPIE de `js/budget.js` (`tests/server.test.mjs` vérifie l'égalité).
+- Déploiement : `.github/workflows/supabase.yml` (push sur main touchant `supabase/`, ou « Run workflow ») puis `tests/e2e.mjs` contre le vrai projet ; chaque lundi, e2e seul (garde le projet actif). Secrets GitHub : `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`. Secrets Supabase (Edge Functions ▸ Secrets) : `TURNSTILE_SECRET`, `RESEND_API_KEY` (facultatif).
+- Les sessions Claude cloud n'atteignent PAS supabase.co ni challenges.cloudflare.com (réseau bloqué) : tester via GitHub Actions et lire les journaux.
+- Page de modération : `admin/` (connexion e-mail + mot de passe, FR uniquement, photos en couleur). Guides : `docs/INSTALLATION.md`, `docs/MODERATION.md`.
 - Branche de travail : `claude/moodboard`. Archive de l'ancien site : branche `archive/expo-3d` (ne jamais supprimer). Le tag `v1-expo-3d` doit être créé par Félix depuis GitHub (push de tags bloqué dans les sessions cloud).
 
 ## Cache-busting (obligatoire avant chaque mise en ligne)
@@ -44,5 +52,5 @@
 
 ## Tester
 - `python3 -m http.server 8000` puis Playwright/Chromium (iPhone 12 et SE émulés).
-- `node tests/wall.test.mjs` et `python3 tools/stamp.py --check`.
+- `node tests/wall.test.mjs`, `node tests/server.test.mjs` et `python3 tools/stamp.py --check`.
 - Le Chromium de test ne remplace pas un vrai iPhone : le dire honnêtement.

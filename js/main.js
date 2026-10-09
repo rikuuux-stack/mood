@@ -1,6 +1,6 @@
 /**
  * RIKU — moodboard ouvert. Point d'entrée.
- *   - charge les dépôts validés (maquette : faux contenus) ;
+ *   - charge les dépôts validés (js/data.js : Supabase, ou maquette avec ?mock) ;
  *   - deux vues : MUR (composition libre, js/wall.js) et LISTE (colonne simple) ;
  *   - toucher / survol : l'élément passe au premier plan ; second toucher : agrandissement ;
  *   - fenêtres natives <dialog> : agrandissement + signalement, dépôt, à propos ;
@@ -8,16 +8,17 @@
  *
  * Les textes des visiteurs ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
-import { CONFIG } from './config.js?v=8e29dd9ad2';
-import { apply as applyI18n, t, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=227414355e';
+import { CONFIG } from './config.js?v=1f46695844';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=270e9271c0';
 import { layout, sizeFor } from './wall.js?v=37bc413c94';
-import { prepareImage, ImageError } from './image.js?v=73ba8740f7';
-import { fetchPosts, submitPost, reportPost } from './data.js?v=c372a76753';
+import { prepareImage, ImageError } from './image.js?v=4809b3f77f';
+import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=004f01af46';
+import * as captcha from './captcha.js?v=640299d7b3';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
-let posts = [], shown = CONFIG.wall.pageSize, view = 'wall';
+let posts = [], hasMore = false, view = 'wall';
 
 applyI18n();
 
@@ -74,9 +75,9 @@ function content(p, { full = false, font, byline = false } = {}) {
 /* ------------------------------------------------------------------ rendu */
 let lastW = 0;
 function render() {
-  const items = posts.slice(0, shown);
+  const items = posts;
   $('#empty').hidden = items.length > 0;
-  $('#more').hidden = posts.length <= shown;
+  $('#more').hidden = !hasMore;
   if (view === 'wall') renderWall(items); else renderList(items);
 }
 
@@ -163,12 +164,22 @@ addEventListener('resize', () => {
   clearTimeout(render.tm);
   render.tm = setTimeout(() => { if (Math.abs((wallEl.clientWidth || 0) - lastW) > 1) render(); }, 150);
 });
-$('#more').addEventListener('click', () => { shown += CONFIG.wall.pageSize; render(); });
+// « voir plus anciens » : page suivante (150 par 150)
+$('#more').addEventListener('click', async () => {
+  const more = $('#more'); more.disabled = true;
+  try { await loadPage(); render(); } catch { /* réessayer plus tard */ }
+  more.disabled = false;
+});
+async function loadPage() {
+  const page = await fetchPosts({ offset: posts.length });
+  posts = posts.concat(page);
+  hasMore = page.length === CONFIG.wall.pageSize;
+}
 
 /* ------------------------------------------------------------------ fenêtres */
 document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
   const d = $(`#${b.dataset.open}`);
-  if (b.dataset.open === 'drop') resetDrop();
+  if (b.dataset.open === 'drop') { resetDrop(); mountCaptcha(form); }
   d.showModal();
 }));
 document.querySelectorAll('dialog').forEach(d => {
@@ -186,6 +197,7 @@ function openViewer(p) {
   meta.append(`${p.isRiku ? 'RIKU' : (p.name || t('anon'))} · ${formatDate(p.createdAt)}`);
   $('#viewerBody').replaceChildren(content(p, { full: true }));
   const r = $('#report'); r.open = false;
+  captcha.reset($('[data-captcha]', $('#reportForm')));
   $('#reportForm').reset(); $('#reportForm .form-msg').textContent = '';
   $('#reportForm button[type=submit]').disabled = false;
   $('#viewer').showModal();
@@ -196,23 +208,25 @@ $('#reportForm').addEventListener('submit', async e => {
   const f = e.currentTarget, msg = $('.form-msg', f);
   const reason = new FormData(f).get('reason');
   if (!reason) return;
-  if (!captchaOk(f)) { msg.textContent = t('eCaptcha'); return; }
+  const tok = captcha.token($('[data-captcha]', f));
+  if (!tok) { msg.textContent = t('eCaptcha'); return; }
   $('button[type=submit]', f).disabled = true;
-  try { await reportPost(current.id, reason, captchaToken(f)); msg.textContent = t('reportThanks'); }
-  catch (err) { msg.textContent = err.message; $('button[type=submit]', f).disabled = false; }
+  try { await reportPost(current.id, reason, tok); msg.textContent = t('reportThanks'); }
+  catch (err) { msg.textContent = errorText(err); $('button[type=submit]', f).disabled = false; captcha.reset($('[data-captcha]', f)); }
 });
+// la vérification du signalement ne se charge que si on ouvre « Signaler »
+$('#report').addEventListener('toggle', e => { if (e.currentTarget.open) mountCaptcha($('#reportForm')); });
 
-/* ------------------------------------------------------------------ captcha (maquette : case simulée) */
-function mountCaptchas() {
-  document.querySelectorAll('[data-captcha]').forEach(el => {
-    if (CONFIG.mode === 'mock') {
-      el.innerHTML = '<label class="check captcha-mock"><input type="checkbox"> <span data-i18n="captchaMock"></span></label>';
-      applyI18n(el);
-    }
-  });
+/* ------------------------------------------------------------------ captcha et erreurs */
+const mountCaptcha = f => captcha.mount($('[data-captcha]', f), { lang, mockLabel: t('captchaMock') });
+
+/** Message lisible pour une erreur du serveur ou du réseau (codes : supabase/functions/*). */
+function errorText(err) {
+  if (!(err instanceof ServerError)) return t('eServer');
+  const map = { captcha: 'eCaptcha', rate: 'eRate', tooBig: 'eTooBigSrv', type: 'eType', thumb: 'eType', size: 'eType',
+    meta: 'eMeta', tooLong: 'eTooLong', empty: 'eEmpty', rights: 'eRights', name: 'eName', gone: 'eGone', network: 'eNetwork' };
+  return t(map[err.code] || 'eServer', { max: budget(), size: '' });
 }
-const captchaOk = form => CONFIG.mode !== 'mock' || $('[data-captcha] input', form)?.checked;
-const captchaToken = () => 'mock';
 
 /* ------------------------------------------------------------------ dépôt */
 // Un seul formulaire : une image, des mots, ou les deux. Le nombre de caractères autorisés
@@ -268,21 +282,23 @@ form.addEventListener('submit', async e => {
   if (!prepared && !text) { msgEl.textContent = t('eEmpty'); return; }
   if (textLength(text) > max) { msgEl.textContent = t('eTooLong', { max }); return; }
   if (!$('#rights').checked) { msgEl.textContent = t('eRights'); return; }
-  if (!captchaOk(form)) { msgEl.textContent = t('eCaptcha'); return; }
+  const tok = captcha.token($('[data-captcha]', form));
+  if (!tok) { msgEl.textContent = t('eCaptcha'); return; }
   const send = $('#send');
   send.disabled = true; msgEl.textContent = t('sending');
   try {
-    await submitPost({ kind: prepared ? 'image' : 'text', text, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: captchaToken(form) });
-    msgEl.textContent = t(CONFIG.mode === 'mock' ? 'thanksMock' : 'thanks');
+    await submitPost({ text, lang, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: tok });
+    msgEl.textContent = t(mode === 'mock' ? 'thanksMock' : 'thanks');
   } catch (err) {
-    msgEl.textContent = err.message; send.disabled = false;
+    msgEl.textContent = errorText(err); send.disabled = false;
   }
+  captcha.reset($('[data-captcha]', form));          // un jeton ne sert qu'une fois
 });
 
 /* ------------------------------------------------------------------ démarrage */
-mountCaptchas();
 refreshDropTexts();
-posts = await fetchPosts();
+try { await loadPage(); }
+catch { posts = []; hasMore = false; }               // serveur injoignable : mur vide plutôt qu'une page cassée
 // la hauteur des stickers dépend de la police : on attend qu'elle soit chargée avant de composer le mur
 await Promise.race([document.fonts?.ready, new Promise(r => setTimeout(r, 1500))]);
 setView(view);

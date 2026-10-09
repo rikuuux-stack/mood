@@ -1,0 +1,17 @@
+# Supabase — configuration utilisée par la GitHub Action de déploiement (.github/workflows/supabase.yml).
+# Rien de secret ici : l'identifiant du projet est public (il figure dans l'URL du projet).
+project_id = "ovvdtthnykqvgarrjina"
+
+# verify_jwt = true : chaque appel doit porter une clé valide (la clé publique « anon » du site,
+# ou le jeton de session de RIKU). Les contrôles réels (captcha, admin…) sont faits dans le code.
+[functions.submit]
+entrypoint = "./functions/submit/index.js"
+verify_jwt = true
+
+[functions.report]
+entrypoint = "./functions/report/index.js"
+verify_jwt = true
+
+[functions.moderate]
+entrypoint = "./functions/moderate/index.js"
+verify_jwt = true

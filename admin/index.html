@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Mood — modération</title>
+<meta name="theme-color" content="#0b0b0b">
+<link rel="stylesheet" href="../css/fonts.css?v=1d2766be6d">
+<link rel="stylesheet" href="../css/site.css?v=6c9b86302c">
+<link rel="stylesheet" href="admin.css?v=1fa8cd9f29">
+</head>
+<body>
+<header class="bar">
+  <a class="id" href="../"><span class="id-name">Mood</span></a>
+  <button type="button" class="link" id="logout" hidden>Se déconnecter</button>
+</header>
+
+<main class="adm">
+  <!-- Connexion -->
+  <form id="login" class="adm-login" hidden>
+    <h1>Modération</h1>
+    <input type="email" id="email" autocomplete="username" value="rikuuux@gmail.com" aria-label="E-mail">
+    <input type="password" id="password" autocomplete="current-password" placeholder="Mot de passe" aria-label="Mot de passe">
+    <button type="submit" class="btn-drop btn-drop--wide">Se connecter</button>
+    <p class="form-msg" id="loginMsg" role="status"></p>
+  </form>
+
+  <!-- Tableau de bord -->
+  <section id="dash" hidden>
+    <nav class="adm-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="pending" aria-selected="true">En attente <span data-n="pending"></span></button>
+      <button type="button" role="tab" data-tab="hidden" aria-selected="false">Signalés <span data-n="hidden"></span></button>
+      <button type="button" role="tab" data-tab="published" aria-selected="false">Publiés <span data-n="published"></span></button>
+      <button type="button" role="tab" data-tab="mine" aria-selected="false">Déposer</button>
+    </nav>
+    <p class="form-msg" id="dashMsg" role="status"></p>
+    <ol id="cards" class="adm-cards"></ol>
+
+    <!-- Dépôt direct de RIKU : publié tout de suite, avec la marque -->
+    <form id="mine" class="drop-form adm-mine" hidden>
+      <div class="file-row">
+        <label class="file"><input type="file" id="mineFile" accept="image/jpeg,image/png,image/webp"><span class="btn" id="mineFileLabel">Choisir une image</span></label>
+        <button type="button" class="link" id="mineRemove" hidden>Retirer l’image</button>
+      </div>
+      <figure class="preview" id="minePreview" hidden><img alt=""><figcaption id="mineInfo"></figcaption></figure>
+      <textarea id="mineText" rows="4" placeholder="Des mots (facultatifs avec une image)" aria-label="Texte"></textarea>
+      <p class="hint count"><span id="mineBudget"></span><span id="mineCount"></span></p>
+      <button type="submit" class="btn-drop btn-drop--wide">Publier sur le mur</button>
+      <p class="form-msg" id="mineMsg" role="status"></p>
+    </form>
+  </section>
+</main>
+
+<script type="module" src="admin.js?v=0a4d00f367"></script>
+</body>
+</html>
