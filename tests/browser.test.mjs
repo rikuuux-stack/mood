@@ -386,6 +386,8 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     } else if (!open.canPlay) console.log('SAUTÉ  lecture réelle : ce Chromium de test ne lit pas le H.264 (vérifiée dans GitHub avec Google Chrome, puis sur iPhone)');
     await vp.keyboard.press('Escape');
     await vp.waitForSelector('#viewer:not([open])', { state: 'attached' });
+    // l'événement « close » (qui libère la vidéo) arrive juste APRÈS la fermeture : on l'attend (2 s au plus)
+    await vp.waitForFunction(() => !document.querySelector('#viewerBody').childElementCount, null, { timeout: 2000 }).catch(() => {});
     const closed = await vp.evaluate(() => ({ videos: document.querySelectorAll('video').length, body: document.querySelector('#viewerBody').childElementCount }));
     ok(closed.videos === 0 && closed.body === 0, 'fermeture : la vidéo est arrêtée et libérée de la mémoire', JSON.stringify(closed));
     // Keep : le fragment utilise l'image fixe érodée
@@ -445,6 +447,25 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     ok(dl.suggestedFilename().includes(footer.replaceAll('.', '-')), `${zone} : nom du fichier à la date du téléphone : ${dl.suggestedFilename()}`);
     await tk.close();
   }
+}
+
+// langue : libellés d'interface en anglais pour tous (FR / JA / EN), seuls les messages, mentions et libellés des
+// lecteurs d'écran suivent la langue (du navigateur, ou choisie dans le panneau Mood)
+for (const [locale, mention] of [['fr-FR', /modérés/], ['ja-JP', /確認後に掲載/], ['en-GB', /moderated|review/i]]) {
+  const lc = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 }, locale });
+  await fakeServer(lc);
+  const lp = await lc.newPage();
+  await lp.goto(BASE);
+  await lp.waitForSelector('.item');
+  const seen = await lp.evaluate(() => ({
+    lang: document.documentElement.lang, drop: document.querySelector('.btn-drop').textContent, report: document.querySelector('#report summary').textContent,
+    send: document.querySelector('#send')?.textContent, mail: document.querySelector('[data-contact]').getAttribute('href'),
+    mentions: document.querySelector('[data-i18n="mentions"]').textContent, skip: document.querySelector('.skip').textContent,
+  }));
+  ok(seen.drop === 'Drop' && seen.report === 'Report', `${locale} : libellés en anglais (Drop, Report)`, JSON.stringify(seen));
+  ok(seen.lang === locale.slice(0, 2) && mention.test(seen.mentions), `${locale} : mentions et lecteurs d'écran dans la langue du navigateur (« ${seen.skip} »)`, JSON.stringify(seen));
+  ok(seen.mail === 'mailto:rikuuux@gmail.com', `${locale} : adresse de contact posée depuis la config`, seen.mail);
+  await lc.close();
 }
 
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));

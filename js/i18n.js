@@ -3,7 +3,7 @@
  * Les éléments [data-i18n="clé"] reçoivent leur texte ; [data-i18n-label="clé"] leur aria-label.
  */
 import { STRINGS } from './strings.js?v=3250d2eb31';
-import { CONFIG } from './config.js?v=dddb743260';
+import { CONFIG } from './config.js?v=05f59e2af5';
 
 const LANGS = ['fr', 'ja', 'en'];
 const listeners = new Set();
@@ -30,6 +30,8 @@ export function apply(root = document) {
   root.querySelectorAll('[data-i18n-label]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nLabel)); });
   root.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = el.ariaLabel = t(el.dataset.i18nPlaceholder); });
   document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
+  // adresse de contact : une seule constante (CONFIG.contactEmail), jamais écrite en dur dans la page
+  root.querySelectorAll('[data-contact]').forEach(el => { el.href = `mailto:${CONFIG.contactEmail}`; el.textContent = CONFIG.contactEmail; });
 }
 
 export function setLang(l) {
