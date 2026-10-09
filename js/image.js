@@ -34,15 +34,27 @@ async function encode(img, side) {
   g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
   g.drawImage(img, 0, 0, w, h);
   let blob = await toBlob(c, 'image/webp', 0.86);
-  if (!blob || blob.type !== 'image/webp') blob = await toBlob(c, 'image/jpeg', 0.88);   // anciens Safari
+  if (!blob || blob.type !== 'image/webp') blob = await toBlob(c, 'image/jpeg', 0.88);   // Safari : pas de WebP
   c.width = c.height = 0;                                                              // libère la mémoire (iOS)
-  if (!blob) throw new ImageError('eDecode');
-  return { blob, w, h };
+  if (!blob || !blob.size) throw new ImageError('eDecode');
+  // Safari (iPhone) ajoute un bloc Exif technique à ses JPEG (espace colorimétrique, dimensions) :
+  // on retire tout bloc de métadonnées nous-mêmes, sinon le contrôle ci-dessous bloquerait l'envoi.
+  return { blob: await stripMetadata(blob), w, h };
+}
+
+/** Type réel d'après les premiers octets (l'iPhone annonce parfois un type vide). */
+async function sniff(file) {
+  const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const s = (o, n) => String.fromCharCode(...b.subarray(o, o + n));
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && s(1, 3) === 'PNG') return 'image/png';
+  if (s(0, 4) === 'RIFF' && s(8, 4) === 'WEBP') return 'image/webp';
+  return null;
 }
 
 export async function prepareImage(file) {
   const U = CONFIG.upload;
-  if (!U.types.includes(file.type)) throw new ImageError('eType');
+  if (!U.types.includes(file.type) && !U.types.includes(await sniff(file))) throw new ImageError('eType');
   if (file.size > U.maxBytes) throw new ImageError('eTooBig', file.size);
   const img = await load(file);
   const full = await encode(img, U.maxSide);
@@ -50,6 +62,49 @@ export async function prepareImage(file) {
   if (full.blob.size > U.maxBytes) throw new ImageError('eTooBig', full.blob.size);
   if (await hasMetadata(full.blob) || await hasMetadata(thumb.blob)) throw new ImageError('eMeta');
   return { full: full.blob, thumb: thumb.blob, width: full.w, height: full.h };
+}
+
+/**
+ * Retire les blocs de métadonnées d'un JPEG (APP1 Exif/XMP, APP13 IPTC), d'un PNG (eXIf, tEXt, iTXt, zTXt)
+ * ou d'un WebP (EXIF, XMP). L'image elle-même n'est pas touchée.
+ */
+export async function stripMetadata(blob) {
+  const b = new Uint8Array(await blob.arrayBuffer());
+  const str = (o, n) => String.fromCharCode(...b.subarray(o, o + n));
+  const keep = [];
+  if (b[0] === 0xff && b[1] === 0xd8) {                              // JPEG
+    keep.push(b.subarray(0, 2));
+    let o = 2;
+    while (o + 4 <= b.length && b[o] === 0xff) {
+      const m = b[o + 1], len = (b[o + 2] << 8) | b[o + 3];
+      if (m === 0xda) break;
+      if (m !== 0xe1 && m !== 0xed) keep.push(b.subarray(o, o + 2 + len));
+      o += 2 + len;
+    }
+    keep.push(b.subarray(o));
+  } else if (str(0, 4) === 'RIFF' && str(8, 4) === 'WEBP') {       // WebP
+    for (let o = 12; o + 8 <= b.length;) {
+      const id = str(o, 4), len = b[o + 4] | (b[o + 5] << 8) | (b[o + 6] << 16) | (b[o + 7] << 24);
+      const end = Math.min(b.length, o + 8 + len + (len & 1));
+      if (id === 'VP8X') { const c = b.slice(o, end); c[8] &= ~0x0c; keep.push(c); }   // drapeaux EXIF / XMP retirés
+      else if (id !== 'EXIF' && id !== 'XMP ') keep.push(b.subarray(o, end));
+      o = end;
+    }
+    const size = 4 + keep.reduce((n, k) => n + k.length, 0), head = b.slice(0, 12);
+    head[4] = size & 255; head[5] = (size >> 8) & 255; head[6] = (size >> 16) & 255; head[7] = (size >>> 24) & 255;
+    keep.unshift(head);
+  } else if (b[0] === 0x89 && str(1, 3) === 'PNG') {                // PNG
+    keep.push(b.subarray(0, 8));
+    for (let o = 8; o + 8 <= b.length;) {
+      const len = ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0, id = str(o + 4, 4);
+      if (!['eXIf', 'tEXt', 'iTXt', 'zTXt'].includes(id)) keep.push(b.subarray(o, o + 12 + len));
+      o += 12 + len;
+      if (id === 'IEND') break;
+    }
+  } else {
+    return blob;
+  }
+  return new Blob(keep, { type: blob.type });
 }
 
 /**

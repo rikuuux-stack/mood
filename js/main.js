@@ -11,7 +11,7 @@
 import { CONFIG } from './config.js?v=1f46695844';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=270e9271c0';
 import { layout, sizeFor } from './wall.js?v=37bc413c94';
-import { prepareImage, ImageError } from './image.js?v=4809b3f77f';
+import { prepareImage, ImageError } from './image.js?v=73ede16b64';
 import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=004f01af46';
 import * as captcha from './captcha.js?v=640299d7b3';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
@@ -232,7 +232,7 @@ function errorText(err) {
 // Un seul formulaire : une image, des mots, ou les deux. Le nombre de caractères autorisés
 // dépend des pixels de l'image (js/budget.js) : sans image 500, avec une grande image 40.
 const form = $('#dropForm'), fileIn = $('#file'), textIn = $('#text'), msgEl = $('#dropMsg');
-let prepared = null;
+let prepared = null, preparing = null, imageError = '';   // imageError : image refusée, bloque l'envoi tant qu'elle n'est pas retirée
 const budget = () => prepared ? textBudget(prepared.width, prepared.height) : textBudget();
 
 textIn.addEventListener('input', refreshDropTexts);
@@ -242,35 +242,41 @@ function refreshDropTexts() {
   $('#countN').textContent = `${n} / ${max}`;
   $('#count').classList.toggle('over', n > max);
   $('#fileLabel').textContent = t(prepared ? 'changeImage' : 'chooseImage');
-  $('#removeImage').hidden = !prepared;
+  $('#removeImage').hidden = !prepared && !imageError;
   if (prepared) $('#previewInfo').textContent = t('processed', { w: prepared.width, h: prepared.height, size: formatBytes(prepared.full.size) });
 }
 
 fileIn.addEventListener('change', async () => {
   const file = fileIn.files[0];
-  prepared = null; $('#preview').hidden = true; msgEl.textContent = '';
-  if (!file) return refreshDropTexts();
+  prepared = null; imageError = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  if (!file) { preparing = null; $('#send').disabled = false; return refreshDropTexts(); }
   msgEl.textContent = t('processing');
+  const job = preparing = prepareImage(file);
+  $('#send').disabled = true;                          // pas d'envoi tant que l'image n'est pas prête
   try {
-    prepared = await prepareImage(file);
+    const p = await job;
+    if (job !== preparing) return;                     // une autre image a été choisie entre-temps
+    prepared = p;
     const img = $('#preview img');
     if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
     img.src = img.dataset.url = URL.createObjectURL(prepared.full);
     $('#preview').hidden = false;
     msgEl.textContent = '';
   } catch (err) {
-    fileIn.value = '';
-    msgEl.textContent = err instanceof ImageError ? t(err.code, { size: formatBytes(err.detail || 0) }) : t('eDecode');
+    if (job !== preparing) return;
+    fileIn.value = '';                                 // image refusée : retirée, avec un message clair
+    msgEl.textContent = imageError = err instanceof ImageError ? t(err.code, { size: formatBytes(err.detail || 0) }) : t('eDecode');
   }
+  preparing = null; $('#send').disabled = false;
   refreshDropTexts();
 });
 $('#removeImage').addEventListener('click', () => {
-  prepared = null; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  prepared = null; preparing = null; imageError = ''; $('#send').disabled = false; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
   refreshDropTexts();
 });
 
 function resetDrop() {
-  form.reset(); prepared = null;
+  form.reset(); prepared = null; preparing = null; imageError = '';
   $('#preview').hidden = true; msgEl.textContent = '';
   $('#send').disabled = false;
   refreshDropTexts();
@@ -278,6 +284,9 @@ function resetDrop() {
 
 form.addEventListener('submit', async e => {
   e.preventDefault();
+  if (preparing || $('#send').disabled) return;        // image en préparation ou envoi en cours : pas de double dépôt
+  if (imageError) { msgEl.textContent = imageError; return; }                        // jamais de texte seul « à la place » de l'image
+  if (fileIn.files.length && !prepared) { msgEl.textContent = t('eDecode'); return; }
   const text = textIn.value.trim(), max = budget();
   if (!prepared && !text) { msgEl.textContent = t('eEmpty'); return; }
   if (textLength(text) > max) { msgEl.textContent = t('eTooLong', { max }); return; }
@@ -287,7 +296,8 @@ form.addEventListener('submit', async e => {
   const send = $('#send');
   send.disabled = true; msgEl.textContent = t('sending');
   try {
-    await submitPost({ text, lang, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: tok });
+    const out = await submitPost({ text, lang, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: tok });
+    if (prepared && out.kind === 'text') console.error('[submit] image non reçue par le serveur');
     msgEl.textContent = t(mode === 'mock' ? 'thanksMock' : 'thanks');
   } catch (err) {
     msgEl.textContent = errorText(err); send.disabled = false;

@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../supabase/functions/_shared/image.js';
 import { textBudget as serverBudget } from '../supabase/functions/_shared/budget.js';
 import { textBudget as siteBudget } from '../js/budget.js';
+import { stripMetadata } from '../js/image.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -28,6 +29,13 @@ let diff = 0;
 for (let w = 0; w <= 2000; w += 7) for (let h = 0; h <= 2000; h += 13) if (serverBudget(w, h) !== siteBudget(w, h)) diff++;
 check('budget serveur = budget site (≈ 44 000 tailles)', diff, 0);
 check('budget sans image / 2000×1500 / 2000×2000', [serverBudget(), serverBudget(2000, 1500), serverBudget(2000, 2000)], [500, 125, 40]);
+
+// le site retire lui-même les métadonnées (ex. bloc Exif ajouté par Safari à ses JPEG) : le serveur doit ensuite accepter
+for (const n of ['exif.jpg', 'text.png', 'exif.webp', 'clean.jpg', 'lossy.webp']) {
+  const out = new Uint8Array(await (await stripMetadata(new Blob([f(n)]))).arrayBuffer());
+  check(`${n} nettoyé : sans métadonnées, même format et mêmes dimensions`,
+    [hasMetadata(out), sniffType(out), dimensions(out)], [false, sniffType(f(n)), { width: 37, height: 23 }]);
+}
 
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);

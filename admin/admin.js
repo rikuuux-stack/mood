@@ -6,7 +6,7 @@
  * connecté est bien administrateur. Les textes des dépôts sont insérés via textContent uniquement.
  */
 import { CONFIG } from '../js/config.js?v=1f46695844';
-import { prepareImage, ImageError } from '../js/image.js?v=4809b3f77f';
+import { prepareImage, ImageError } from '../js/image.js?v=73ede16b64';
 import { textBudget, textLength } from '../js/budget.js?v=0d99de1d5b';
 
 const $ = s => document.querySelector(s);
@@ -132,35 +132,66 @@ function render() {
 }
 
 /* ------------------------------------------------------------------ dépôt de RIKU (publié directement, avec la marque) */
-let prepared = null;
+let prepared = null, preparing = null, imageError = '', sending = false;
 const budget = () => prepared ? textBudget(prepared.width, prepared.height) : textBudget();
+const IMAGE_ERRORS = {
+  eType: 'Image refusée : format non accepté (JPEG, PNG ou WebP).',
+  eTooBig: 'Image refusée : fichier trop lourd (5 Mo max).',
+  eMeta: 'Image refusée : les métadonnées n’ont pas pu être retirées.',
+  eDecode: 'Image refusée : impossible de la lire sur cet appareil.',
+};
+const SERVER_ERRORS = {
+  type: 'Image refusée par le serveur (format ou fichier vide).', size: 'Image refusée par le serveur (plus de 2000 px).',
+  thumb: 'Miniature refusée par le serveur.', meta: 'Image refusée par le serveur (métadonnées).',
+  tooBig: 'Image refusée par le serveur (5 Mo max).', tooLong: 'Texte trop long pour cette image.',
+  empty: 'Ajoute une image, des mots, ou les deux.', storage: 'Stockage de l’image impossible (erreur du serveur).',
+};
+const submitBtn = $('#mine button[type=submit]');
 function refreshMine() {
   const n = textLength($('#mineText').value), max = budget();
   $('#mineBudget').textContent = prepared ? `Cette image laisse ${max} caractères` : `Sans image : ${max} caractères`;
   $('#mineCount').textContent = `${n} / ${max}`;
   $('#mineFileLabel').textContent = prepared ? 'Changer d’image' : 'Choisir une image';
-  $('#mineRemove').hidden = !prepared;
+  $('#mineRemove').hidden = !prepared && !imageError;
+  submitBtn.disabled = sending || !!preparing;
+  submitBtn.textContent = sending ? 'Publication…' : preparing ? 'Préparation de l’image…' : 'Publier sur le mur';
 }
 $('#mineText').addEventListener('input', refreshMine);
 $('#mineFile').addEventListener('change', async () => {
   const f = $('#mineFile').files[0];
-  prepared = null; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
-  if (f) {
-    try {
-      prepared = await prepareImage(f);
-      $('#minePreview img').src = URL.createObjectURL(prepared.full);
-      $('#mineInfo').textContent = `${prepared.width} × ${prepared.height} px · métadonnées retirées`;
-      $('#minePreview').hidden = false;
-    } catch (e) {
-      $('#mineMsg').textContent = e instanceof ImageError && e.code === 'eTooBig' ? 'Fichier trop lourd (5 Mo max).' : 'Image refusée (JPEG, PNG ou WebP).';
-    }
+  prepared = null; imageError = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
+  if (!f) { preparing = null; return refreshMine(); }
+  const job = preparing = prepareImage(f);
+  refreshMine();
+  try {
+    const p = await job;
+    if (job !== preparing) return;                      // une autre image a été choisie entre-temps
+    prepared = p;
+    $('#minePreview img').src = URL.createObjectURL(p.full);
+    $('#mineInfo').textContent = `${p.width} × ${p.height} px · métadonnées retirées`;
+    $('#minePreview').hidden = false;
+  } catch (e) {
+    if (job !== preparing) return;
+    console.error('[admin] préparation de l’image impossible :', e);
+    imageError = IMAGE_ERRORS[e instanceof ImageError ? e.code : 'eDecode'] || IMAGE_ERRORS.eDecode;
+    $('#mineMsg').textContent = imageError;
   }
+  preparing = null;
   refreshMine();
 });
-$('#mineRemove').addEventListener('click', () => { prepared = null; $('#mineFile').value = ''; $('#minePreview').hidden = true; refreshMine(); });
+$('#mineRemove').addEventListener('click', () => {
+  prepared = null; imageError = ''; preparing = null; $('#mineFile').value = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
+  refreshMine();
+});
 $('#mine').addEventListener('submit', async e => {
   e.preventDefault();
+  if (sending || preparing) return;                     // pas de double dépôt, pas d'envoi sans l'image en cours de préparation
   const text = $('#mineText').value.trim();
+  // une image choisie mais refusée : on n'envoie PAS le texte seul en silence
+  if (imageError || ($('#mineFile').files.length && !prepared)) {
+    $('#mineMsg').textContent = `${imageError || 'L’image n’est pas prête.'} Retire-la ou choisis-en une autre.`;
+    return;
+  }
   if (!prepared && !text) { $('#mineMsg').textContent = 'Ajoute une image, des mots, ou les deux.'; return; }
   if (textLength(text) > budget()) { $('#mineMsg').textContent = `Trop long : ${budget()} caractères au maximum.`; return; }
   const form = new FormData();
@@ -170,16 +201,22 @@ $('#mine').addEventListener('submit', async e => {
     form.append('image', prepared.full, `image.${ext(prepared.full.type)}`);
     form.append('thumb', prepared.thumb, `thumb.${ext(prepared.thumb.type)}`);
   }
-  $('#mineMsg').textContent = 'Publication…';
+  sending = true; refreshMine(); $('#mineMsg').textContent = 'Publication…';
   try {
     const r = await fetch(`${API}/functions/v1/submit`, { method: 'POST', headers: { apikey: KEY, Authorization: `Bearer ${await token()}` }, body: form });
     const out = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(out.error || 'server');
-    $('#mine').reset(); prepared = null; $('#minePreview').hidden = true; refreshMine();
-    $('#mineMsg').textContent = out.status === 'approved' ? 'Publié sur le mur, avec ta marque.' : 'Envoyé.';
+    const sentImage = !!prepared;
+    $('#mine').reset(); prepared = null; $('#minePreview').hidden = true;
+    $('#mineMsg').textContent = sentImage && out.kind === 'text'
+      ? 'Attention : le texte est publié mais l’image n’a pas été reçue. Supprime ce dépôt (onglet Publiés) et réessaie.'
+      : out.status === 'approved' ? 'Publié sur le mur, avec ta marque.' : 'Envoyé.';
     refresh();
   } catch (err) {
-    $('#mineMsg').textContent = `Échec de la publication (${err.message}).`;
+    console.error('[admin] publication refusée :', err.message);
+    $('#mineMsg').textContent = `Échec de la publication : ${SERVER_ERRORS[err.message] || `erreur « ${err.message} »`}.`;
+  } finally {
+    sending = false; refreshMine();
   }
 });
 
