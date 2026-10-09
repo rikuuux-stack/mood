@@ -7,8 +7,12 @@ Hébergeable tel quel sur Cloudflare Pages, Netlify ou GitHub Pages.
 
 ## 1. Arborescence
 
+La racine du dépôt (`riku-portfolio/`) est le site : il n'y a pas de sous-dossier `site/`.
+
 ```
-site/                          un seul dossier, déplaçable tel quel
+riku-portfolio/                un seul dossier, déplaçable tel quel
+├── README.md                  tableau « je veux… → fichier » et raccourcis clavier
+├── .gitignore                 exclut les masters (lightmaps/src, *.src.glb) et _a-mettre-en-ligne/
 ├── index.html                 structure, import map, HUD, index, fiche, mire de chargement
 ├── _headers                   cache et types MIME (Cloudflare Pages / Netlify)
 ├── css/
@@ -31,7 +35,8 @@ site/                          un seul dossier, déplaçable tel quel
 │   │   ├── baked.js           matières → MeshBasicMaterial + lightMap (UV1), manifest des lightmaps
 │   │   ├── fallback.js        géométrie provisoire depuis assets/layout.json
 │   │   ├── screens.js         écrans vidéo : contain, lecture paresseuse, N décodeurs max
-│   │   └── spill.js           halo de lumière des écrans sur le béton
+│   │   ├── spill.js           halo de lumière des écrans sur le béton
+│   │   └── sign.js            pancarte de contact (plaque au mur, ouvre « À propos »)
 │   ├── camera/
 │   │   ├── rail.js            caméras Blender → courbe + timeline en secondes
 │   │   ├── walker.js          marche libre (souris capturée, collisions, saut)
@@ -41,21 +46,25 @@ site/                          un seul dossier, déplaçable tel quel
 │       ├── scopes.js          forme d'onde Y′ et vectorscope Rec.709
 │       ├── index-panel.js     index plat, traits ∝ durée, défilement image par image
 │       ├── sheet.js           fiche œuvre / À propos
-│       └── panels.js          modales : focus, Échap, verrou de défilement
+│       └── panels.js          modales : focus, Échap, verrou de défilement, panneaux épinglés
 ├── assets/
 │   ├── layout.json            enfilade provisoire (généré)
 │   ├── models/expo.glb        ← ton export Blender (compressé)
-│   ├── lightmaps/             manifest.json + lightmap.(webp|ktx2|png) ; src/ = masters EXR (non publiés)
+│   ├── lightmaps/             manifest.json + lightmap.webp (2K, servie) + lightmap.png (master, exclue par publish.sh) ;
+│   │                          pas encore de KTX2 ; src/ = masters EXR (ignorés par git)
 │   ├── video/<id>.mp4         boucles d'aperçu ≤ 2 Mo
 │   ├── posters/<id>.webp      affiches
-│   ├── sprites/<id>.webp      planches de 48 images (index)
+│   ├── sprites/<id>.webp      planches d'images (index)
+│   ├── gallery/<id>-<n>.jpg   images de la fiche œuvre
 │   └── fonts/                 woff2 en sous-ensemble + licences OFL
 ├── vendor/three/              three.js 0.186.1 (copie locale, plus de CDN)
-├── _a-mettre-en-ligne/        généré par tools/publish.sh (ne pas éditer)
+├── _a-mettre-en-ligne/        généré par tools/publish.sh, ignoré par git (ne pas éditer)
 ├── tools/
 │   ├── blender/riku_bake.py   UV de bake → bake Cycles → OIDN → PNG avec headroom → .glb
 │   ├── layout/gen_demo_layout.py
-│   ├── media/encode.sh        master → aperçu, affiche, planche
+│   ├── media/encode.sh        master vidéo → aperçu, affiche, planche
+│   ├── media/stills.sh        photos → diaporama en boucle, affiche, planche (œuvre sans vidéo)
+│   ├── textures/              textures béton CC0 (Poly Haven) pour Blender, non publiées
 │   ├── fonts/                 TTF sources + subset.py
 │   ├── publish.sh             copie publique → _a-mettre-en-ligne/
 │   └── compress.sh            glb meshopt + WebP/KTX2, lightmap WebP/KTX2
@@ -63,6 +72,8 @@ site/                          un seul dossier, déplaçable tel quel
     ├── ARCHITECTURE.md        ce fichier
     └── BLENDER-BAKE.md        le guide pas à pas
 ```
+
+`vendor/three/` contient `build/` et `examples/` ; l'import map de `index.html` y pointe.
 
 ### Contrat Blender ↔ site (le seul point de couplage)
 
@@ -101,7 +112,10 @@ Tu as demandé une lecture critique. Voici ce que j'ai gardé, modifié ou écar
 - **Spill.** Deux quads additifs par écran (sol et halo mural), teintés par la couleur moyenne de l'image. Le bake ne peut pas contenir cette lumière. C'est ce qui rend l'espace vivant, pour un coût quasi nul.
 - **Pause globale** (bouton, Espace, K). Le critère WCAG 2.2.2 l'exige pour tout contenu animé de plus de 5 s. En mouvement réduit, rien ne démarre seul, et un saut devient une coupe au lieu d'un travelling.
 - **Coupe au noir** pour les sauts de plus de 2 œuvres. Un travelling de 60 m fait perdre du temps au visiteur, une coupe franche non.
-- **Index d'abord.** L'index est en HTML pur et s'affiche avant que Three.js ne soit téléchargé. En économie de données ou sans WebGL2, c'est lui qui s'ouvre : le site reste entièrement utilisable.
+- **Index d'abord.** L'index est en HTML pur et s'affiche avant que Three.js ne soit téléchargé. En économie de données ou sans WebGL2, c'est lui qui s'ouvre : le site reste entièrement utilisable. Deux cas :
+  - **Sans 3D (tier 0)** : l'index est la seule vue, donc il est *épinglé* (`pinPanel` dans `js/ui/panels.js`) : Échap l'ignore et le bouton « Entrer dans l'espace » est masqué. Les fiches et « À propos » s'ouvrent par-dessus et se referment normalement.
+  - **Économie de données (tier ≥ 1)** : l'index peut être fermé. Tant que la 3D n'est pas lancée, le fermer (Échap) ramène la mire avec les boutons « Entrer dans l'espace » (`#enterBtn`) et « Index » ; le bouton « Entrer dans l'espace » de l'index lance directement la 3D.
+- **Liens directs et fiche à l'arrivée.** En 3D, `#work=<id>` fait voyager la caméra (coupe au noir si l'œuvre est loin, saut direct en mouvement réduit) jusqu'à l'œuvre, puis ouvre sa fiche à l'arrivée (`jumpTo(id, onArrive)` dans `director.js` et `walker.js`). Si le visiteur reprend la main pendant le travelling, la fiche ne s'ouvre pas. Sans 3D, le lien ouvre directement la fiche.
 
 ### Écarté (pour l'instant)
 - **Path tracing automatique à l'arrêt.** L'accumulation repart de zéro à chaque changement de la scène. Or une `VideoTexture` change 25 fois par seconde, donc l'image ne converge jamais devant une vidéo. Le gain serait faible, puisque le diffus est déjà « qualité Cycles », et il faut ajouter la construction de la BVH et la compilation des shaders (plusieurs secondes, plus 200 Ko et plus de JS). → **Phase 5, sous forme de « mode photo »** : un bouton, sur ordinateur seulement, qui fige la vidéo sur une image et affiche la convergence comme une barre de rendu.
@@ -156,15 +170,18 @@ Un kanji oublié s'affiche quand même, dans la police japonaise du système.
 
 - **Cloudflare Pages** (recommandé) : Brotli, HTTP/3 et fichier `_headers`, avec une limite de 25 Mo par fichier. Les requêtes Range sur les MP4 sont gérées.
 - **Netlify** : même principe, `_headers` compris.
-- **GitHub Pages** : fonctionne, mais sans en-têtes de cache personnalisés.
-- **À ne pas publier :** `assets/lightmaps/src/`, `assets/models/expo.src.glb`, `tools/`, `docs/`. Le fichier `.gitignore` et la config de publication doivent les exclure, ou alors il faut publier un sous-dossier.
+- **GitHub Pages** : fonctionne, mais sans en-têtes de cache personnalisés (`_headers` est ignoré) et en publiant le dépôt tel quel (voir ci-dessous).
+- **À ne pas publier :** `assets/lightmaps/src/`, `assets/models/*.src.glb`, `tools/`, `docs/`. `.gitignore` exclut les masters ; `bash tools/publish.sh` produit `_a-mettre-en-ligne/` sans `tools/`, `docs/`, `README.md`, `lightmaps/src/`, `lightmaps/*.png` ni `*.src.glb`. Publier la racine du dépôt (cas de GitHub Pages) expose donc `tools/` et `docs/`.
+- **Activer GitHub Pages** (une seule fois, dans les réglages du dépôt) : *Settings ▸ Pages ▸ Build and deployment ▸ Source : Deploy from a branch*, choisir la branche (par ex. `main`) et le dossier `/ (root)`. Le fichier `.nojekyll` à la racine désactive Jekyll. Le site est servi sous `https://<compte>.github.io/riku-portfolio/` : tous les chemins sont relatifs, il n'y a rien à configurer.
 - Les **films complets** restent sur Vimeo, Mux ou Cloudflare Stream. Le site ne contient que des aperçus.
 
 ## 7. Tester en local
 
 ```bash
-cd riku-expo
-python3 -m http.server 8000        # puis http://localhost:8000
+cd riku-portfolio                  # racine du dépôt
+python3 -m http.server 8000        # puis http://localhost:8000 (sans requêtes Range : positionnement vidéo limité)
 # forcer un niveau :  ?q=0 (index seul)  ?q=1 (mobile)  ?q=2 (ordinateur)
 # lien direct :       #index  #about  #work=entre
+# sans WebGL :        ?q=0, ou un navigateur sans WebGL2 (l'index est alors la seule vue)
+# économie de données : ?q=1 avec navigator.connection.saveData = true
 ```

@@ -12,9 +12,10 @@ import { apply as applyI18n, t } from './core/i18n.js';
 import { $ } from './core/util.js';
 import { initIndex, openIndex, closeIndex, setTimecodes } from './ui/index-panel.js';
 import { initSheet, openSheet, setSeeInSpace } from './ui/sheet.js';
-import { closeAll, isAnyOpen, onPanelsChange } from './ui/panels.js';
+import { closeAll, isAnyOpen, onPanelsChange, pinPanel } from './ui/panels.js';
 
 const caps = detectCapabilities();
+let started = false;                            // la 3D a été lancée
 window.__riku = { caps };                       // pratique pour déboguer dans la console
 applyI18n();
 
@@ -44,7 +45,8 @@ function route(space) {
   else if (h === 'about') openSheet('about');
   else if (h.startsWith('work=')) {
     const id = h.slice(5);
-    if (space) space.director.jumpTo(id); else openSheet(id);
+    // 3D : travelling (ou coupe) jusqu'à l'œuvre, puis la fiche s'ouvre à l'arrivée
+    if (space) space.director.jumpTo(id, () => { dismissBars(); openSheet(id); }); else openSheet(id);
   }
 }
 addEventListener('hashchange', () => route(window.__riku.space));
@@ -57,7 +59,22 @@ if (caps.indexFirst) {
   dismissBars();
   openIndex();
   route(null);
-  if (caps.tier > 0) $('#indexClose').addEventListener('click', () => start3D(), { once: true });
+  if (caps.tier === 0) {
+    pinPanel($('#index'));                       // sans 3D, fermer l'index laisserait une page vide
+  } else {
+    // économie de données : tant que la 3D n'est pas lancée, fermer l'index (Échap) montre la mire
+    // avec le bouton « Entrer dans l'espace » plutôt qu'une page vide
+    const enter = $('#enterBtn');
+    const launch = () => { if (!started) { enter.hidden = true; start3D(); } };
+    $('#indexClose').addEventListener('click', launch, { once: true });
+    enter.addEventListener('click', launch);
+    onPanelsChange(open => {
+      if (started || open.length) return;
+      bars.classList.remove('gone');
+      enter.hidden = false;
+      requestAnimationFrame(() => enter.focus({ preventScroll: true }));
+    });
+  }
 } else {
   start3D().catch(err => {
     console.error(err);
@@ -68,6 +85,7 @@ if (caps.indexFirst) {
 }
 
 async function start3D() {
+  started = true;
   document.body.classList.add('is-3d');
   $('#bars').classList.remove('gone');
   progress(0.05, 'loading');
