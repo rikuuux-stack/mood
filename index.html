@@ -3,133 +3,117 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>RIKU — image, montage, direction artistique</title>
-<meta name="description" content="Portfolio de Félix Cardonnel (RIKU) : image, montage et post-production entre le Japon et la France.">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#101010">
-
-<!-- Polices auto-hébergées : le site ne dépend d'aucun serveur extérieur -->
-<link rel="preload" href="assets/fonts/IBMPlexMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<title>Mood — RIKU</title>
+<meta name="description" content="Mood, le moodboard ouvert de RIKU (Félix Cardonnel), image et direction artistique entre Tokyo et Paris. Déposez une image, des mots, ou les deux.">
+<meta name="theme-color" content="#0b0b0b">
+<link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css">
-<link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/ui.css">
-
-<!-- Three.js 0.186.1 copié dans vendor/ (import map, sans étape de build) : le dossier fonctionne hors ligne. -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "./vendor/three/build/three.module.js",
-    "three/addons/": "./vendor/three/examples/jsm/"
-  }
-}
-</script>
-<link rel="modulepreload" href="js/main.js">
+<link rel="stylesheet" href="css/site.css">
 </head>
 <body>
-<a class="skip" href="#index" data-i18n="skipToIndex">Aller à l'index</a>
+<!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
+     Point d'entrée → sortie : 0 → 0 · 25 % → 24 % · 50 % → 47 % · 75 % → 64 % · 100 % → 76 %.
+     Utilisé par css/site.css (.photo img). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="tone" color-interpolation-filters="sRGB">
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer>
+      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+    </feComponentTransfer>
+  </filter>
+</svg>
+<a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
 
-<!-- Scène 3D (fixe) ; le défilement de la page pilote la caméra -->
-<div id="stage" aria-hidden="true"></div>
-<div id="dip" aria-hidden="true"></div>
-
-<!-- Mode libre : croix de visée, invitation à entrer (capture de la souris), joystick tactile -->
-<div id="cross" aria-hidden="true"></div>
-<button type="button" id="lock" hidden>
-  <span class="lock-title" data-i18n="lockTitle">Cliquer pour entrer</span>
-  <span class="lock-how" data-i18n="lockHow"></span>
-</button>
-<div id="joy" hidden aria-hidden="true"><span class="knob"></span></div>
-<button type="button" id="jumpBtn" hidden aria-label="Sauter">↑</button>
-
-<!-- Piste de défilement : sa hauteur est calculée d'après la durée de la « séquence » -->
-<main id="track" aria-label="Parcours"></main>
-
-<!-- ============================ HUD ============================ -->
-<header id="hud-top" class="hud" hidden>
-  <div class="hud-id">
-    <span class="brand">RIKU</span>
-    <span class="hud-station" id="hudStation" aria-live="polite"></span>
-  </div>
-  <div class="tc" aria-label="Timecode" title="Timecode — position dans le parcours">
-    <span class="tc-label">TC</span><output id="tc">00:00:00:00</output>
-  </div>
-  <nav class="hud-actions" aria-label="Actions">
-    <div class="langs" role="group" aria-label="Langue / 言語 / Language">
-      <button type="button" data-lang="fr">FR</button><button type="button" data-lang="ja">日本語</button><button type="button" data-lang="en">EN</button>
-    </div>
-    <button type="button" class="btn" id="btnPause" aria-pressed="false" data-i18n="pause">Pause</button>
-    <button type="button" class="btn" data-open="about" data-i18n="about">À propos</button>
-    <button type="button" class="btn btn-strong" data-open="index" data-i18n="index">Index</button>
-  </nav>
+<header class="bar">
+  <!-- nom du site, écrit à l'envers (retourné) ; ouvre le panneau RIKU -->
+  <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
+  <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
 </header>
 
-<section id="lower-third" class="hud" hidden aria-live="polite">
-  <p class="lt-meta"></p>
-  <h2 class="lt-title"></h2>
-  <p class="lt-hint" data-i18n="aimHint"></p>
-  <button type="button" class="btn lt-open" data-i18n="openSheet">Fiche</button>
-</section>
+<main id="board" tabindex="-1">
+  <ul id="wall" class="wall"></ul>
+  <ol id="list" class="list" hidden></ol>
+  <p id="empty" class="empty" hidden data-i18n="empty"></p>
+  <p class="more-wrap"><button type="button" id="more" class="link" hidden data-i18n="more"></button></p>
+</main>
 
-<aside id="scopes" class="hud" hidden aria-hidden="true">
-  <figure><canvas id="waveform" width="192" height="96"></canvas><figcaption>WFM Y′</figcaption></figure>
-  <figure><canvas id="vectorscope" width="96" height="96"></canvas><figcaption>VEC 709</figcaption></figure>
-</aside>
 
-<nav id="strip" class="hud" hidden aria-label="Timeline du parcours">
-  <div class="strip-track" id="stripTrack"></div>
-  <div class="strip-head" id="stripHead" aria-hidden="true"></div>
-</nav>
+<!-- Agrandissement d'un dépôt -->
+<dialog id="viewer" class="dlg dlg--viewer" aria-labelledby="viewerMeta">
+  <div class="dlg-head">
+    <p class="viewer-meta" id="viewerMeta"></p>
+    <button type="button" class="x" data-close data-i18n-label="close">×</button>
+  </div>
+  <div class="viewer-body" id="viewerBody"></div>
+  <details class="report" id="report">
+    <summary data-i18n="report">Signaler</summary>
+    <form class="report-form" id="reportForm">
+      <fieldset>
+        <legend class="sr" data-i18n="reportTitle"></legend>
+        <label><input type="radio" name="reason" value="rights" required> <span data-i18n="rRights"></span></label>
+        <label><input type="radio" name="reason" value="offensive"> <span data-i18n="rOffensive"></span></label>
+        <label><input type="radio" name="reason" value="personal"> <span data-i18n="rPersonal"></span></label>
+        <label><input type="radio" name="reason" value="spam"> <span data-i18n="rSpam"></span></label>
+        <label><input type="radio" name="reason" value="other"> <span data-i18n="rOther"></span></label>
+      </fieldset>
+      <div class="captcha" data-captcha></div>
+      <button type="submit" class="btn" data-i18n="reportSend"></button>
+      <p class="form-msg" role="status"></p>
+    </form>
+  </details>
+</dialog>
 
-<!-- ============================ INDEX ============================ -->
-<div id="index" class="panel" role="dialog" aria-modal="true" aria-labelledby="indexTitle" hidden>
-  <div class="panel-head">
-    <h2 id="indexTitle"><span data-i18n="index">Index</span> <small id="indexCount"></small></h2>
-    <div class="panel-tools">
-      <div class="langs" role="group" aria-label="Langue / 言語 / Language">
-        <button type="button" data-lang="fr">FR</button><button type="button" data-lang="ja">日本語</button><button type="button" data-lang="en">EN</button>
-      </div>
-      <button type="button" class="btn" data-open="about" data-i18n="about">À propos</button>
-      <button type="button" class="btn" id="indexClose" data-close="index" data-i18n="enterSpace">Entrer dans l'espace</button>
+<!-- Dépôt : une image, des mots, ou les deux. Plus l'image a de pixels, moins il reste de mots (js/budget.js). -->
+<dialog id="drop" class="dlg dlg--drop" aria-labelledby="dropTitle">
+  <form id="dropForm" class="drop-form" novalidate>
+    <div class="dlg-head">
+      <h2 id="dropTitle" data-i18n="drop"></h2>
+      <button type="button" class="x" data-close data-i18n-label="close">×</button>
     </div>
-  </div>
-  <div class="index-cols" aria-hidden="true">
-    <span>TC IN</span><span></span><span data-i18n="colTitle">Titre</span><span data-i18n="colFormat">Format</span><span data-i18n="colDuration">Durée</span>
-  </div>
-  <ol id="indexList" class="index-list"></ol>
-  <p class="index-foot" data-i18n="indexFoot"></p>
-</div>
 
-<!-- ============================ FICHE ============================ -->
-<aside id="sheet" class="panel sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
-  <div class="panel-head">
-    <p class="sheet-slug"></p>
-    <button type="button" class="btn" data-close="sheet" data-i18n="close">Fermer</button>
-  </div>
-  <div class="sheet-content"></div>
-</aside>
-
-<!-- ============================ MIRE DE CHARGEMENT ============================ -->
-<div id="bars" role="status" aria-live="polite">
-  <div class="bars-top" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="bars-mid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="bars-low" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="ident">
-    <p class="ident-name">RIKU</p>
-    <p class="ident-line" data-i18n="identLine"></p>
-    <div class="ident-progress"><span id="barsProgress"></span></div>
-    <p class="ident-status" id="barsStatus" data-i18n="loading"></p>
-    <div class="ident-actions">
-      <button type="button" class="btn btn-strong" id="enterBtn" data-i18n="enterSpace" hidden>Entrer dans l'espace</button>
-      <button type="button" class="btn btn-strong" data-open="index" data-i18n="skipToIndex">Index</button>
+    <div class="file-row">
+      <label class="file">
+        <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+        <span class="btn" id="fileLabel" data-i18n="chooseImage"></span>
+      </label>
+      <button type="button" class="link" id="removeImage" hidden data-i18n="removeImage"></button>
     </div>
-  </div>
-</div>
+    <p class="hint" data-i18n="imageHint"></p>
+    <figure class="preview" id="preview" hidden><span class="photo"><img alt=""></span><figcaption id="previewInfo"></figcaption></figure>
 
-<noscript>
-  <div class="noscript">
-    <p>RIKU — Félix Cardonnel. Ce portfolio nécessite JavaScript. / このサイトにはJavaScriptが必要です。 / This portfolio requires JavaScript.</p>
+    <textarea id="text" rows="4" data-i18n-placeholder="textPlaceholder"></textarea>
+    <p class="hint count" id="count" aria-live="polite"><span id="budgetNote"></span><span id="countN"></span></p>
+
+    <input type="text" id="name" maxlength="40" autocomplete="nickname" data-i18n-placeholder="nameLabel">
+    <label class="check"><input type="checkbox" id="rights"> <span data-i18n="rights"></span></label>
+    <div class="captcha" data-captcha></div>
+    <button type="submit" class="btn-drop btn-drop--wide" id="send" data-i18n="send"></button>
+    <p class="form-msg" id="dropMsg" role="status" aria-live="polite"></p>
+  </form>
+</dialog>
+
+<!-- RIKU : présentation, contact, réglages (langue, affichage), mentions -->
+<dialog id="about" class="dlg dlg--about" aria-labelledby="aboutTitle">
+  <div class="dlg-head">
+    <h2 id="aboutTitle">RIKU</h2>
+    <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
-</noscript>
+  <p class="about-role" data-i18n="role"></p>
+  <p data-i18n="aboutBody"></p>
+  <p><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
+  <div class="prefs">
+    <span class="langs" role="group" aria-label="Langue / 言語 / Language">
+      <button type="button" class="link" data-lang="fr" lang="fr">FR</button>
+      <button type="button" class="link" data-lang="ja" lang="ja">日本語</button>
+      <button type="button" class="link" data-lang="en" lang="en">EN</button>
+    </span>
+    <button type="button" class="link" id="viewBtn"></button>
+  </div>
+  <p class="hint"><span class="stamp stamp--inline" aria-hidden="true"></span> <span data-i18n="stampLegend"></span></p>
+  <p class="hint" data-i18n="mentions"></p>
+</dialog>
 
 <script type="module" src="js/main.js"></script>
 </body>

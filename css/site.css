@@ -1,0 +1,199 @@
+/* RIKU — moodboard ouvert. Direction brutaliste, fond noir.
+   Règle de couleur : UNIQUEMENT des gris neutres, du noir au blanc. Aucune teinte.
+   Toutes les photos déposées sont affichées en noir et blanc avec du grain (.photo). */
+:root {
+  --bg: #0b0b0b;            /* fond de page : noir */
+  --fg: #e8e8e8;            /* texte : blanc cassé (contraste ≈ 16:1 sur le fond) */
+  --muted: #9a9a9a;         /* texte secondaire (≈ 7:1) */
+  --panel: #161616;         /* fenêtres (dépôt, agrandissement, panneau RIKU) */
+  --rule: #3a3a3a;          /* filets et bordures discrets */
+  --photo-bg: #1d1d1d;      /* fond d'une photo pendant son chargement */
+  /* traits très fins partout : IBM Plex Sans JP ExtraLight (200), Thin (100) pour « RIKU ».
+     Repli : Hiragino Sans (iPhone/Mac) existe aussi en graisses fines. */
+  --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --light: 200;
+  --line: 1px;              /* bordures : aussi fines que les lettres */
+  --gutter: 24px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  /* grain marqué sur le noir (bruit blanc, 16 % d'opacité max) : fond de page ET bandeau */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+@media (max-width: 639px) { :root { --gutter: 16px; } }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--bg); }
+html.modal, html.modal body { overflow: hidden; }
+body {
+  margin: 0; min-height: 100dvh;
+  background: var(--bg);
+  background-image: var(--noise);
+  color: var(--fg);
+  font: var(--light) 13px/1.65 var(--font);
+  line-break: strict;
+  overflow-wrap: anywhere;
+}
+button, input, textarea { font: inherit; color: inherit; }
+/* japonais : chasse proportionnelle (palt), plus serrée et plus lisible */
+:lang(ja) { font-feature-settings: 'palt' 1; letter-spacing: .02em; }
+button { cursor: pointer; }
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+
+/* focus : double anneau clair/noir, visible sur le fond, les fenêtres et les photos */
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; box-shadow: 0 0 0 6px var(--bg); }
+
+.skip { position: absolute; left: 8px; top: -60px; z-index: 100; background: var(--fg); color: var(--bg); padding: 8px 12px; }
+.skip:focus { top: 8px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ bandeau : RIKU + Déposer */
+.bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: calc(12px + var(--safe-t)) var(--gutter) 12px;
+  background: var(--bg) var(--noise);   /* même grain que la page : pas de bande lisse en haut */
+}
+.id { all: unset; cursor: pointer; font-weight: 100; font-size: 1.4rem; line-height: 1; padding: 6px 0; }
+/* « Mood » à l'envers : retourné de 180°. L'espacement des lettres est compensé à gauche
+   (après rotation, l'espace qui suit la dernière lettre se retrouve devant la première). */
+.id-name { display: inline-block; transform: rotate(180deg); letter-spacing: .3em; margin-left: -.3em; }
+.btn-drop {
+  border: var(--line) solid var(--fg); background: transparent; color: var(--fg);
+  font-weight: var(--light); font-size: .8rem; letter-spacing: .1em;
+  padding: 7px 12px; min-height: 38px;
+}
+.btn-drop:hover { background: var(--fg); color: var(--bg); }
+.btn-drop:disabled { opacity: .5; cursor: progress; }
+.btn-drop--wide { width: 100%; margin-top: 4px; min-height: 44px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--line) solid currentColor; background: transparent; padding: 8px 14px; min-height: 40px; font-weight: var(--light); font-size: .85rem;
+}
+.btn:hover { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.link { all: unset; cursor: pointer; font-size: .82rem; padding: 10px 0; line-height: 1; }
+.link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.link:focus-visible, .id:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: none; }
+.x { all: unset; cursor: pointer; width: 44px; height: 44px; display: grid; place-items: center; font-size: 1.6rem; line-height: 1; margin-right: -10px; }
+.x:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; box-shadow: none; }
+
+@media (max-width: 639px) {
+  .bar { gap: 12px; padding-top: calc(8px + var(--safe-t)); padding-bottom: 8px; }
+  .id { font-size: 1.15rem; }
+}
+
+/* ------------------------------------------------------------------ mur */
+.wall { position: relative; list-style: none; margin: 0; padding: 0; }
+.item { position: absolute; }
+.item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
+.item-hit:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
+.fig { display: block; }
+.item--image .photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* photos : noir et blanc + grain, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
+   Appliqué à l'affichage : les fichiers restent intacts, le traitement est le même pour tous. */
+.photo { position: relative; display: block; overflow: hidden; background: var(--photo-bg); }
+.photo img { display: block; filter: url(#tone); }   /* N&B + hautes lumières assombries (filtre SVG dans index.html) */
+.photo::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: .55;
+}
+
+/* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
+.sticker {
+  display: block; height: 100%;
+  padding: 4px 2px 8px;
+  font-size: var(--fs, 15px); line-height: 1.55;
+}
+.sticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 10; overflow: hidden; white-space: pre-line; }
+.sticker-by { display: block; margin-top: .55em; font: var(--light) 12px/1.4 var(--mono); color: var(--muted); }
+
+/* commentaire d'une photo : sous l'image, petit ; jamais recouvert (js/wall.js) */
+.caption { display: block; padding: 5px 1px 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
+.caption-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: pre-line; }
+
+/* marque de RIKU : petit carré clair façon tampon, sans texte */
+.stamp {
+  position: absolute; top: -6px; right: -6px; z-index: 1;
+  width: 14px; height: 14px; background-color: var(--fg);
+  background-image: radial-gradient(rgba(0,0,0,.25) .8px, transparent 1.1px);
+  background-size: 3px 3px;
+  box-shadow: inset 0 0 0 2px var(--fg), inset 0 0 0 3px rgba(0,0,0,.35);
+}
+.stamp.stamp--inline { position: relative; top: 0; right: 0; display: inline-block; width: 11px; height: 11px; vertical-align: -1px; }
+.item--text .stamp { top: -2px; left: 2px; right: auto; width: 11px; height: 11px; }
+.item--text.is-riku .sticker { padding-top: 16px; }
+
+/* ------------------------------------------------------------------ liste */
+.list { list-style: none; max-width: 620px; margin: 0 auto; padding: 12px var(--gutter) 24px; display: grid; gap: 36px; }
+.row .item-hit { display: block; height: auto; }
+.row .photo img { width: 100%; height: auto; }
+.row .sticker { height: auto; font-size: 14px; }
+.row .sticker-text, .row .caption-text { -webkit-line-clamp: unset; display: block; }
+.row-meta { margin: 6px 0 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
+
+.empty { margin: 48px var(--gutter); color: var(--muted); font-size: 12px; }
+.more-wrap { text-align: center; margin: 24px 0; }
+
+/* ------------------------------------------------------------------ fenêtres */
+.dlg {
+  border: var(--line) solid var(--rule); padding: 16px 20px 22px; background: var(--panel); color: var(--fg);
+  width: min(920px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;
+  overscroll-behavior: contain;
+}
+.dlg::backdrop { background: rgba(0,0,0,.86); }
+.dlg--drop, .dlg--about { width: min(520px, calc(100vw - 24px)); }
+.dlg h2 { margin: 0; font-size: 1.15rem; font-weight: var(--light); letter-spacing: .06em; }
+#aboutTitle { font-weight: 100; letter-spacing: .32em; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.viewer-meta { margin: 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
+.viewer-body .photo { display: table; margin: 0 auto; }
+.viewer-body img { max-width: 100%; max-height: 70dvh; width: auto; height: auto; }
+.viewer-body .sticker { font-size: clamp(14px, 1.6vw, 18px); }
+.viewer-body .caption { font-size: 13px; max-width: 40em; margin: 0 auto; }
+.viewer-body .sticker-text, .viewer-body .caption-text { -webkit-line-clamp: unset; display: block; }
+
+@media (max-width: 639px) {
+  .dlg { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; padding: 12px var(--gutter) calc(18px + var(--safe-b)); }
+  .viewer-body img { max-height: 60dvh; }
+}
+
+/* panneau RIKU */
+.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 16px 0; padding-block: 8px; border-block: var(--line) solid var(--rule); }
+.langs { display: flex; gap: 14px; }
+.langs .link { opacity: .5; }
+.langs .link[aria-pressed="true"] { opacity: 1; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+.about-role { margin-top: 0; }
+.mail { font-size: 1rem; }
+
+/* signalement : discret */
+.report { margin-top: 12px; }
+.report summary { display: inline-block; cursor: pointer; font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
+.report fieldset { border: 0; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+
+/* formulaires : les champs restent à 16 px (en dessous, l'iPhone zoome automatiquement) */
+.drop-form { display: grid; gap: 12px; }
+.drop-form input[type="text"], .drop-form textarea {
+  font-weight: var(--light); font-size: 16px; padding: 10px 12px; width: 100%;
+  border: var(--line) solid var(--rule); background: var(--bg); color: var(--fg); border-radius: 0;
+}
+.drop-form input[type="text"]:focus, .drop-form textarea:focus { border-color: var(--fg); }
+.drop-form textarea { resize: vertical; min-height: 6.5em; }
+.drop-form ::placeholder { color: var(--muted); opacity: 1; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.check input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--fg); }
+.file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file:has(input:focus-visible) .btn { outline: 2px solid var(--fg); outline-offset: 2px; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.count { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); }
+.count.over { color: var(--fg); text-decoration: underline; }
+.preview { margin: 0; }
+.preview .photo { display: inline-block; }
+.preview img { max-width: 100%; max-height: 36dvh; width: auto; }
+.preview figcaption { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin-top: 6px; }
+.captcha-mock { font-size: 13px; }
+.form-msg { margin: 0; min-height: 1.5em; font-size: 13px; }
