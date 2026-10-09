@@ -38,3 +38,8 @@
 .adm-card video { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; background: #000; }
 .adm-storage { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin: 8px 0; }
 .adm-storage.warn { color: var(--fg); text-decoration: underline; }
+/* expiration à 180 jours (rapport) */
+.adm-expiry { display: grid; gap: 6px; font: var(--light) 12px/1.5 var(--mono); }
+.adm-expiry-list { margin: 8px 0 0; padding-left: 1.4em; color: var(--muted); }
+.adm-expiry-list p { margin: 2px 0; }
+.adm-expiry .btn.confirm { background: var(--fg); color: var(--bg); }

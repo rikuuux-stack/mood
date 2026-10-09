@@ -38,13 +38,17 @@ await t('le mur public (vue « wall ») est lisible', async () => {
   const r = await req('/rest/v1/wall?select=id,kind,text&limit=5');
   return r.status === 200 && Array.isArray(r.body_) ? true : status(r, 200);
 });
-for (const table of ['posts', 'reports', 'admins']) {
+for (const table of ['posts', 'reports', 'admins', 'expiry_settings']) {
   await t(`la table « ${table} » est fermée au public`, async () => {
     const r = await req(`/rest/v1/${table}?select=*&limit=1`);
     // refusé (401/403/404), ou au pire aucune ligne visible
     return r.status !== 200 || (Array.isArray(r.body_) && r.body_.length === 0) || `lisible : ${r.bodyText.slice(0, 120)}`;
   });
 }
+await t('la liste des dépôts à expirer (expiry_candidates) est fermée au public', async () => {
+  const r = await req('/rest/v1/rpc/expiry_candidates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  return r.status >= 400 || `lisible : HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
+});
 await t('impossible d’écrire directement dans « posts »', async () => {
   const r = await req('/rest/v1/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ kind: 'text', text: 'intrus', status: 'approved' }) });
