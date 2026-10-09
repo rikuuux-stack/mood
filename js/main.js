@@ -8,12 +8,12 @@
  *
  * Les textes des visiteurs ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
-import { CONFIG } from './config.js';
-import { apply as applyI18n, t, setLang, onLangChange, formatDate, formatBytes } from './i18n.js';
-import { layout, sizeFor } from './wall.js';
-import { prepareImage, ImageError } from './image.js';
-import { fetchPosts, submitPost, reportPost } from './data.js';
-import { textBudget, textLength } from './budget.js';
+import { CONFIG } from './config.js?v=8e29dd9ad2';
+import { apply as applyI18n, t, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=227414355e';
+import { layout, sizeFor } from './wall.js?v=37bc413c94';
+import { prepareImage, ImageError } from './image.js?v=73ba8740f7';
+import { fetchPosts, submitPost, reportPost } from './data.js?v=c372a76753';
+import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');

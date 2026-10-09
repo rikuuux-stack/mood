@@ -2,13 +2,13 @@
  * Accès aux données. En mode 'mock', tout est simulé localement (rien ne quitte le navigateur).
  * Le mode 'live' (Supabase) sera branché à l'étape suivante.
  */
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=8e29dd9ad2';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 export async function fetchPosts() {
   if (CONFIG.mode === 'mock') {
-    const { MOCK_POSTS } = await import('./mock.js');
+    const { MOCK_POSTS } = await import('./mock.js?v=75d61f5f8f');
     return MOCK_POSTS;
   }
   throw new Error('mode live : pas encore branché');

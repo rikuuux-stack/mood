@@ -21,11 +21,13 @@ Les modules JavaScript ne fonctionnent pas en `file://` : il faut un petit serve
 | changer les couleurs ou la typographie | `css/site.css` (variables en haut du fichier) |
 | comprendre le placement du mur | `js/wall.js` |
 | régénérer les polices après avoir changé un texte du site | `python3 tools/fonts/subset.py` |
+| **avant chaque mise en ligne** : forcer les visiteurs à recharger les fichiers modifiés | `python3 tools/stamp.py` |
 
 ## Tests
 
 ```bash
 node tests/wall.test.mjs          # règles de lisibilité du mur
+python3 tools/stamp.py --check    # empreintes de cache à jour
 ```
 
 ## Archive

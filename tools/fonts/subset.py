@@ -91,3 +91,6 @@ for fam, w, file, rng in faces:
                f"  src: url('../assets/fonts/{file}') format('woff2');\n  unicode-range: {rng}; }}")
 (ROOT / 'css/fonts.css').write_text('\n'.join(css) + '\n', encoding='utf-8')
 print('css/fonts.css réécrit')
+
+# css/fonts.css vient d'être réécrit sans empreintes : on les remet (cache-busting, voir tools/stamp.py)
+subprocess.run([sys.executable, str(ROOT / 'tools/stamp.py')], check=True)

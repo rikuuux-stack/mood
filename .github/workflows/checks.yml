@@ -1,0 +1,19 @@
+# Vérifications automatiques à chaque envoi et pull request :
+#  - les empreintes de cache (?v=…) sont à jour (sinon des visiteurs garderaient d'anciens fichiers) ;
+#  - les règles de lisibilité du mur sont respectées.
+name: Vérifications
+on:
+  push:
+  pull_request:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Empreintes de cache à jour
+        run: python3 tools/stamp.py --check
+      - name: Règles du mur
+        run: node tests/wall.test.mjs
