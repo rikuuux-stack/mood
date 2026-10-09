@@ -82,6 +82,21 @@ export function visibility(days) {
  * Usure w = (1 − v) / 0,7 : palier 1 dès w ≥ 0,08 (≈ 10 j), 2 dès 0,3 (≈ 22 j), 3 dès 0,55 (≈ 40 j), 4 dès 0,8 (≈ 73 j).
  */
 export const STAGES = [0.08, 0.3, 0.55, 0.8];
+/*
+ * Traitement des images, partagé par l'écran (filtres SVG de index.html : #tone, #erode1 … #erode4) et
+ * par l'export d'un fragment (js/fragment.js, en pixels). tests/wall.test.mjs vérifie que index.html
+ * porte exactement ces valeurs.
+ *   TONE  : courbe de tons après passage en gris (0 → 0 · 25 % → 24 % · … · 100 % → 76 %) ;
+ *   ERODE : par palier, seuil t et pente k de la transparence (alpha = 1 − k × (gris − t)),
+ *           force g du grain (bruit gris en « overlay »).
+ */
+export const TONE = [0, 0.24, 0.47, 0.64, 0.76];
+export const ERODE = [
+  { t: 0.6, k: 1.6, g: 0.30 },
+  { t: 0.5, k: 2.2, g: 0.36 },
+  { t: 0.4, k: 2.8, g: 0.42 },
+  { t: 0.3, k: 3.4, g: 0.48 },
+];
 export function stageOf(v) {
   const w = (1 - v) / (1 - TIME.floor);
   return STAGES.filter(s => w >= s - 1e-9).length;

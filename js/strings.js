@@ -24,6 +24,7 @@ const UI = {
   rights: 'I have the rights',
   thanks: 'Sent. Under review.', thanksMock: 'Mock — nothing sent',
   viewWall: 'Wall', viewList: 'List',
+  keep: 'Keep', share: 'Share', save: 'Save', making: '…',
   captchaMock: 'Not a robot (mock)',
 };
 
@@ -37,6 +38,9 @@ export const STRINGS = {
     imageBy: 'Image déposée par {name}',
     textBy: 'Texte déposé par {name}',
     reportTitle: 'Signaler ce contenu',
+    mentionsKeep: 'Un fragment gardé avec « Keep » reste chez la personne qui l’a gardé, même si un dépôt est retiré plus tard.',
+    keepFormat: 'Format de l’image',
+    eKeep: 'Image impossible à créer. Réessayez.',
     mentions: 'Les dépôts sont modérés : rien n’est publié sans validation. En déposant, vous confirmez détenir les droits sur ce que vous publiez. Pour demander un retrait : {email}.',
     // erreurs : traduites, courtes
     eTooBig: 'Trop lourd · 5 Mo max',
@@ -63,6 +67,9 @@ export const STRINGS = {
     imageBy: '{name}さんが投稿した画像',
     textBy: '{name}さんが投稿したテキスト',
     reportTitle: 'この投稿を報告',
+    mentionsKeep: '「Keep」で保存した断片は、のちに投稿が削除されても、保存した人の手元に残ります。',
+    keepFormat: '画像の形式',
+    eKeep: '画像を作成できませんでした。もう一度お試しください。',
     mentions: '投稿はすべて確認後に掲載されます。投稿することで、その内容の権利を持っていることを確認したものとみなします。削除のご依頼：{email}',
     // erreurs : traduites, courtes
     eTooBig: '重すぎます · 5MBまで',
@@ -89,6 +96,9 @@ export const STRINGS = {
     imageBy: 'Image shared by {name}',
     textBy: 'Text shared by {name}',
     reportTitle: 'Report this post',
+    mentionsKeep: 'A fragment saved with “Keep” stays with whoever kept it, even if a post is removed later.',
+    keepFormat: 'Image format',
+    eKeep: 'Could not create the image. Try again.',
     mentions: 'Posts are moderated: nothing is published without approval. By posting, you confirm you own the rights to what you share. To request removal: {email}.',
     // erreurs : traduites, courtes
     eTooBig: 'Too heavy · 5 MB max',

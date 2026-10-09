@@ -13,8 +13,8 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=95312ca8f3';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=25875a6474';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=a3d815e6fe';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=018b09964c';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=cdc5d43083';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=71b45ca5a4';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=637f4a0538';
 import * as captcha from './captcha.js?v=4efce66ea2';
@@ -94,6 +94,7 @@ function watch(root) {
 /** Photo : cadre aux bonnes proportions tout de suite, image en fondu (≈ 220 ms) dès qu'elle est prête. */
 function photo(p, full) {
   const img = document.createElement('img');
+  img.crossOrigin = 'anonymous';                       // pixels lisibles par un canvas (Keep, js/fragment.js) ; avant src
   img.width = p.image.w; img.height = p.image.h;
   img.alt = full ? label(p) : '';
   img.decoding = 'async';
@@ -324,7 +325,73 @@ function showViewer() {
   captcha.reset($('[data-captcha]', $('#reportForm')));
   $('#reportForm').reset(); $('#reportForm .form-msg').textContent = '';
   $('#reportForm button[type=submit]').disabled = false;
+  resetKeep();
 }
+/* ------------------------------------------------------------------ Keep : un fragment du mur
+ * Dans l'agrandissement d'un dépôt du mur : « Keep » ouvre le choix du format (4:5 par défaut, ou 9:16) et
+ * fabrique aussitôt l'image sur l'appareil (js/fragment.js, chargé seulement à ce moment-là). Un second
+ * toucher la partage (menu natif : Enregistrer l'image, Instagram, LINE…) ou, sur ordinateur, la télécharge.
+ * Deux temps : le menu de partage exige un geste récent du visiteur, que la fabrication pourrait dépasser.
+ */
+const keepEl = $('#keep'), keepPanel = $('#keepPanel'), keepGo = $('#keepGo'), keepMsg = $('#keepMsg'), keepPreview = $('#keepPreview');
+const coarse = matchMedia('(pointer: coarse)');
+let keepFormat = '4:5', kept = null, keepJob = 0;
+/** Le dépôt est-il placé sur le mur (le fragment se prélève sur le mur tel qu'il est) ? */
+function keepNode(p) {
+  if (!p || p.pending || view !== 'wall') return null;
+  const n = nodeCache.get(p.id);
+  return n && n.li.isConnected && n.li.style.top ? n : null;
+}
+function dropKept() { if (kept?.url) URL.revokeObjectURL(kept.url); kept = null; }
+function resetKeep() {
+  keepJob++; dropKept();
+  keepPanel.hidden = true; $('#keepBtn').setAttribute('aria-expanded', 'false');
+  keepPreview.hidden = true; keepPreview.removeAttribute('src'); keepMsg.textContent = '';
+  keepEl.hidden = !keepNode(current());
+}
+const canShare = () => coarse.matches && !!kept && !!navigator.canShare?.({ files: [kept.file] });
+async function makeKeep() {
+  const job = ++keepJob, p = current(), n = keepNode(p);
+  if (!n) return;
+  dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
+  keepMsg.textContent = t('making');
+  try {
+    const { makeFragment, today } = await import('./fragment.js?v=93441404b6');
+    const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
+    if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
+    const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
+    kept = { ...out, url: URL.createObjectURL(out.blob), file: new File([out.blob], name, { type: 'image/jpeg' }) };
+    keepPreview.src = kept.url; keepPreview.hidden = false;
+    keepGo.textContent = t(canShare() ? 'share' : 'save');
+    keepGo.disabled = false; keepMsg.textContent = '';
+  } catch (err) {
+    console.error('[keep]', err);
+    if (job === keepJob) keepMsg.textContent = t('eKeep');
+  }
+}
+function download() {
+  const a = document.createElement('a');
+  a.href = kept.url; a.download = kept.file.name;
+  document.body.append(a); a.click(); a.remove();
+}
+$('#keepBtn').addEventListener('click', () => {
+  const open = keepPanel.hidden;
+  keepPanel.hidden = !open; $('#keepBtn').setAttribute('aria-expanded', String(open));
+  if (open && !kept) makeKeep();
+});
+keepPanel.querySelectorAll('[data-format]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.format === keepFormat && kept) return;
+  keepFormat = b.dataset.format;
+  keepPanel.querySelectorAll('[data-format]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  makeKeep();
+}));
+keepGo.addEventListener('click', () => {
+  if (!kept) return;
+  if (canShare()) navigator.share({ files: [kept.file] }).catch(e => { if (e.name !== 'AbortError') download(); });
+  else download();
+});
+$('#viewer').addEventListener('close', () => { keepJob++; dropKept(); });
+
 const step = d => { const j = at + d; if (j >= 0 && j < seq.length) { at = j; showViewer(); } };
 $('#prev').addEventListener('click', () => step(-1));
 $('#next').addEventListener('click', () => step(1));
@@ -481,7 +548,7 @@ form.addEventListener('submit', async e => {
  */
 const preload = list => list.slice(0, 14).forEach(p => {
   if (!p.image) return;
-  const im = new Image(); im.fetchPriority = 'high'; im.decoding = 'async'; im.src = p.image.thumb;
+  const im = new Image(); im.crossOrigin = 'anonymous'; im.fetchPriority = 'high'; im.decoding = 'async'; im.src = p.image.thumb;
 });
 const sameWall = (a, b) => a.length === b.length && a.every((p, i) => p.id === b[i].id && p.size === b[i].size && p.text === b[i].text);
 // la hauteur des textes dépend de la police : on l'attend (brièvement) avant de composer le mur
