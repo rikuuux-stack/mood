@@ -63,14 +63,41 @@ export async function verifyCaptcha(req, token) {
   }
 }
 
-/** L'appelant est-il RIKU (connecté, et inscrit dans la table admins) ? Retourne l'id ou null. */
-export async function adminId(req, db) {
+/** Rôle déclaré dans un jeton JWT (sans le vérifier : la vérification est faite par getUser). */
+function jwtRole(token) {
+  try {
+    const p = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(p + '='.repeat((4 - (p.length % 4)) % 4))).role || null;
+  } catch { return null; }
+}
+
+/**
+ * Qui appelle ?
+ *   { status: 'admin', id }   RIKU connecté, inscrit dans la table admins
+ *   { status: 'none' }        visiteur (clé publique « anon ») ou aucun jeton
+ *   { status: 'auth' }        jeton de session invalide ou expiré → se reconnecter
+ *   { status: 'notAdmin' }    compte connecté, mais pas administrateur
+ *   { status: 'error' }       panne technique (droits, base…) — détails dans les journaux
+ * Les journaux ne contiennent jamais le jeton.
+ */
+export async function caller(req, db) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!token) return null;
+  if (!token || jwtRole(token) !== 'authenticated') return { status: 'none' };
   const { data, error } = await db.auth.getUser(token);
-  if (error || !data?.user) return null;
-  const { data: row } = await db.from('admins').select('user_id').eq('user_id', data.user.id).maybeSingle();
-  return row ? data.user.id : null;
+  if (error || !data?.user) {
+    console.error('[caller] getUser a échoué :', error?.status, error?.code, error?.message);
+    return { status: 'auth' };
+  }
+  const { data: row, error: dbError } = await db.from('admins').select('user_id').eq('user_id', data.user.id).maybeSingle();
+  if (dbError) {
+    console.error('[caller] lecture de « admins » impossible :', dbError.code, dbError.message, dbError.hint || '');
+    return { status: 'error' };
+  }
+  if (!row) {
+    console.warn('[caller] compte connecté mais absent de « admins » :', data.user.id);
+    return { status: 'notAdmin' };
+  }
+  return { status: 'admin', id: data.user.id };
 }
 
 /** Alerte e-mail (Resend). Silencieuse si la clé n'est pas configurée ; ne bloque jamais un dépôt. */

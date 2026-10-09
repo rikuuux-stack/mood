@@ -26,6 +26,6 @@ Deno.serve(async req => {
   const { data: post } = await db.from('posts').select('id').eq('id', post_id).eq('status', 'approved').maybeSingle();
   if (!post) return fail(req, 404, 'gone');
   const { error } = await db.from('reports').insert({ post_id, reason, ip_hash: hash });
-  if (error && error.code !== '23505') return fail(req, 500, 'db');   // 23505 : déjà signalé par cette personne
+  if (error && error.code !== '23505') { console.error('[report] enregistrement impossible :', error.code, error.message); return fail(req, 500, 'db'); }   // 23505 : déjà signalé par cette personne
   return json(req, 201, { ok: true });
 });

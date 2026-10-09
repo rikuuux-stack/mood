@@ -7,7 +7,7 @@
  * fichiers dans le bucket privé. Exception : si l'appelant est RIKU (connecté), son dépôt est publié
  * directement avec sa marque, sans captcha ni limite.
  */
-import { cors, json, fail, service, ipHash, verifyCaptcha, adminId, notify, SITE_URL } from '../_shared/http.js';
+import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, SITE_URL } from '../_shared/http.js';
 import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../_shared/image.js';
 import { textBudget, textLength } from '../_shared/budget.js';
 
@@ -55,7 +55,9 @@ Deno.serve(async req => {
   if (textLength(text) > budget) return fail(req, 400, 'tooLong');
 
   const db = service();
-  const isRiku = !!(await adminId(req, db));
+  const who = await caller(req, db);
+  if (who.status === 'error') return fail(req, 500, 'server');
+  const isRiku = who.status === 'admin';
 
   // 2. captcha et 3. limite de fréquence (pas pour RIKU)
   let hash = null;
@@ -77,7 +79,7 @@ Deno.serve(async req => {
     thumb_path = `${id}-thumb.${EXT[thumb.type]}`;
     for (const [path, f] of [[image_path, full], [thumb_path, thumb]]) {
       const { error } = await db.storage.from(bucket).upload(path, f.bytes, { contentType: f.type, upsert: false });
-      if (error) return fail(req, 500, 'storage');
+      if (error) { console.error('[submit] stockage impossible :', error.message); return fail(req, 500, 'storage'); }
     }
   }
 
@@ -89,6 +91,7 @@ Deno.serve(async req => {
     ip_hash: hash,
   });
   if (error) {
+    console.error('[submit] enregistrement impossible :', error.code, error.message);
     if (hasImage) await db.storage.from(bucket).remove([image_path, thumb_path]);
     return fail(req, 500, 'db');
   }
