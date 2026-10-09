@@ -21,7 +21,7 @@
  */
 import { TONE } from './wall.js?v=8906cf420f';
 import { inspectMp4, checkVideo } from './mp4.js?v=53a1dd24ca';
-import { stripMetadata } from './image.js?v=a3f88b470d';
+import { stripMetadata } from './image.js?v=0bde9bbfaf';
 
 export const VIDEO = { side: 480, fps: 24, bitrate: 300_000, maxDuration: 60, maxBytes: 4 * 1024 * 1024, posterSide: 800 };
 export class VideoError extends Error {
