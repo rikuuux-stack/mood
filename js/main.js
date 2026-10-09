@@ -11,12 +11,12 @@
  * Les textes des visiteurs ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=1f46695844';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=81b3c75cac';
-import { createLayout, sizeFor, MOTIONS, motionStyle } from './wall.js?v=14d76741cd';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=c6e6eda981';
+import { createLayout, sizeFor, MOTIONS, REACT, motionStyle } from './wall.js?v=1e57f5bf56';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=6375903f29';
 import { fetchPosts, cachedPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=78561e8d4f';
 import * as captcha from './captcha.js?v=a66a75c1dc';
-import { createMotion } from './motion.js?v=2f8d05385e';
+import { createMotion } from './motion.js?v=7e9f18c40a';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -24,6 +24,36 @@ const wallEl = $('#wall'), listEl = $('#list');
 let posts = [], hasMore = false, view = 'wall';
 // le mur ne bouge que s'il est affiché et qu'aucune fenêtre n'est ouverte
 const motion = createMotion(() => view === 'wall' && !document.querySelector('dialog[open]'));
+motion.attach(wallEl);
+
+/* ------------------------------------------------------------------ inclinaison (iPhone)
+ * Petite icône du bandeau, visible seulement là où iOS demande une autorisation (iPhone, iPad) et si
+ * « Réduire les animations » est désactivé. L'autorisation n'est demandée qu'au toucher de l'icône.
+ * Choix mémorisé : au retour, l'effet reprend si iOS a gardé l'autorisation, sinon l'icône reste éteinte.
+ */
+const tiltBtn = $('#tiltBtn');
+let tiltOn = false;
+const canTilt = () => typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'
+  && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+function setTilt(on) {
+  if (on === tiltOn) return;
+  tiltOn = on;
+  tiltBtn.setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem('tilt', on ? '1' : '0'); } catch {}
+  motion.setTilt(on);
+  if (view === 'wall' && posts.length) renderWall(posts, { glide: true });   // la marge réservée change
+}
+tiltBtn.hidden = !canTilt();
+tiltBtn.addEventListener('click', async () => {
+  if (tiltOn) return setTilt(false);
+  try { if (await DeviceOrientationEvent.requestPermission() === 'granted') setTilt(true); } catch { /* refusé : l'icône reste éteinte */ }
+});
+try {
+  if (canTilt() && localStorage.getItem('tilt') === '1') {
+    motion.setTilt(true);                                   // essai silencieux : iOS a peut-être gardé l'autorisation
+    setTimeout(() => { if (motion.tiltAlive) { tiltOn = true; tiltBtn.setAttribute('aria-pressed', 'true'); if (posts.length && view === 'wall') renderWall(posts, { glide: true }); } else motion.setTilt(false); }, 1200);
+  }
+} catch {}
 
 applyI18n();
 
@@ -138,7 +168,9 @@ function renderWall(items, { glide = false } = {}) {
   lastW = W;
   const mobile = W < CONFIG.wall.mobileBelow;
   const pad = mobile ? 16 : 24;
-  const A = MOTIONS[motionName].A[mobile ? 'mobile' : 'desktop'];   // amplitude du mouvement : réservée autour de chaque élément
+  const A = MOTIONS[motionName].A[mobile ? 'mobile' : 'desktop'];   // amplitude de la dérive
+  // écartement (doigt / curseur) et inclinaison s'ajoutent : le placement réserve le tout autour de chaque élément
+  const R = REACT.R[mobile ? 'mobile' : 'desktop'], T = tiltOn ? REACT.T : 0, E = R + T;
   raised = null;                                          // l'élément touché est retrouvé par son identifiant (raisedId)
   // 1. créer (ou reprendre) chaque élément à sa largeur, pour mesurer la hauteur des textes
   const ids = new Set(items.map(p => p.id));
@@ -147,7 +179,7 @@ function renderWall(items, { glide = false } = {}) {
     setTimeout(() => n.li.remove(), reducedMotion.matches ? 0 : 450);
   }
   wallNodes = items.map((p, i) => {
-    const { w, font } = sizeFor(p, W - 2 * pad - 2 * A, mobile);
+    const { w, font } = sizeFor(p, W - 2 * pad - 2 * (A + E), mobile);
     const n = nodeFor(p, w, font);
     n.li.dataset.i = i;
     if (!n.li.isConnected) wallEl.append(n.li);
@@ -161,7 +193,7 @@ function renderWall(items, { glide = false } = {}) {
     return { id: n.p.id, kind: n.p.kind, w: n.w, h, capH: n.photoH ? h - n.photoH : 0 };
   });
   // 2. placer : d'abord ce qui est à l'écran (et un écran de plus), puis le reste par morceaux
-  const L = createLayout(W, boxes.length, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile, drift: A });
+  const L = createLayout(W, boxes.length, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile, drift: A + E });
   neighbours = wallNodes.map(() => []);
   top = 2 * wallNodes.length;
   const moving = [];
@@ -172,12 +204,12 @@ function renderWall(items, { glide = false } = {}) {
       const n = wallNodes[i], r = L.add(boxes[i]);
       n.li.dataset.z = r.z;                              // le plus récent au-dessus
       Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });
-      moving.push({ el: n.li, id: n.p.id, x: r.x, y: r.y });
+      moving.push({ el: n.li, id: n.p.id, x: r.x, y: r.y, w: r.w, h: r.h, size: n.p.size });
       reveal(n, Math.min(i * 30, 300));
     }
     for (const [a, b] of L.overlaps.splice(0)) { neighbours[a].push(b); neighbours[b].push(a); }
     wallEl.style.height = `${L.height()}px`;
-    motion.set(moving, A, motionName, W);
+    motion.set(moving, A, motionName, W, { E, R, T, radius: matchMedia('(pointer: coarse)').matches ? 110 : 140 });
     // le mur peut être recomposé (police chargée, largeur changée) : l'élément touché reste au premier plan
     const k = raisedId ? items.findIndex(p => p.id === raisedId) : -1;
     if (k >= 0 && k < i) { raised = wallNodes[k].li; raised.style.zIndex = String(++top); }

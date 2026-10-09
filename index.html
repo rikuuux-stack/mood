@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co">
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=d70e044bc6" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css?v=af3ebca491">
-<link rel="stylesheet" href="css/site.css?v=f5d59ed612">
+<link rel="stylesheet" href="css/site.css?v=ba5a13fde1">
 </head>
 <body>
 <!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
@@ -32,6 +32,8 @@
 <header class="bar">
   <!-- nom du site, écrit à l'envers (retourné) ; ouvre le panneau « à propos » -->
   <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
+  <!-- inclinaison (iPhone seulement, cachée ailleurs) : parallaxe ; l'autorisation n'est demandée qu'au toucher -->
+  <button type="button" class="tilt" id="tiltBtn" hidden aria-pressed="false" data-i18n-label="tilt"><span aria-hidden="true"></span></button>
   <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
 </header>
 
@@ -123,6 +125,6 @@
   <p class="hint" data-i18n="mentions"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=2cb6501142"></script>
+<script type="module" src="js/main.js?v=dae32e076a"></script>
 </body>
 </html>

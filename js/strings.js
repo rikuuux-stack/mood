@@ -19,6 +19,7 @@ const UI = {
   viewWall: 'Wall', viewList: 'List',
   stampLegend: '= author',
   captchaMock: 'Not a robot (mock)',
+  tilt: 'Tilt',
 };
 
 export const STRINGS = {

@@ -60,6 +60,12 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* « Mood » à l'envers : retourné de 180°. L'espacement des lettres est compensé à gauche
    (après rotation, l'espace qui suit la dernière lettre se retrouve devant la première). */
 .id-name { display: inline-block; transform: rotate(180deg); letter-spacing: .3em; margin-left: -.3em; }
+/* inclinaison : petit téléphone dessiné d'un filet, penché ; plein quand l'effet est actif */
+.tilt { all: unset; cursor: pointer; margin-left: auto; display: grid; place-items: center; width: 38px; height: 38px; }
+.tilt[hidden] { display: none; }
+.tilt span { width: 9px; height: 15px; border: var(--line) solid var(--muted); border-radius: 2px; transform: rotate(-18deg); transition: background-color .2s, border-color .2s; }
+.tilt[aria-pressed="true"] span { background: var(--fg); border-color: var(--fg); }
+.tilt:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .btn-drop {
   border: var(--line) solid var(--fg); background: transparent; color: var(--fg);
   font-weight: var(--light); font-size: .8rem; letter-spacing: .1em;

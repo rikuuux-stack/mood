@@ -73,6 +73,11 @@ export const MOTIONS = {
   c: { A: { desktop: 16, mobile: 12 }, vmax: 6 },
 };
 export const DRIFT = MOTIONS.calm.A;               // compatibilité
+/**
+ * Réactions en plus de la dérive (js/motion.js) : écartement au curseur / au doigt (R px au plus) et
+ * inclinaison de l'iPhone (T px au plus, seulement si activée). Le placement réserve A + R (+ T).
+ */
+export const REACT = { R: { desktop: 10, mobile: 6 }, T: 6 };
 export const motionStyle = s => (s in MOTIONS ? s : 'calm');
 
 /**

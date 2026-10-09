@@ -1,7 +1,7 @@
 // Règles du mur (lisibilité) : node tests/wall.test.mjs  → code de sortie 0 si tout est respecté.
 // Les éléments dérivent lentement : on vérifie les règles au repos ET à des centaines d'instants
 // du mouvement (plus le pire cas : deux voisins rapprochés au maximum).
-import { layout, createLayout, coverage, sizeFor, drift, offsetAt, MOTIONS, SIZES } from '../js/wall.js';
+import { layout, createLayout, coverage, sizeFor, drift, offsetAt, MOTIONS, REACT, SIZES } from '../js/wall.js';
 import { SAMPLE_POSTS } from './fixtures.mjs';
 const inter = (a, b) => { const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y); return x > 0 && y > 0 ? x * y : 0; };
 const strip = (r, c) => ({ x: r.x, y: r.y + r.h - c, w: r.w, h: c });
@@ -9,11 +9,15 @@ let fail = 0;
 
 for (const style of Object.keys(MOTIONS))
 for (const [W, mobile, limit] of [[1366,false,.3],[1920,false,.3],[1024,false,.3],[390,true,.15],[320,true,.15]]) {
-  const A = MOTIONS[style].A[mobile ? 'mobile' : 'desktop'], pad = mobile ? 16 : 24, g = mobile ? 28 : 24;
+  // marge réservée : dérive A + écartement R (+ inclinaison T sur iPhone) ; on teste le cas le plus large
+  const Ad = MOTIONS[style].A[mobile ? 'mobile' : 'desktop'], E = mobile ? REACT.R.mobile + REACT.T : REACT.R.desktop, A = Ad + E;
+  const pad = mobile ? 16 : 24, g = mobile ? 28 : 24;
   const posts = Array.from({length:150},(_,i)=>({...SAMPLE_POSTS[i%SAMPLE_POSTS.length], id:'p'+i, size: SIZES[(i*7)%3]}));
   const boxes = posts.map(p=>{const s=sizeFor(p,W-2*pad-2*A,mobile);const h=p.kind==='text'?Math.round(s.font*1.45*Math.min(9,Math.ceil([...p.text].length*s.font*0.55/(s.w-32)))+60):Math.round(s.w*p.image.h/p.image.w);const capH=p.kind==='image'&&p.text?40:0;return {id:p.id,kind:p.kind,w:s.w,h:h+capH,capH};});
   const t0=performance.now(); const L = layout(boxes, W, {limit, pad, mobile, drift: A}); const ms=performance.now()-t0;
-  const motions = boxes.map((b, i) => drift(b.id, A, style, { x: L.rects[i].x, y: L.rects[i].y, W }));
+  const motions = boxes.map((b, i) => drift(b.id, Ad, style, { x: L.rects[i].x, y: L.rects[i].y, W }));
+  // écartement + inclinaison : au pire, poussés au maximum (±E) dans des sens changeants
+  const react = (i, t) => ({ x: E * Math.sign(Math.sin(1.7 * t + i)), y: E * Math.sign(Math.cos(1.1 * t + 2 * i)) });
 
   // 0. placement progressif (par morceaux) = placement d'un coup
   const P = createLayout(W, boxes.length, { limit, pad, mobile, drift: A });
@@ -23,7 +27,7 @@ for (const [W, mobile, limit] of [[1366,false,.3],[1920,false,.3],[1024,false,.3
   // 1. vitesse (mesurée) et amplitude : jamais plus que le style ne le permet
   let vmax = 0, amp = 0;
   motions.forEach(d => { for (let t = 0; t < 120; t += 0.37) { const a = offsetAt(d, t), b = offsetAt(d, t + 0.01);
-    vmax = Math.max(vmax, Math.hypot(b.x - a.x, b.y - a.y) / 0.01); amp = Math.max(amp, Math.abs(a.x), Math.abs(a.y)); } });
+    vmax = Math.max(vmax, Math.hypot(b.x - a.x, b.y - a.y) / 0.01); amp = Math.max(amp, Math.abs(a.x) + E, Math.abs(a.y) + E); } });
 
   // 2. le plus récent toujours au-dessus
   const zWrong = L.overlaps.filter(([a, b]) => !(L.rects[Math.min(a, b)].z > L.rects[Math.max(a, b)].z)).length;
@@ -42,7 +46,7 @@ for (const [W, mobile, limit] of [[1366,false,.3],[1920,false,.3],[1024,false,.3
   // seuls les voisins proches peuvent se toucher : on vérifie tout, mais sur un échantillon d'instants
   for (let k = 0; k <= 600; k += 1) {
     const t = k;            // secondes
-    check(L.rects.map((r, i) => { const o = offsetAt(motions[i], t); return { ...r, x: r.x + o.x, y: r.y + o.y }; }));
+    check(L.rects.map((r, i) => { const o = offsetAt(motions[i], t), e = react(i, t); return { ...r, x: r.x + o.x + e.x, y: r.y + o.y + e.y }; }));
   }
   // pire cas pour chaque paire de voisins : l'un pousse au maximum vers l'autre
   let worstPair = 0;
