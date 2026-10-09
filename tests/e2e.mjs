@@ -54,6 +54,37 @@ await t('la vue « wall » donne la taille d’affichage (s / m / l)', async () 
   const r = await req('/rest/v1/wall?select=id,size&limit=5');
   return (r.status === 200 && (r.body_ || []).every(p => ['s', 'm', 'l'].includes(p.size))) || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
 });
+// --- les requêtes EXACTES du site au chargement (js/data.js), puis chaque fichier cité par le mur public :
+// un fichier manquant donne « 400 » dans la console du visiteur et un cadre gris sur le mur
+const SITE_SELECT = 'id,kind,text,name,image_path,thumb_path,width,height,size,prompt,created_at,approved_at';
+await t('requête du mur telle que le site la fait : acceptée', async () => {
+  const q = new URLSearchParams({ select: SITE_SELECT, order: 'approved_at.desc', offset: '0', limit: '500' });
+  return status(await req(`/rest/v1/wall?${q}`), 200);
+});
+await t('chaque fichier cité par le mur public existe (miniatures, images, vidéos et images fixes)', async () => {
+  const rows = [];
+  for (let off = 0; ; off += 500) {
+    const q = new URLSearchParams({ select: SITE_SELECT, order: 'approved_at.desc', offset: String(off), limit: '500' });
+    const r = await req(`/rest/v1/wall?${q}`);
+    if (r.status !== 200) return status(r, 200);
+    rows.push(...r.body_);
+    if (r.body_.length < 500) break;
+  }
+  const bad = [];
+  for (const p of rows) {
+    if (!p.image_path && !p.thumb_path) continue;
+    for (const [what, path] of [['thumb_path', p.thumb_path], ['image_path', p.image_path]]) {
+      const url = `/storage/v1/object/public/published/${encodeURIComponent(path)}`;
+      const r = path ? await req(url, { method: 'HEAD' }) : null;
+      if (!r || r.status !== 200) {
+        const body = path ? (await req(url)).bodyText.slice(0, 120) : '(chemin vide)';
+        bad.push(`dépôt ${p.id} (${p.kind}, validé ${p.approved_at}, rang ${rows.indexOf(p) + 1}) : ${what} = ${path} → HTTP ${r?.status ?? '-'} ${body}`);
+      }
+    }
+  }
+  console.log(`       ${rows.length} dépôt(s) publics, ${rows.filter(p => p.thumb_path).length} avec fichiers`);
+  return bad.length === 0 || `${bad.length} fichier(s) introuvable(s) :\n         ${bad.join('\n         ')}`;
+});
 await t('la consigne du mois est lisible publiquement (vue current_prompt)', async () => {
   const r = await req('/rest/v1/current_prompt?select=text');
   return (r.status === 200 && Array.isArray(r.body_) && r.body_.length <= 1) || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
