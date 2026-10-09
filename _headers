@@ -1,5 +1,5 @@
 # En-têtes HTTP appliqués par Cloudflare Pages (https://moodwall.pages.dev).
-# GitHub Pages ignore ce fichier. Documentation : https://developers.cloudflare.com/pages/configuration/headers/
+# Documentation : https://developers.cloudflare.com/pages/configuration/headers/
 #
 # Content-Security-Policy : seules sources autorisées
 #   - le site lui-même ;

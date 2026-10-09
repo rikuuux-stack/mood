@@ -1,7 +1,7 @@
 # CLAUDE.md — repères pour les sessions suivantes
 
 ## Le projet
-**Nom du site : Mood.** Moodboard en ligne participatif : les visiteurs déposent une image ou un texte ; rien n'est visible avant validation de l'administrateur. **Adresse : https://moodwall.pages.dev** (Cloudflare Pages, projet « moodwall », branche `main`, sans build, dossier racine). Dépôt public `rikuuux-stack/riku-portfolio`. L'auteur du site n'est pas développeur : expliquer en français, simplement, pas à pas.
+**Nom du site : Mood.** Moodboard en ligne participatif : les visiteurs déposent une image ou un texte ; rien n'est visible avant validation de l'administrateur. **Adresse : https://moodwall.pages.dev** (Cloudflare Pages, projet « moodwall », branche `main`, sans build, dossier racine). Dépôt public `rikuuux-stack/mood` (anciennement `riku-portfolio`, renommé ; GitHub Pages désactivé). L'auteur du site n'est pas développeur : expliquer en français, simplement, pas à pas.
 - **Aucun nom de personne sur le site** (demande de l'auteur) : ni « RIKU », ni nom civil, nulle part (onglet, meta, messages, libellés, admin, à propos, commentaires des fichiers servis, README/docs, ce fichier — Cloudflare Pages sert tout le dépôt). Seule exception : l'adresse de contact rikuuux@gmail.com pour les demandes de retrait (obligation d'hébergeur). Dans le code, la colonne `is_riku` (base) garde son nom ; côté site c'est `isAuthor` / `.is-author`.
 
 ## Décisions validées (ne pas remettre en cause sans lui demander)
@@ -51,11 +51,11 @@
 - Toutes les adresses internes portent une empreinte du contenu : `js/main.js?v=…`, imports `./x.js?v=…` (statiques et `import()`), CSS, polices. Un fichier modifié change d'adresse, donc aucun visiteur ne garde une ancienne version en cache (incident réel : l'ancien `js/main.js` de l'expo 3D restait en cache et bloquait Mood).
 - **Après toute modification de `index.html`, `css/` ou `js/` : `python3 tools/stamp.py`** (`tools/fonts/subset.py` le lance aussi). Un nouvel import doit être écrit avec un chemin relatif `./…` ; le script ajoute l'empreinte.
 - Vérification : `python3 tools/stamp.py --check` (aussi lancée par GitHub Actions, `.github/workflows/checks.yml`).
-- Limite : `index.html` lui-même ne peut pas porter d'empreinte (Cloudflare Pages le revalide à chaque visite ; l'ancienne adresse GitHub Pages le gardait jusqu'à 10 min).
+- Limite : `index.html` lui-même ne peut pas porter d'empreinte (Cloudflare Pages le revalide à chaque visite).
 
 ## Hébergement (Cloudflare Pages)
-- `_headers` est appliqué par Cloudflare Pages (pas par GitHub Pages) : CSP (site, Supabase `ovvdtthnykqvgarrjina.supabase.co`, Turnstile `challenges.cloudflare.com`, `blob:`/`data:` pour les images), cache long `immutable` pour `/js/*`, `/css/*`, `/assets/*` (sûr uniquement parce que toute adresse interne porte `?v=` — `stamp.py --check`), `/admin/*` en `noindex` + `no-store`. Nouveau domaine externe (script, image, API) → l'ajouter à la CSP, sinon il est bloqué.
-- CORS des fonctions (`_shared/http.js`) : `moodwall.pages.dev` et ses aperçus `<id>.moodwall.pages.dev`, plus `rikuuux-stack.github.io` (transition, à retirer ensuite), plus localhost. Le widget Turnstile doit lister les mêmes hostnames.
+- `_headers` est appliqué par Cloudflare Pages : CSP (site, Supabase `ovvdtthnykqvgarrjina.supabase.co`, Turnstile `challenges.cloudflare.com`, `blob:`/`data:` pour les images), cache long `immutable` pour `/js/*`, `/css/*`, `/assets/*` (sûr uniquement parce que toute adresse interne porte `?v=` — `stamp.py --check`), `/admin/*` en `noindex` + `no-store`. Nouveau domaine externe (script, image, API) → l'ajouter à la CSP, sinon il est bloqué.
+- CORS des fonctions (`_shared/http.js`) : `moodwall.pages.dev` et ses aperçus `<id>.moodwall.pages.dev`, plus localhost (l'ancienne adresse `rikuuux-stack.github.io` est refusée, testé par e2e). Le widget Turnstile doit lister les mêmes hostnames.
 - Tout le dépôt est servi publiquement (README, docs, CLAUDE.md, tests) : aucun secret, aucun nom de personne.
 
 ## Tester
