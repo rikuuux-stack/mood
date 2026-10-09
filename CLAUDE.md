@@ -31,7 +31,8 @@
 
 ## Organisation
 - `index.html`, `css/`, `js/` (pas d'étape de build, modules ES).
-- `js/config.js` : `mode: 'mock'` (maquette) ou `'live'` (Supabase).
+- `js/config.js` : `mode: 'mock'` (maquette : mur vide, aucun envoi) ou `'live'` (Supabase).
+- **Le mur démarre vide** (demande de Félix) : plus aucun faux contenu sur le site. Les exemples servant aux tests sont dans `tests/fixtures.mjs` et ne sont jamais affichés.
 - `js/data.js` : seul point d'accès aux données.
 - Branche de travail : `claude/moodboard`. Archive de l'ancien site : branche `archive/expo-3d` (ne jamais supprimer). Le tag `v1-expo-3d` doit être créé par Félix depuis GitHub (push de tags bloqué dans les sessions cloud).
 

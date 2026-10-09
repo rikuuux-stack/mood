@@ -2,7 +2,7 @@
 
 Site de RIKU (Félix Cardonnel) : un mur de moodboard où chacun peut déposer une image ou un court texte. Rien n'est publié sans validation de RIKU.
 
-**État actuel : maquette statique.** Les contenus sont fictifs (`js/mock.js`) et aucun envoi n'a lieu. Le branchement à Supabase (dépôts réels, modération, captcha, alerte e-mail) est l'étape suivante.
+**État actuel : maquette statique.** Le mur est vide (`js/mock.js`) et aucun envoi n'a lieu. Le branchement à Supabase (dépôts réels, modération, captcha, alerte e-mail) est l'étape suivante.
 
 ## Voir le site en local
 

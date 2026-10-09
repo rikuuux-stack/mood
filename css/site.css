@@ -135,7 +135,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .row .sticker-text, .row .caption-text { -webkit-line-clamp: unset; display: block; }
 .row-meta { margin: 6px 0 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
 
-.empty { margin: 48px var(--gutter); }
+.empty { margin: 48px var(--gutter); color: var(--muted); font-size: 12px; }
 .more-wrap { text-align: center; margin: 24px 0; }
 
 /* ------------------------------------------------------------------ fenêtres */
