@@ -38,3 +38,12 @@
 .adm-card video { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; background: #000; }
 .adm-storage { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin: 8px 0; }
 .adm-storage.warn { color: var(--fg); text-decoration: underline; }
+/* archive nocturne du mur : une ligne par nuit, aperçu à l'ouverture */
+.adm-nights { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.adm-night { border-bottom: var(--line) solid var(--rule); }
+.adm-night summary { cursor: pointer; padding: 12px 0; font: var(--light) 13px/1.4 var(--mono); }
+.adm-night summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.adm-night-body { display: grid; gap: 12px; padding: 0 0 16px; }
+.adm-shots { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; }
+.adm-shots img { display: block; width: auto; max-height: 50dvh; max-width: 100%; border: var(--line) solid var(--rule); }
+.adm-night .btn.confirm { background: var(--fg); color: var(--bg); }
