@@ -2,8 +2,8 @@
 #
 #   - à chaque mise à jour de main qui touche supabase/ (et à la demande : bouton « Run workflow ») :
 #       1. base de données (supabase/migrations) ; 2. fonctions (submit, report, moderate) ; 3. tests ;
-#   - chaque lundi : tests seuls. Ça garde aussi le projet Supabase gratuit actif (il se met en
-#     pause après 7 jours sans activité).
+#   - chaque lundi : tests seuls, plus le contrôle de la production dans un vrai navigateur (aussi à la
+#     demande). Ça garde aussi le projet Supabase gratuit actif (il se met en pause après 7 jours sans activité).
 #
 # Secrets GitHub nécessaires (Settings ▸ Secrets and variables ▸ Actions) :
 #   SUPABASE_ACCESS_TOKEN   jeton personnel Supabase (Account ▸ Access Tokens)
@@ -51,8 +51,10 @@ jobs:
           node-version: 22
       - name: Tests de bout en bout (clé publique uniquement)
         run: node tests/e2e.mjs
+      # Contrôle de la production (Chrome + moteur de Safari) : seulement le lundi et à la demande, pas à chaque
+      # déploiement (≈ 2 min de GitHub Actions, ≈ 20 Mo de bande passante Supabase par passage)
       - name: Production dans un vrai navigateur (aucun appel en erreur, images du premier écran affichées)
-        if: always()
+        if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium webkit
