@@ -55,7 +55,7 @@ jobs:
         if: always()
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
           node tests/prod.test.mjs
         env:
           PW_CHANNEL: chrome
