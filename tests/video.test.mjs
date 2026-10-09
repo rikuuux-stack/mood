@@ -93,9 +93,6 @@ ok(g.ok && g.kind === 'gif' && g.info.codec === 'avc1' && Math.abs(g.info.durati
 // 3. vidéo de 61 s : coupée à 60 s
 const l = await convert('/tests/fixtures-img/v-long.mp4', { start: 0 });
 ok(l.ok && l.info.duration <= 60.1 && l.info.duration >= 59.5, `vidéo de 61 s coupée à 60 s (${l.info?.duration} s)`, JSON.stringify(l));
-// 4. annulation
-const c = await convert('/tests/fixtures-img/v-long.mp4', { start: 0, abortAfter: 150 });
-ok(!c.ok && c.code === 'canceled', 'conversion annulable', JSON.stringify(c));
 // 5. vidéo que ce navigateur ne sait pas lire (HEVC sous Linux) : message clair, pas de plantage
 const h = await convert('/tests/fixtures-img/v-hevc.mp4', { start: 0 });
 ok(h.ok || h.code === 'eVideoUnsupported', `vidéo non convertible → message clair (${h.ok ? 'convertie' : h.code})`, JSON.stringify(h));
@@ -125,8 +122,12 @@ const make = (pattern) => page.evaluate(async (pattern) => {
   await out.finalize();
   return URL.createObjectURL(new Blob([out.target.buffer], { type: 'video/mp4' }));
 }, pattern);
-for (const [label, pattern] of [['bruit animé (pire cas)', 'noise'], ['mire animée (cas courant)', 'mire']]) {
-  const url = await make(pattern);
+const sources = { noise: await make('noise'), mire: await make('mire') };
+// 4. annulation (pendant la conversion d'une source de 60 s)
+const c = await convert(sources.mire, { start: 0, abortAfter: 800 });
+ok(!c.ok && c.code === 'canceled', 'conversion annulable', JSON.stringify(c));
+for (const [label, pattern] of [['bruit animé (pire cas : poids plafonné par le débit constant)', 'noise'], ['mire animée (cas courant)', 'mire']]) {
+  const url = sources[pattern];
   const r = await convert(url, { start: 1 });
   ok(r.ok && r.bytes <= 4 * 1024 * 1024, `60 s, ${label} : ${r.ok ? `${(r.bytes / 1048576).toFixed(2)} Mo, ${r.kbps} kb/s, ${r.info.duration} s, image fixe ${Math.round(r.poster.size / 1024)} Ko, converti en ${(r.ms / 1000).toFixed(1)} s` : r.code}`, JSON.stringify(r));
 }

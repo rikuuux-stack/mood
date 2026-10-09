@@ -485,7 +485,7 @@ let src = null, preparing = null, imageError = '';   // src : image lue ; imageE
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
-const videoLib = () => import('./video.js?v=ffa5baf73b');
+const videoLib = () => import('./video.js?v=4a9b13d3f7');
 const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');
 const clock = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const chosenSize = () => new FormData(form).get('size') || 'm';

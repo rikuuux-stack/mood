@@ -10,7 +10,7 @@
  *     exactement comme une photo (noir et blanc, érosion, grain du site).
  *
  * Trois chemins, du plus rapide au plus lent (choisis automatiquement) :
- *   A. décodage + encodage par WebCodecs (Mediabunny) : plus rapide que la lecture ;
+ *   A. décodage + encodage par WebCodecs (Mediabunny), débit constant : plus rapide que la lecture ;
  *   B. si la vidéo ne se décode pas ainsi (certaines HEVC / HDR d'iPhone) : lecture dans une balise
  *      <video>, chaque image redessinée et encodée par WebCodecs → aussi long que la vidéo ;
  *   C. si WebCodecs n'encode pas le H.264 (iOS < 16.4) : même lecture, enregistrée par MediaRecorder
@@ -70,11 +70,30 @@ async function webcodecsAvc(w, h) {
 const recorderType = () => (typeof MediaRecorder !== 'undefined'
   ? ['video/mp4;codecs=avc1', 'video/mp4'].find(t => MediaRecorder.isTypeSupported(t)) : null);
 
-/** Encodeur image par image : add(canvas, t, durée) puis finish() → Blob MP4. */
-async function webcodecsEncoder(c) {
+/* Débit CONSTANT si l'encodeur le sait (le poids ne dépend plus du contenu : une vidéo de nuit très
+ * granuleuse ne dépasse pas 4 Mo), sinon variable ; et si le fichier dépasse quand même 4 Mo, une seconde
+ * passe à débit réduit (retry, chemins A et GIF). */
+let cbr = null;
+async function constantRate(w, h) {
+  if (cbr !== null) return cbr;
+  try { cbr = !!(await VideoEncoder.isConfigSupported({ codec: 'avc1.42001f', width: w, height: h, bitrate: VIDEO.bitrate, bitrateMode: 'constant' })).supported; }
+  catch { cbr = false; }
+  return cbr;
+}
+async function retry(run) {
+  let bitrate = VIDEO.bitrate;
+  for (let pass = 0; ; pass++) {
+    const blob = await run(bitrate);
+    if (blob.size <= VIDEO.maxBytes || pass) return blob;
+    bitrate = Math.floor(bitrate * 0.85 * VIDEO.maxBytes / blob.size);
+  }
+}
+
+/** Encodeur image par image : add(t, durée) encode le canvas tel qu'il est, puis finish() → Blob MP4. */
+async function webcodecsEncoder(c, bitrate = VIDEO.bitrate) {
   const MB = await lib();
   const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
-  const src = new MB.CanvasSource(c, { codec: 'avc', bitrate: VIDEO.bitrate, keyFrameInterval: 2 });
+  const src = new MB.CanvasSource(c, { codec: 'avc', bitrate, bitrateMode: (await constantRate(c.width, c.height)) ? 'constant' : 'variable', keyFrameInterval: 2 });
   output.addVideoTrack(src, { frameRate: VIDEO.fps });
   await output.start();
   return {
@@ -85,9 +104,9 @@ async function webcodecsEncoder(c) {
   };
 }
 /** Enregistreur en temps réel (iOS anciens) : l'image du canvas est captée telle qu'elle est affichée. */
-function recorderEncoder(c, type) {
+function recorderEncoder(c, type, bitrate = VIDEO.bitrate) {
   const stream = c.captureStream(VIDEO.fps);
-  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: VIDEO.bitrate });
+  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: bitrate });
   const parts = [];
   rec.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
   rec.start(1000);
@@ -98,10 +117,10 @@ function recorderEncoder(c, type) {
     cancel: () => { try { rec.stop(); } catch {} stream.getTracks().forEach(t => t.stop()); },
   };
 }
-async function encoderFor(c) {
-  if (await webcodecsAvc(c.width, c.height)) return webcodecsEncoder(c);
+async function encoderFor(c, bitrate) {
+  if (await webcodecsAvc(c.width, c.height)) return webcodecsEncoder(c, bitrate);
   const type = recorderType();
-  if (type && c.captureStream) return recorderEncoder(c, type);
+  if (type && c.captureStream) return recorderEncoder(c, type, bitrate);
   throw new VideoError('eVideoBrowser');
 }
 
@@ -152,30 +171,40 @@ async function openDecodable(MB, input, track, file) {
       aborted(signal);
       if (!(await webcodecsAvc(width, height))) return playbackConvert(file, { start, len, width, height, poster, onProgress, signal });
       const work = canvas(width, height);
-      const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
       let fps = VIDEO.fps;
       try { const st = await track.computePacketStats(120); if (st.averagePacketRate > 0) fps = Math.min(VIDEO.fps, Math.round(st.averagePacketRate)); } catch {}
-      const conv = await MB.Conversion.init({
-        input, output, tracks: 'primary', tags: {}, showWarnings: false, copy: false,
-        trim: { start, end: start + len },
-        audio: { discard: true },                       // sans son
-        video: {
-          width, height, fit: 'fill', frameRate: fps, codec: 'avc', bitrate: VIDEO.bitrate, keyFrameInterval: 2, forceTranscode: true,
-          processedWidth: width, processedHeight: height,
-          process: sample => { sample.draw(work.g, 0, 0, width, height); toneCanvas(work.g, width, height); return work.c; },
-        },
-      });
-      if (!conv.isValid) {
-        console.warn('[video] conversion impossible :', conv.discardedTracks.map(d => d.reason).join(', '));
+      const step = 1 / fps;
+      // chaque image décodée (dans le bon sens), redessinée en noir et blanc + courbe, encodée ; ≤ 24 i/s
+      const pass = async bitrate => {
+        const enc = await webcodecsEncoder(work.c, bitrate);
+        const frames = new MB.CanvasSink(track, { width, height, fit: 'fill', poolSize: 2 });
+        let next = 0, n = 0;
+        try {
+          for await (const { canvas: fc, timestamp } of frames.canvases(start, start + len)) {
+            aborted(signal);
+            const t = Math.max(0, timestamp - start);
+            if (t >= len) break;
+            if (t + 1e-3 < next) continue;                        // image en trop (source à 30 ou 60 i/s)
+            work.g.drawImage(fc, 0, 0, width, height);
+            toneCanvas(work.g, width, height);
+            await enc.add(next, step); n++;
+            next += step; while (next <= t) next += step;
+            onProgress?.(Math.min(1, t / len));
+          }
+          if (!n) throw new VideoError('decode');
+          return await enc.finish();
+        } catch (e) {
+          enc.cancel();
+          if (signal?.aborted) throw new VideoError('canceled');
+          throw e instanceof VideoError ? e : new VideoError(n ? 'eVideoUnsupported' : 'decode', e?.message);
+        }
+      };
+      try { return finish(await retry(pass), poster, width, height); }
+      catch (e) {                                       // aucune image décodée : on essaie par la lecture (chemin B)
+        if (e.code !== 'decode') throw e;
+        console.warn('[video] décodage direct impossible :', e.detail || '');
         return playbackConvert(file, { start, len, width, height, poster, onProgress, signal });
       }
-      conv.onProgress = p => onProgress?.(p);
-      const stop = () => conv.cancel();
-      signal?.addEventListener('abort', stop, { once: true });
-      try { await conv.execute(); }
-      catch (e) { if (signal?.aborted) throw new VideoError('canceled'); throw new VideoError('eVideoUnsupported', e?.message); }
-      finally { signal?.removeEventListener('abort', stop); }
-      return finish(new Blob([output.target.buffer], { type: 'video/mp4' }), poster, width, height);
     },
     close() {},
   };
@@ -299,27 +328,31 @@ async function openGif(file) {
       const pc = canvas(pw, ph);
       pc.g.fillStyle = '#0b0b0b'; pc.g.fillRect(0, 0, pw, ph);
       const work = canvas(width, height);
-      const enc = await encoderFor(work.c);
-      let t = 0, poster = null;
-      try {
-        for (const { i, px } of frames()) {
-          aborted(signal);
-          if (t >= VIDEO.maxDuration) break;
-          paint(px);
-          if (i === 0) { pc.g.drawImage(full.c, 0, 0, pw, ph); poster = await jpeg(pc.c); }   // poster : la première image
-          const d = Math.min(delays[i], VIDEO.maxDuration - t);
-          work.g.fillStyle = '#0b0b0b'; work.g.fillRect(0, 0, width, height);   // transparence → fond du site
-          work.g.drawImage(full.c, 0, 0, width, height);
-          toneCanvas(work.g, width, height);
-          if (enc.realtime) await new Promise(r => setTimeout(r, d * 1000)); else await enc.add(t, d);
-          t += d;
-          onProgress?.(t / Math.min(total, VIDEO.maxDuration));
+      let poster = null;
+      const pass = async bitrate => {
+        const enc = await encoderFor(work.c, bitrate);
+        let t = 0;
+        try {
+          for (const { i, px } of frames()) {
+            aborted(signal);
+            if (t >= VIDEO.maxDuration) break;
+            paint(px);
+            if (i === 0 && !poster) { pc.g.drawImage(full.c, 0, 0, pw, ph); poster = await jpeg(pc.c); }   // poster : la première image
+            const d = Math.min(delays[i], VIDEO.maxDuration - t);
+            work.g.fillStyle = '#0b0b0b'; work.g.fillRect(0, 0, width, height);   // transparence → fond du site
+            work.g.drawImage(full.c, 0, 0, width, height);
+            toneCanvas(work.g, width, height);
+            if (enc.realtime) await new Promise(r => setTimeout(r, d * 1000)); else await enc.add(t, d);
+            t += d;
+            onProgress?.(t / Math.min(total, VIDEO.maxDuration));
+          }
+          return await enc.finish();
+        } catch (e) {
+          enc.cancel();
+          throw e instanceof VideoError ? e : new VideoError('eGif', e?.message);
         }
-        return finish(await enc.finish(), poster, width, height);
-      } catch (e) {
-        enc.cancel();
-        throw e instanceof VideoError ? e : new VideoError('eGif', e?.message);
-      }
+      };
+      return finish(await retry(pass), poster, width, height);
     },
     close() {},
   };
