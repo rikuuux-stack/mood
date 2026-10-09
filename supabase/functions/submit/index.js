@@ -15,8 +15,11 @@ const MAX_BYTES = 5 * 1024 * 1024, MAX_THUMB = 1024 * 1024, MAX_SIDE = 2000, THU
 const PER_HOUR = 3, PER_DAY = 10;
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
+// Un fichier reçu : File ou Blob selon l'environnement (on ne se fie pas à instanceof File).
+const isFile = v => v != null && typeof v === 'object' && typeof v.arrayBuffer === 'function';
+
 async function readImage(file, maxBytes, maxSide) {
-  if (!(file instanceof File)) return { error: 'type' };
+  if (!isFile(file) || !file.size) return { error: 'type' };
   if (file.size > maxBytes) return { error: 'tooBig' };
   const bytes = new Uint8Array(await file.arrayBuffer());
   const type = sniffType(bytes);
@@ -37,7 +40,13 @@ Deno.serve(async req => {
   const name = String(form.get('name') || '').trim();
   const lang = ['fr', 'ja', 'en'].includes(form.get('lang')) ? form.get('lang') : null;
   const imageFile = form.get('image'), thumbFile = form.get('thumb');
-  const hasImage = imageFile instanceof File && imageFile.size > 0;
+  const hasImage = form.has('image');
+  // Une image annoncée mais illisible ou vide est REFUSÉE (jamais ignorée en silence : ce serait
+  // publier un texte seul alors que la personne pensait envoyer une photo).
+  if (hasImage && (!isFile(imageFile) || !imageFile.size)) {
+    console.warn('[submit] champ « image » vide ou illisible :', typeof imageFile, imageFile?.constructor?.name, imageFile?.size);
+    return fail(req, 415, 'type');
+  }
 
   // 1. contrôles gratuits
   if (form.get('consent') !== '1') return fail(req, 400, 'rights');
@@ -45,9 +54,9 @@ Deno.serve(async req => {
   let full = null, thumb = null;
   if (hasImage) {
     full = await readImage(imageFile, MAX_BYTES, MAX_SIDE);
-    if (full.error) return fail(req, full.error === 'tooBig' ? 413 : 415, full.error);
+    if (full.error) { console.warn('[submit] image refusée :', full.error); return fail(req, full.error === 'tooBig' ? 413 : 415, full.error); }
     thumb = await readImage(thumbFile, MAX_THUMB, THUMB_SIDE);
-    if (thumb.error) return fail(req, 415, 'thumb');
+    if (thumb.error) { console.warn('[submit] miniature refusée :', thumb.error); return fail(req, 415, 'thumb'); }
   } else if (!text) {
     return fail(req, 400, 'empty');
   }
@@ -102,5 +111,5 @@ Deno.serve(async req => {
       `${hasImage ? `Image ${full.width} × ${full.height} px` : 'Texte'}${name ? ` de « ${name} »` : ''}.\n\n` +
       `${text ? `« ${text.slice(0, 300)} »\n\n` : ''}Valider ou refuser : ${SITE_URL}admin/`);
   }
-  return json(req, 201, { ok: true, status: isRiku ? 'approved' : 'pending' });
+  return json(req, 201, { ok: true, status: isRiku ? 'approved' : 'pending', kind: hasImage ? 'image' : 'text' });
 });
