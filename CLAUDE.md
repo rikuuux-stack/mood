@@ -33,6 +33,36 @@
 - **Alerte e-mail à chaque dépôt** via Resend → rikuuux@gmail.com.
 - **Stack** : site statique sans build + Supabase (offre gratuite) + Cloudflare Turnstile + Resend. Déploiement des migrations/fonctions par GitHub Action (secrets GitHub).
 
+## Check-list obligatoire avant de déclarer une PR prête
+À suivre pour CHAQUE PR (demande de l'auteur), avec le résultat **point par point dans la description de la PR** : « OK », « sans objet » ou le problème constaté, avec les chiffres mesurés. Une PR n'est pas « prête » tant qu'un point reste ouvert.
+
+1. **Budget gratuit**
+   - Impact estimé sur : stockage Supabase (1 Go), bande passante (5 Go + 5 Go en cache par mois), base (500 Mo), appels de fonctions (500 000 / mois), builds Cloudflare (500 / mois).
+   - Rien ne se télécharge tant qu'on ne le regarde pas : images à l'approche de l'écran, vidéos uniquement à l'ouverture.
+   - Si la PR augmente nettement la consommation : le dire **en tête de la PR**, avec les chiffres, et proposer une alternative.
+2. **iPhone d'abord**
+   - Testé dans un iPhone simulé (390 × 844), Safari et Chrome, défilement vers le bas puis vers le haut, barre d'adresse simulée.
+   - Encoche respectée. Rien ne passe au-dessus de Mood / Drop.
+   - Aucun survol nécessaire pour comprendre ou utiliser quoi que ce soit.
+   - Mémoire : nombre maximum d'images ou de vidéos en mémoire à la fois, mesuré.
+   - Lister clairement ce qui n'a été vérifié qu'en simulation (l'auteur le teste ensuite sur son vrai iPhone).
+3. **Accessibilité**
+   - « Réduire les animations » respecté : rien ne bouge, aucune lecture automatique.
+   - Textes lisibles à tous les paliers d'érosion (contraste ≥ 7:1).
+   - Libellés pour les lecteurs d'écran sur les nouveaux boutons.
+4. **Concept et anonymat**
+   - Aucun nom d'auteur ni pseudo d'admin, ni « Riku » / « RIKU », nulle part : code, textes, fichiers, métadonnées. Seul contact affiché : rikuuux@gmail.com.
+   - Égalité entre dépôts : aucun dépôt mis en avant autrement que par sa date.
+   - Le mur est identique pour tous les visiteurs (fuseau de référence Asia/Tokyo).
+   - Libellés de l'interface en anglais, mots courts. Messages d'erreur en FR / JA / EN.
+   - Aucune vraie image ni donnée personnelle dans les tests : uniquement des fausses données générées.
+5. **Technique**
+   - Pas de framework ni d'étape de build. Toute nouvelle dépendance : un fichier unique copié dans le dépôt, et justifiée.
+   - CSP (`_headers`) à jour si une nouvelle source est nécessaire.
+   - Cache-busting lancé (`python3 tools/stamp.py`, puis `--check`).
+   - Tests e2e ajoutés ou mis à jour pour la nouveauté, et tous verts.
+   - **Jamais de merge** : c'est l'auteur qui merge.
+
 ## Contraintes non négociables
 1. Modération : rien de visible avant validation ; fichiers en attente dans un bucket **privé** (aucune URL publique).
 2. Anti-abus : captcha vérifié côté serveur, limite de fréquence, images ≤ 5 Mo JPEG/PNG/WebP, texte ≤ budget pixels/mots (≤ 500), vérifiés aussi côté serveur.
