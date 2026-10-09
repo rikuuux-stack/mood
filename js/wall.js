@@ -108,13 +108,18 @@ export const onWall = days => days < TIME.wallDays;
  * Strates : le mur se lit de haut en bas comme des couches de temps. Une strate = les dépôts d'un même
  * mois ET d'une même consigne (gardée sur chaque dépôt). Un mois sans consigne forme une strate sans mot.
  */
-// le mois est celui de l'APPAREIL du visiteur (son fuseau), pas le mois UTC : à Tokyo, un dépôt du 1er à 0 h 30
-// appartient bien à ce mois-là (tests/wall.test.mjs, tests/browser.test.mjs)
-export const localMonth = iso => {
-  const d = new Date(iso);
-  return Number.isNaN(+d) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+// Fuseau de référence du mur : Asia/Tokyo, le MÊME pour tous les visiteurs (le mur est identique partout).
+// Le mois d'un dépôt (strates, filets, strate en cours) se calcule à l'heure de Tokyo, jamais à celle du
+// téléphone ni en UTC : un dépôt du 1er octobre à 0 h 30 (Tokyo) est en octobre à Tokyo, Paris et Los Angeles.
+// Le Japon n'a pas d'heure d'été : Tokyo = UTC + 9 h toute l'année.
+const TOKYO = 9 * 3600e3;
+export const wallMonth = iso => {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const d = new Date(t + TOKYO);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
-export const strataKey = p => `${localMonth(p.createdAt)}|${p.prompt || ''}`;
+export const strataKey = p => `${wallMonth(p.createdAt)}|${p.prompt || ''}`;
 
 /** Bande du commentaire, en bas d'une boîte. */
 const strip = (r, capH) => ({ x: r.x, y: r.y + r.h - (capH || 0), w: r.w, h: capH || 0 });

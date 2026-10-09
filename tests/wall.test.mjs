@@ -76,16 +76,16 @@ check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
   }));
 }
 {
-  // strates : mois LOCAL de l'appareil. 2026-09-30T15:30Z = 1er octobre 0 h 30 à Tokyo, encore le 30 septembre en UTC.
-  const was = process.env.TZ, iso = '2026-09-30T15:30:00Z';
-  process.env.TZ = 'Asia/Tokyo';
-  const tokyo = strataKey({ createdAt: iso, prompt: 'x' }), tokyoNow = strataKey({ createdAt: '2026-10-09T15:30:00Z', prompt: 'x' });
-  process.env.TZ = 'UTC';
-  const utc = strataKey({ createdAt: iso, prompt: 'x' });
-  process.env.TZ = 'America/Los_Angeles';
-  const la = strataKey({ createdAt: '2026-10-01T05:00:00Z', prompt: 'x' });   // 30 septembre 22 h à Los Angeles
+  // strates : fuseau de référence du mur = Asia/Tokyo, quel que soit le fuseau du visiteur.
+  // 2026-09-30T15:30Z = 1er octobre 0 h 30 à Tokyo (30 septembre à Paris, à Los Angeles et en UTC).
+  const was = process.env.TZ, iso = '2026-09-30T15:30:00Z', before = '2026-09-30T14:50:00Z';   // before : 30 sept. 23 h 50 à Tokyo
+  const seen = {};
+  for (const tz of ['Asia/Tokyo', 'Europe/Paris', 'America/Los_Angeles', 'UTC']) {
+    process.env.TZ = tz;
+    seen[tz] = [strataKey({ createdAt: iso, prompt: 'x' }), strataKey({ createdAt: before, prompt: 'x' })].join(' / ');
+  }
   if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
-  check('strates : mois du fuseau de l’appareil (Tokyo 1er oct. 0 h 30 → octobre ; UTC → septembre ; Los Angeles → septembre)',
-    tokyo === '2026-10|x' && tokyo === tokyoNow && utc === '2026-09|x' && la === '2026-09|x', `${tokyo} ${utc} ${la}`);
+  check('strates : 1er oct. 0 h 30 (Tokyo) en octobre, 30 sept. 23 h 50 (Tokyo) en septembre, pour un visiteur à Tokyo, Paris, Los Angeles ou en UTC',
+    Object.values(seen).every(v => v === '2026-10|x / 2026-09|x'), JSON.stringify(seen));
 }
 process.exit(fail ? 1 : 0);
