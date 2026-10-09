@@ -33,8 +33,8 @@ async function token() {
   if (!session) throw new Error('auth');
   return session.access_token;
 }
-async function moderate(method, body) {
-  const r = await fetch(`${API}/functions/v1/moderate`, {
+async function moderate(method, body, query = '') {
+  const r = await fetch(`${API}/functions/v1/moderate${query}`, {
     method, headers: { apikey: KEY, Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -131,8 +131,10 @@ const sizeOf = async url => {                         // poids réel du fichier 
 
 function render() {
   $('#mine').hidden = tab !== 'mine';
+  $('#archive').hidden = tab !== 'archive';
   const list = $('#cards');
-  list.hidden = tab === 'mine';
+  list.hidden = tab === 'mine' || tab === 'archive';
+  if (tab === 'archive') return renderArchive();
   if (tab === 'mine') return;
   const rows = data[tab] || [];
   if (!rows.length) {
@@ -168,6 +170,60 @@ function render() {
       bar.append(b);
     }
     li.append(bar);
+    return li;
+  }));
+}
+
+/* ------------------------------------------------------------------ archive nocturne du mur
+ * Une nuit = un dossier du bucket privé « archive » (tools/archive.mjs, 03:00 heure de Tokyo) : capture iPhone,
+ * capture ordinateur, état en JSON. Les liens (aperçu, téléchargement) sont signés pour 1 h et demandés
+ * seulement à l'ouverture d'une nuit. Suppression d'une nuit : pour une demande de retrait de contenu.
+ */
+const kb = n => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
+async function renderArchive() {
+  const box = $('#nights'), info = $('#archiveInfo');
+  info.textContent = '…'; box.replaceChildren();
+  let out;
+  try { out = await moderate('GET', null, '?archive'); }
+  catch (e) { if (e.message !== 'auth') info.textContent = 'Archive unreadable — retry'; return; }
+  if (tab !== 'archive') return;
+  info.textContent = out.nights.length ? `${out.nights.length} night(s) · ${kb(out.total)} (archive limit 200 MB)` : 'No night archived yet (every night at 03:00, Tokyo time).';
+  box.replaceChildren(...out.nights.map(n => {
+    const li = document.createElement('li'); li.className = 'adm-night';
+    const d = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.textContent = `${n.date} · ${n.files.map(f => f.name.replace(/\.\w+$/, '')).join(', ')} · ${kb(n.files.reduce((s, f) => s + f.size, 0))}`;
+    const body = document.createElement('div'); body.className = 'adm-night-body';
+    d.append(sum, body);
+    d.addEventListener('toggle', async () => {
+      if (!d.open || body.dataset.loaded) return;
+      body.textContent = '…';
+      try {
+        const { files } = await moderate('POST', { action: 'archive-urls', date: n.date });
+        body.dataset.loaded = '1';
+        const links = document.createElement('p'); links.className = 'adm-actions';
+        const shots = document.createElement('div'); shots.className = 'adm-shots';
+        for (const f of files) {
+          if (f.name.endsWith('.jpg')) {
+            const img = document.createElement('img'); img.src = f.url; img.alt = `${n.date} ${f.name}`; img.loading = 'lazy';
+            shots.append(img);
+          }
+          const a = document.createElement('a'); a.className = 'btn'; a.href = f.download; a.textContent = f.name; a.setAttribute('download', '');
+          links.append(a);
+        }
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'btn'; del.textContent = 'Delete night';
+        del.addEventListener('click', async () => {
+          // irréversible : un second toucher pour confirmer
+          if (!del.classList.contains('confirm')) { del.classList.add('confirm'); del.textContent = 'Sure?'; return; }
+          del.disabled = true;
+          try { await moderate('POST', { action: 'archive-delete', date: n.date }); $('#dashMsg').textContent = `Night ${n.date} deleted`; renderArchive(); }
+          catch (e) { if (e.message !== 'auth') { $('#dashMsg').textContent = 'Failed — retry'; del.disabled = false; } }
+        });
+        links.append(del);
+        body.replaceChildren(shots, links);
+      } catch (e) { if (e.message !== 'auth') body.textContent = 'Links unavailable — retry'; }
+    });
+    li.append(d);
     return li;
   }));
 }

@@ -9,6 +9,10 @@
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
  *   POST { action: 'resize', id, size }  → taille d'affichage changée (s / m / l), quel que soit le statut
  *   POST { action: 'prompt', text }      → consigne du mois (texte anglais, 60 caractères au plus ; vide = aucune)
+ *   GET ?archive                         → { nights: [{ date, files: [{ name, size }] }], total } : archive nocturne du mur
+ *                                          (bucket PRIVÉ « archive », un dossier AAAA-MM-JJ par nuit, tools/archive.mjs)
+ *   POST { action: 'archive-urls', date }   → liens signés 1 h (voir / télécharger) des fichiers d'une nuit
+ *   POST { action: 'archive-delete', date } → nuit supprimée (demande de retrait de contenu)
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
@@ -31,6 +35,38 @@ async function withUrls(db, rows, bucket) {
     image_url: r.image_path ? (bucket === 'pending' ? signed[r.image_path] : pub(r.image_path)) : null,
     thumb_url: r.thumb_path ? (bucket === 'pending' ? signed[r.thumb_path] : pub(r.thumb_path)) : null,
   }));
+}
+
+/* ------------------------------------------------------------------ archive nocturne (bucket privé « archive ») */
+const NIGHT = /^\d{4}-\d{2}-\d{2}$/;
+async function archiveNights(db) {
+  const bucket = db.storage.from('archive');
+  const { data: dirs, error } = await bucket.list('', { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
+  if (error) return { nights: [], total: 0, missing: true };   // bucket pas encore créé : aucune nuit
+  const nights = [];
+  for (const d of (dirs || []).filter(x => !x.id && NIGHT.test(x.name))) {
+    const { data: files } = await bucket.list(d.name, { limit: 100 });
+    nights.push({ date: d.name, files: (files || []).filter(f => f.id).map(f => ({ name: f.name, size: f.metadata?.size || 0 })) });
+  }
+  return { nights, total: nights.reduce((s, n) => s + n.files.reduce((a, f) => a + f.size, 0), 0) };
+}
+async function archiveUrls(db, date) {
+  const bucket = db.storage.from('archive');
+  const { data: files, error } = await bucket.list(date, { limit: 100 });
+  if (error) throw error;
+  const paths = (files || []).filter(f => f.id).map(f => `${date}/${f.name}`);
+  if (!paths.length) return [];
+  const { data, error: e2 } = await bucket.createSignedUrls(paths, 3600);
+  if (e2) throw e2;
+  return (data || []).map(x => ({ name: x.path.split('/').pop(), url: x.signedUrl, download: `${x.signedUrl}&download=mood-${date}-${x.path.split('/').pop()}` }));
+}
+async function archiveDelete(db, date) {
+  const bucket = db.storage.from('archive');
+  const { data: files, error } = await bucket.list(date, { limit: 100 });
+  if (error) throw error;
+  const paths = (files || []).filter(f => f.id).map(f => `${date}/${f.name}`);
+  if (paths.length) { const { error: e2 } = await bucket.remove(paths); if (e2) throw e2; }
+  return paths.length;
 }
 
 async function moveFiles(db, row, from, to) {
@@ -61,6 +97,7 @@ Deno.serve(async req => {
   if (who.status === 'notAdmin') return fail(req, 403, 'admin');                      // connecté, pas admin
   if (who.status !== 'admin') return fail(req, 500, 'server');                         // panne : voir les journaux
 
+  if (req.method === 'GET' && new URL(req.url).searchParams.has('archive')) return json(req, 200, await archiveNights(db));
   if (req.method === 'GET') {
     const q = s => db.from('posts').select(COLS).eq('status', s);
     const [p, h, a] = await Promise.all([
@@ -90,6 +127,19 @@ Deno.serve(async req => {
     const { error } = await db.from('prompt').upsert({ id: 1, text, updated_at: new Date().toISOString() });
     if (error) { console.error('[moderate] consigne impossible :', error.code, error.message); return fail(req, 500, 'db'); }
     return json(req, 200, { ok: true, prompt: text });
+  }
+  if (action === 'archive-urls' || action === 'archive-delete') {
+    const date = String(body.date || '');
+    if (!NIGHT.test(date)) return fail(req, 400, 'bad');
+    try {
+      if (action === 'archive-urls') return json(req, 200, { files: await archiveUrls(db, date) });
+      const n = await archiveDelete(db, date);
+      console.log(`[moderate] archive : nuit ${date} supprimée (${n} fichier(s))`);
+      return json(req, 200, { ok: true, removed: n });
+    } catch (e) {
+      console.error(`[moderate] archive « ${action} » ${date} impossible :`, e?.message || e);
+      return fail(req, 500, 'storage');
+    }
   }
   const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
   if (!row) return fail(req, 404, 'gone');
