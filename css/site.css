@@ -51,9 +51,10 @@ a { color: inherit; }
   padding: calc(12px + var(--safe-t)) var(--gutter) 12px;
   background: inherit;                 /* même béton que la page : pas de barre visible */
 }
+.bar { justify-content: space-between; }
 .id { all: unset; cursor: pointer; font-weight: 900; font-size: 1.6rem; letter-spacing: .14em; line-height: 1; padding: 6px 0; }
-.bar-tools { margin-left: auto; display: flex; align-items: center; gap: 18px; }
-.langs { display: flex; gap: 10px; }
+.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 18px 0; padding-block: 10px; border-block: 1px solid rgba(17,17,17,.15); }
+.langs { display: flex; gap: 14px; }
 .link { all: unset; cursor: pointer; font-size: .9rem; padding: 10px 0; line-height: 1; }
 .link:hover { text-decoration: underline; text-underline-offset: 4px; }
 .langs .link { opacity: .55; }
@@ -80,11 +81,8 @@ a { color: inherit; }
 @media (max-width: 639px) {
   .bar { gap: 12px; padding-top: calc(8px + var(--safe-t)); padding-bottom: 8px; }
   .id { font-size: 1.35rem; }
-  .bar-tools, .langs { gap: 10px; }
-  .link { font-size: .82rem; }
   .btn-drop { padding: 8px 12px; font-size: .88rem; }
 }
-@media (max-width: 359px) { .bar-tools { gap: 8px; } .langs { gap: 7px; } .btn-drop { padding: 8px 10px; } }
 
 /* ------------------------------------------------------------------ mur */
 .wall { position: relative; list-style: none; margin: 0; padding: 0; }
@@ -133,10 +131,6 @@ a { color: inherit; }
 
 .empty { margin: 48px var(--gutter); font-weight: 700; }
 .more-wrap { text-align: center; margin: 24px 0; }
-
-/* ------------------------------------------------------------------ pied : une ligne */
-.foot { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 32px var(--gutter) calc(28px + var(--safe-b)); font-size: .8rem; }
-.foot a { text-underline-offset: 3px; }
 
 /* ------------------------------------------------------------------ fenêtres */
 .dlg {

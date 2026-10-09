@@ -15,14 +15,6 @@
 
 <header class="bar">
   <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="about">RIKU</button>
-  <nav class="bar-tools">
-    <button type="button" class="link" id="viewBtn"></button>
-    <span class="langs" role="group" aria-label="Langue / 言語 / Language">
-      <button type="button" class="link" data-lang="fr" lang="fr">FR</button>
-      <button type="button" class="link" data-lang="ja" lang="ja">日本語</button>
-      <button type="button" class="link" data-lang="en" lang="en">EN</button>
-    </span>
-  </nav>
   <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
 </header>
 
@@ -33,11 +25,6 @@
   <p class="more-wrap"><button type="button" id="more" class="link" hidden data-i18n="more"></button></p>
 </main>
 
-<footer class="foot">
-  <span>RIKU — Félix Cardonnel</span>
-  <a href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a>
-  <span data-i18n="moderated"></span>
-</footer>
 
 <!-- Agrandissement d'un dépôt -->
 <dialog id="viewer" class="dlg dlg--viewer" aria-labelledby="viewerMeta">
@@ -98,7 +85,7 @@
   </form>
 </dialog>
 
-<!-- À propos -->
+<!-- RIKU : présentation, contact, réglages (langue, affichage), mentions -->
 <dialog id="about" class="dlg dlg--about" aria-labelledby="aboutTitle">
   <div class="dlg-head">
     <h2 id="aboutTitle">RIKU</h2>
@@ -107,6 +94,14 @@
   <p class="about-role" data-i18n="role"></p>
   <p data-i18n="aboutBody"></p>
   <p><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
+  <div class="prefs">
+    <span class="langs" role="group" aria-label="Langue / 言語 / Language">
+      <button type="button" class="link" data-lang="fr" lang="fr">FR</button>
+      <button type="button" class="link" data-lang="ja" lang="ja">日本語</button>
+      <button type="button" class="link" data-lang="en" lang="en">EN</button>
+    </span>
+    <button type="button" class="link" id="viewBtn"></button>
+  </div>
   <p class="hint"><span class="stamp stamp--inline" aria-hidden="true"></span> <span data-i18n="stampLegend"></span></p>
   <p class="hint" data-i18n="mentions"></p>
 </dialog>

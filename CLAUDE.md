@@ -5,7 +5,8 @@ Site de RIKU (Félix Cardonnel, artiste visuel franco-japonais, futur directeur 
 
 ## Décisions validées (ne pas remettre en cause sans lui demander)
 - **Direction visuelle « Mur brut »** : béton gris plat, noir/blanc très contrastés, Zen Kaku Gothic New (400/700/900) + IBM Plex Mono, auto-hébergées.
-- **Pas de « RIKU » géant en fond** : l'identité passe par le bandeau fixe (nom, rôle, contact, langues, Déposer).
+- **Pas de « RIKU » géant en fond.**
+- **L'essentiel seulement à l'écran** : le mur + un bandeau réduit à « RIKU » et « Déposer ». Tout le reste (rôle, présentation, e-mail, langues, bouton Mur/Liste, légende du tampon, mentions) est dans le panneau qui s'ouvre en touchant « RIKU ». Pas de pied de page, pas de texte d'intro, pas de pseudo sur le mur (seulement à l'agrandissement). Langue détectée d'après le navigateur. Ne rien rajouter à l'écran sans demander à Félix.
 - **Vermillon (`--verm`) réservé** à la marque de RIKU et au bouton Déposer. Rien d'autre.
 - **Marque de RIKU** : petit carré vermillon façon tampon, sans texte, sur ses propres dépôts.
 - **Mur** : chevauchement max 30 % (15 % sur mobile) ; les textes sont au-dessus des images et jamais recouverts ; jamais texte sur texte ; toucher = premier plan, 2e toucher = agrandissement ; densité réduite sur mobile. Bouton Mur / Liste (choix mémorisé). Règles testées par `node tests/wall.test.mjs`.

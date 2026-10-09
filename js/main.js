@@ -21,9 +21,9 @@ applyI18n();
 
 /* ------------------------------------------------------------------ vue mémorisée */
 try { if (localStorage.getItem('view') === 'list') view = 'list'; } catch {}
-// un seul bouton : il affiche le nom de l'autre vue (« Liste » sur le mur, « Mur » sur la liste)
+// un seul bouton, dans le panneau RIKU : il affiche le nom de l'autre vue (« Liste » sur le mur, « Mur » sur la liste)
 const viewBtn = $('#viewBtn');
-viewBtn.addEventListener('click', () => setView(view === 'wall' ? 'list' : 'wall'));
+viewBtn.addEventListener('click', () => { setView(view === 'wall' ? 'list' : 'wall'); $('#about').close(); scrollTo(0, 0); });
 const viewLabel = () => { viewBtn.textContent = t(view === 'wall' ? 'viewList' : 'viewWall'); };
 function setView(v) {
   view = v;
@@ -86,7 +86,7 @@ function renderWall(items) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
     b.setAttribute('aria-label', p.kind === 'text' ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
-    b.append(content(p, { font, byline: false }));      // mur épuré : le pseudo s'affiche à l'agrandissement
+    b.append(content(p, { font }));
     li.append(b);
     if (p.isRiku) li.append(stamp());
     li.dataset.i = i;
