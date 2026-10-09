@@ -29,8 +29,6 @@ jobs:
         env:
           PW_CHANNEL: chrome          # Google Chrome du runner GitHub : lit le H.264 (lecture réelle des vidéos)
       - name: Conversion vidéo et GIF (Google Chrome, H.264 ; poids réels sur 60 s)
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
-          node tests/video.test.mjs
+        run: node tests/video.test.mjs
         env:
           PW_CHANNEL: chrome

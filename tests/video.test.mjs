@@ -5,7 +5,7 @@
  *
  * Demande un navigateur qui sait encoder le H.264 (Google Chrome : PW_CHANNEL=chrome, comme dans GitHub) ;
  * le Chromium de test ne le sait pas : le test le dit et s'arrête sans échouer. Les sources de 60 s sont
- * fabriquées par ffmpeg si présent (fausses images, aucune vraie vidéo). Mesure le poids réel des fichiers.
+ * fabriquées dans la page (fausses images, aucune vraie vidéo). Mesure le poids réel des fichiers.
  *
  * Vérifie : MP4 H.264, 480 px de grand côté, ≤ 24 i/s, muet, sans GPS, noir et blanc + courbe de tons,
  * départ au curseur « Start », 60 s au plus, image fixe sans métadonnées, GIF → MP4, annulation,
@@ -13,9 +13,7 @@
  */
 import http from 'node:http';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -24,20 +22,10 @@ const req = createRequire(import.meta.url);
 let playwright;
 try { playwright = req('playwright'); } catch { playwright = createRequire('/opt/node-tools/node_modules/')('playwright'); }
 
-// fausses sources de 60 s et plus (ffmpeg) : mouvement riche (fractale qui zoome) et mire, 720p 30 i/s
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mood-video-'));
-const extra = {};
-try {
-  const ff = (...a) => execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...a]);
-  ff('-f', 'lavfi', '-i', 'mandelbrot=size=1280x720:rate=30', '-t', '62', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20', '-pix_fmt', 'yuv420p', path.join(TMP, 'fractal-62s.mp4'));
-  ff('-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30', '-t', '60', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20', '-pix_fmt', 'yuv420p', path.join(TMP, 'mire-60s.mp4'));
-  extra.fractal = 'fractal-62s.mp4'; extra.mire = 'mire-60s.mp4';
-} catch { console.log('(ffmpeg absent : pas de mesure de poids sur 60 s)'); }
-
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.gif': 'image/gif', '.jpg': 'image/jpeg' };
 const server = http.createServer((rq, rs) => {
   let p = decodeURIComponent(new URL(rq.url, 'http://x').pathname);
-  const f = p.startsWith('/tmp/') ? path.join(TMP, path.basename(p)) : path.join(ROOT, p.endsWith('/') ? `${p}index.html` : p);
+  const f = path.join(ROOT, p.endsWith('/') ? `${p}index.html` : p);
   if (!fs.existsSync(f)) { rs.writeHead(404); return rs.end(); }
   rs.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' });
   fs.createReadStream(f).pipe(rs);
@@ -52,7 +40,6 @@ const browser = await playwright.chromium.launch(process.env.PW_CHANNEL ? { chan
 const page = await (await browser.newContext()).newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
-await page.goto(`${BASE}tests/`).catch(() => {});
 await page.goto(BASE);
 const avc = await page.evaluate(async () => !!(globalThis.VideoEncoder && (await VideoEncoder.isConfigSupported({ codec: 'avc1.42001f', width: 480, height: 270, bitrate: 3e5 })).supported));
 if (!avc) {
@@ -112,14 +99,38 @@ ok(!c.ok && c.code === 'canceled', 'conversion annulable', JSON.stringify(c));
 // 5. vidéo que ce navigateur ne sait pas lire (HEVC sous Linux) : message clair, pas de plantage
 const h = await convert('/tests/fixtures-img/v-hevc.mp4', { start: 0 });
 ok(h.ok || h.code === 'eVideoUnsupported', `vidéo non convertible → message clair (${h.ok ? 'convertie' : h.code})`, JSON.stringify(h));
-// 6. poids réels sur 60 s (sources fabriquées par ffmpeg)
-for (const [label, f] of [['fractale en mouvement (cas difficile)', extra.fractal], ['mire animée', extra.mire]]) {
-  if (!f) continue;
-  const r = await convert(`/tmp/${f}`, { start: 1 });
-  ok(r.ok && r.bytes <= 4 * 1024 * 1024, `60 s, ${label} : ${r.ok ? `${(r.bytes / 1048576).toFixed(2)} Mo, ${r.kbps} kb/s, ${r.info.duration} s, converti en ${(r.ms / 1000).toFixed(1)} s` : r.code}`, JSON.stringify(r));
+// 6. poids réels sur 60 s : fausses sources 720p 30 i/s fabriquées dans la page (H.264, Mediabunny), sans ffmpeg
+const make = (pattern) => page.evaluate(async (pattern) => {
+  const { Output, Mp4OutputFormat, BufferTarget, CanvasSource } = await import('/js/vendor/mediabunny.js');
+  const W = 1280, H = 720, FPS = 30, SEC = 61;
+  const c = new OffscreenCanvas(W, H), g = c.getContext('2d');
+  const small = new OffscreenCanvas(160, 90), sg = small.getContext('2d'), px = sg.createImageData(160, 90);
+  const out = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target: new BufferTarget() });
+  const src = new CanvasSource(c, { codec: 'avc', bitrate: 4e6 });
+  out.addVideoTrack(src, { frameRate: FPS });
+  await out.start();
+  for (let i = 0; i < SEC * FPS; i++) {
+    const t = i / FPS;
+    if (pattern === 'noise') {          // bruit animé : le pire cas pour l'encodeur (rien ne se répète)
+      for (let k = 0; k < px.data.length; k += 4) { const v = Math.random() * 255; px.data[k] = v; px.data[k + 1] = Math.random() * 255; px.data[k + 2] = v; px.data[k + 3] = 255; }
+      sg.putImageData(px, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(small, 0, 0, W, H);
+    } else {                            // mire : dégradés et formes qui bougent (cas courant)
+      const gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, `hsl(${t * 40} 70% 40%)`); gr.addColorStop(1, `hsl(${t * 40 + 180} 70% 60%)`);
+      g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      for (let j = 0; j < 12; j++) { g.fillStyle = `hsl(${j * 30} 80% 50%)`; g.beginPath(); g.arc(W / 2 + Math.cos(t + j) * 400, H / 2 + Math.sin(t * 1.3 + j) * 250, 40 + j * 4, 0, 7); g.fill(); }
+      g.fillStyle = '#fff'; g.font = '64px monospace'; g.fillText(t.toFixed(2), 40, 90);
+    }
+    await src.add(t, 1 / FPS);
+  }
+  await out.finalize();
+  return URL.createObjectURL(new Blob([out.target.buffer], { type: 'video/mp4' }));
+}, pattern);
+for (const [label, pattern] of [['bruit animé (pire cas)', 'noise'], ['mire animée (cas courant)', 'mire']]) {
+  const url = await make(pattern);
+  const r = await convert(url, { start: 1 });
+  ok(r.ok && r.bytes <= 4 * 1024 * 1024, `60 s, ${label} : ${r.ok ? `${(r.bytes / 1048576).toFixed(2)} Mo, ${r.kbps} kb/s, ${r.info.duration} s, image fixe ${Math.round(r.poster.size / 1024)} Ko, converti en ${(r.ms / 1000).toFixed(1)} s` : r.code}`, JSON.stringify(r));
 }
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
 await browser.close(); server.close();
-fs.rmSync(TMP, { recursive: true, force: true });
 if (failed) { console.log(`\n${failed} test(s) en échec.`); process.exit(1); }
 console.log('\nTous les tests de conversion passent.');
