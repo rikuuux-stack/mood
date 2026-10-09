@@ -2,7 +2,11 @@
  * MUR — composition libre, mais lisible.
  *
  * Règles :
- *   - les textes sont posés à nu sur le béton : ils ne chevauchent RIEN (ni image, ni texte) ;
+ *   - les textes sont posés à nu sur le fond : ils ne chevauchent RIEN (ni image, ni texte) ;
+ *   - un texte garde un espace libre autour de lui (`gap`) : on ne doit pas le prendre pour le
+ *     commentaire d'une photo voisine, ni le lire à la suite d'un autre texte ;
+ *   - le commentaire sous une photo (bande `capH` en bas de la boîte) n'est jamais recouvert,
+ *     et ne recouvre rien non plus ;
  *   - pas d'inclinaison : tout est droit (direction brutaliste) ;
  *   - une image n'est jamais recouverte à plus de `limit` (30 % sur ordinateur, 15 % sur mobile) :
  *     on additionne la surface que lui prennent tous les éléments posés au-dessus d'elle ;
@@ -28,8 +32,8 @@ export function sizeFor(post, W, mobile) {
   const r = rng(post.id + ':size');
   if (post.kind === 'text') {
     const n = [...post.text].length;
-    const font = mobile ? (n <= 60 ? 23 : n <= 200 ? 19 : 17) : (n <= 60 ? 27 : n <= 200 ? 21 : 18);   // traits fins : un cran au-dessus du minimum de 16 px
-    const base = mobile ? W * (n <= 60 ? 0.62 : 0.8) : (n <= 60 ? 260 : n <= 200 ? 320 : 360);
+    const font = mobile ? (n <= 60 ? 17 : 14) : (n <= 60 ? 19 : n <= 200 ? 15 : 14);   // petites lettres, traits fins
+    const base = mobile ? W * (n <= 60 ? 0.6 : 0.78) : (n <= 60 ? 230 : n <= 200 ? 270 : 300);
     return { w: Math.round(clamp(base * (0.92 + r() * 0.16), 200, W)), font };
   }
   const ar = post.image.w / post.image.h;
@@ -41,6 +45,11 @@ export function sizeFor(post, W, mobile) {
   const scale = [0.8, 1, 1.15, 1.4][Math.floor(r() * 4)] * (ar < 1 ? 0.85 : 1);
   return { w: Math.round(clamp(base * scale, 160, W * 0.6)) };
 }
+
+/** Bande du commentaire, en bas d'une boîte. */
+const strip = (r, capH) => ({ x: r.x, y: r.y + r.h - (capH || 0), w: r.w, h: capH || 0 });
+
+const grow = (r, g) => ({ x: r.x - g, y: r.y - g, w: r.w + 2 * g, h: r.h + 2 * g });
 
 const inter = (a, b) => {
   const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
@@ -61,30 +70,35 @@ export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false } = {})
   const n = boxes.length;
   const overlaps = [];
   const tries = mobile ? 6 : 14;
+  const gap = mobile ? 28 : 24;          // espace libre autour d'un texte
 
   boxes.forEach((b, idx) => {
     const r = rng(b.id + ':pos');
-    const w = Math.min(b.w, inner), h = b.h, area = w * h;
+    const w = Math.min(b.w, inner), h = b.h, area = w * h, capH = b.capH || 0;
     const xs = new Set();
     for (let k = 0; k < tries; k++) xs.add(Math.round(r() * Math.max(0, inner - w)));
-    for (const p of placed.slice(-12)) {                 // s'aligner (en décalé) sur les voisins récents
+    for (const p of placed.slice(-6)) {                  // s'aligner (en décalé) sur les voisins récents
       xs.add(clamp(Math.round(p.x + p.w * 0.72), 0, Math.max(0, inner - w)));
       xs.add(clamp(Math.round(p.x - w * 0.72), 0, Math.max(0, inner - w)));
+      xs.add(clamp(Math.round(p.x + p.w + gap), 0, Math.max(0, inner - w)));
+      xs.add(clamp(Math.round(p.x - w - gap), 0, Math.max(0, inner - w)));
     }
     let best = null;
     for (const x of xs) {
-      const cols = placed.filter(p => p.x < x + w && p.x + p.w > x);
+      const cols = placed.filter(p => p.x - gap < x + w && p.x + p.w + gap > x);
       const ys = new Set([0]);
-      for (const p of cols) { ys.add(Math.round(p.y + p.h)); ys.add(Math.round(p.y + p.h - h * limit)); ys.add(Math.round(p.y + p.h * (1 - limit))); }
+      for (const p of cols) { ys.add(Math.round(p.y + p.h)); ys.add(Math.round(p.y + p.h + gap)); ys.add(Math.round(p.y + p.h - h * limit)); ys.add(Math.round(p.y + p.h * (1 - limit))); }
       const sorted = [...ys].filter(y => y >= 0).sort((a, b) => a - b);
       for (const y of sorted) {
         if (best && y >= best.score) break;
         const cand = { x, y, w, h };
         let mine = 0, ok = true;
         for (const p of cols) {
+          if ((b.kind === 'text' || p.kind === 'text') && inter(grow(cand, gap), p)) { ok = false; break; }   // espace autour des textes
           const a = inter(cand, p);
           if (!a) continue;
           if (b.kind === 'text' || p.kind === 'text') { ok = false; break; }   // un texte ne touche rien
+          if (inter(strip(cand, capH), p) || inter(strip(p, p.capH), cand)) { ok = false; break; }   // ni un commentaire
           // l'élément du dessous est l'image (un texte est toujours au-dessus) ; entre images, l'ancienne
           const meBelow = b.kind === 'image' && p.kind === 'text';
           if (meBelow) { mine += a; if (mine > area * limit) { ok = false; break; } }
@@ -93,7 +107,7 @@ export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false } = {})
         if (ok) { const score = y + r() * (mobile ? 8 : 24); if (!best || score < best.score) best = { x, y, score }; break; }
       }
     }
-    const rect = { x: best.x, y: best.y, w, h, kind: b.kind, covered: 0 };
+    const rect = { x: best.x, y: best.y, w, h, kind: b.kind, capH, covered: 0 };
     placed.forEach((p, j) => {
       const a = inter(rect, p);
       if (!a) return;

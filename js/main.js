@@ -3,7 +3,8 @@
  *   - charge les dépôts validés (maquette : faux contenus) ;
  *   - deux vues : MUR (composition libre, js/wall.js) et LISTE (colonne simple) ;
  *   - toucher / survol : l'élément passe au premier plan ; second toucher : agrandissement ;
- *   - fenêtres natives <dialog> : agrandissement + signalement, dépôt, à propos.
+ *   - fenêtres natives <dialog> : agrandissement + signalement, dépôt, à propos ;
+ *   - un dépôt = une image, des mots, ou les deux ; plus l'image a de pixels, moins de mots (js/budget.js).
  *
  * Les textes des visiteurs ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
@@ -12,6 +13,7 @@ import { apply as applyI18n, t, setLang, onLangChange, formatDate, formatBytes }
 import { layout, sizeFor } from './wall.js';
 import { prepareImage, ImageError } from './image.js';
 import { fetchPosts, submitPost, reportPost } from './data.js';
+import { textBudget, textLength } from './budget.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
@@ -38,6 +40,7 @@ onLangChange(() => { viewLabel(); render(); refreshDropTexts(); });
 
 /* ------------------------------------------------------------------ éléments */
 const label = p => p.isRiku ? t('byRiku') : t(p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
+const ariaOf = p => p.text ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p);
 
 function stamp(inline = false) { const s = document.createElement('span'); s.className = inline ? 'stamp stamp--inline' : 'stamp'; s.setAttribute('aria-hidden', 'true'); return s; }
 
@@ -51,7 +54,13 @@ function content(p, { full = false, font, byline = false } = {}) {
     if (!full) img.loading = 'lazy';
     // noir et blanc + grain : appliqué par .photo (css/site.css) à toutes les photos déposées
     const ph = document.createElement('span'); ph.className = 'photo'; ph.append(img);
-    return ph;
+    const fig = document.createElement('span'); fig.className = 'fig'; fig.append(ph);
+    if (p.text) {                       // commentaire de la photo, sous l'image
+      const cap = document.createElement('span'); cap.className = 'caption';
+      const tx = document.createElement('span'); tx.className = 'caption-text'; tx.textContent = p.text;
+      cap.append(tx); fig.append(cap);
+    }
+    return fig;
   }
   const s = document.createElement('span');
   s.className = 'sticker';
@@ -86,16 +95,21 @@ function renderWall(items) {
     li.style.width = `${w}px`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
-    b.setAttribute('aria-label', p.kind === 'text' ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
+    b.setAttribute('aria-label', ariaOf(p));
     b.append(content(p, { font }));
     li.append(b);
     if (p.isRiku) li.append(stamp());
     li.dataset.i = i;
-    return { li, w, p };
+    const photoH = p.kind === 'image' ? Math.round(w * p.image.h / p.image.w) : 0;
+    if (photoH) li.querySelector('.photo').style.height = `${photoH}px`;
+    return { li, w, p, photoH };
   });
   wallEl.append(...nodes.map(n => n.li));
-  const boxes = nodes.map(n => ({ id: n.p.id, kind: n.p.kind, w: n.w,
-    h: n.p.kind === 'image' ? Math.round(n.w * n.p.image.h / n.p.image.w) : n.li.offsetHeight }));
+  // hauteur réelle (image + commentaire éventuel) ; capH = bande du commentaire, que rien ne doit recouvrir
+  const boxes = nodes.map(n => {
+    const h = n.li.offsetHeight;
+    return { id: n.p.id, kind: n.p.kind, w: n.w, h, capH: n.photoH ? h - n.photoH : 0 };
+  });
   // 2. placer
   const L = layout(boxes, W, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile });
   nodes.forEach((n, i) => {
@@ -114,7 +128,7 @@ function renderList(items) {
     li.className = `row row--${p.kind}`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
-    b.setAttribute('aria-label', p.kind === 'text' ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
+    b.setAttribute('aria-label', ariaOf(p));
     b.append(content(p));
     const meta = document.createElement('p');
     meta.className = 'row-meta';
@@ -201,17 +215,20 @@ const captchaOk = form => CONFIG.mode !== 'mock' || $('[data-captcha] input', fo
 const captchaToken = () => 'mock';
 
 /* ------------------------------------------------------------------ dépôt */
+// Un seul formulaire : une image, des mots, ou les deux. Le nombre de caractères autorisés
+// dépend des pixels de l'image (js/budget.js) : sans image 500, avec une grande image 40.
 const form = $('#dropForm'), fileIn = $('#file'), textIn = $('#text'), msgEl = $('#dropMsg');
 let prepared = null;
-const kind = () => new FormData(form).get('kind');
+const budget = () => prepared ? textBudget(prepared.width, prepared.height) : textBudget();
 
-form.addEventListener('change', e => {
-  if (e.target.name === 'kind') form.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== kind(); });
-});
 textIn.addEventListener('input', refreshDropTexts);
 function refreshDropTexts() {
-  $('#count').textContent = t('count', { n: [...textIn.value].length, max: CONFIG.upload.maxText });
+  const max = budget(), n = textLength(textIn.value);
+  $('#budgetNote').textContent = t(prepared ? 'budgetImage' : 'budgetNone', { max });
+  $('#countN').textContent = `${n} / ${max}`;
+  $('#count').classList.toggle('over', n > max);
   $('#fileLabel').textContent = t(prepared ? 'changeImage' : 'chooseImage');
+  $('#removeImage').hidden = !prepared;
   if (prepared) $('#previewInfo').textContent = t('processed', { w: prepared.width, h: prepared.height, size: formatBytes(prepared.full.size) });
 }
 
@@ -233,27 +250,29 @@ fileIn.addEventListener('change', async () => {
   }
   refreshDropTexts();
 });
+$('#removeImage').addEventListener('click', () => {
+  prepared = null; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  refreshDropTexts();
+});
 
 function resetDrop() {
   form.reset(); prepared = null;
   $('#preview').hidden = true; msgEl.textContent = '';
-  form.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== 'image'; });
   $('#send').disabled = false;
   refreshDropTexts();
 }
 
 form.addEventListener('submit', async e => {
   e.preventDefault();
-  const k = kind();
-  const text = textIn.value.trim();
-  if (k === 'image' && !prepared) { msgEl.textContent = t('eNoImage'); return; }
-  if (k === 'text' && (!text || [...text].length > CONFIG.upload.maxText)) { msgEl.textContent = t('eNoText'); return; }
+  const text = textIn.value.trim(), max = budget();
+  if (!prepared && !text) { msgEl.textContent = t('eEmpty'); return; }
+  if (textLength(text) > max) { msgEl.textContent = t('eTooLong', { max }); return; }
   if (!$('#rights').checked) { msgEl.textContent = t('eRights'); return; }
   if (!captchaOk(form)) { msgEl.textContent = t('eCaptcha'); return; }
   const send = $('#send');
   send.disabled = true; msgEl.textContent = t('sending');
   try {
-    await submitPost({ kind: k, text, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: captchaToken(form) });
+    await submitPost({ kind: prepared ? 'image' : 'text', text, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: captchaToken(form) });
     msgEl.textContent = t(CONFIG.mode === 'mock' ? 'thanksMock' : 'thanks');
   } catch (err) {
     msgEl.textContent = err.message; send.disabled = false;

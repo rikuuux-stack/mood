@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RIKU</title>
 <meta name="description" content="RIKU (Félix Cardonnel), image et direction artistique entre Tokyo et Paris. Un moodboard ouvert : déposez une image ou un texte.">
-<meta name="theme-color" content="#9b9a96">
+<meta name="theme-color" content="#0b0b0b">
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/site.css">
@@ -51,31 +51,26 @@
   </details>
 </dialog>
 
-<!-- Dépôt -->
+<!-- Dépôt : une image, des mots, ou les deux. Plus l'image a de pixels, moins il reste de mots (js/budget.js). -->
 <dialog id="drop" class="dlg dlg--drop" aria-labelledby="dropTitle">
   <form id="dropForm" class="drop-form" novalidate>
     <div class="dlg-head">
       <h2 id="dropTitle" data-i18n="drop"></h2>
       <button type="button" class="x" data-close data-i18n-label="close">×</button>
     </div>
-    <div class="tabs" role="radiogroup">
-      <label><input type="radio" name="kind" value="image" checked> <span data-i18n="tabImage"></span></label>
-      <label><input type="radio" name="kind" value="text"> <span data-i18n="tabText"></span></label>
-    </div>
 
-    <div class="pane" data-pane="image">
+    <div class="file-row">
       <label class="file">
         <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
         <span class="btn" id="fileLabel" data-i18n="chooseImage"></span>
       </label>
-      <p class="hint" id="fileHint" data-i18n="imageHint"></p>
-      <figure class="preview" id="preview" hidden><span class="photo"><img alt=""></span><figcaption id="previewInfo"></figcaption></figure>
+      <button type="button" class="link" id="removeImage" hidden data-i18n="removeImage"></button>
     </div>
+    <p class="hint" data-i18n="imageHint"></p>
+    <figure class="preview" id="preview" hidden><span class="photo"><img alt=""></span><figcaption id="previewInfo"></figcaption></figure>
 
-    <div class="pane" data-pane="text" hidden>
-      <textarea id="text" rows="5" maxlength="500" data-i18n-label="tabText"></textarea>
-      <p class="hint count" id="count" aria-live="polite"></p>
-    </div>
+    <textarea id="text" rows="4" data-i18n-placeholder="textPlaceholder"></textarea>
+    <p class="hint count" id="count" aria-live="polite"><span id="budgetNote"></span><span id="countN"></span></p>
 
     <input type="text" id="name" maxlength="40" autocomplete="nickname" data-i18n-placeholder="nameLabel">
     <label class="check"><input type="checkbox" id="rights"> <span data-i18n="rights"></span></label>
