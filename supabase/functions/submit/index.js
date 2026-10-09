@@ -85,6 +85,7 @@ Deno.serve(async req => {
 
   // 4. fichiers : bucket privé « pending » (ou « published » pour l'administrateur)
   const id = crypto.randomUUID();
+  const kind = hasImage ? 'image' : 'text';
   const bucket = isRiku ? 'published' : 'pending';
   let image_path = null, thumb_path = null;
   if (hasImage) {
@@ -96,9 +97,10 @@ Deno.serve(async req => {
     }
   }
 
-  // 5. enregistrement
+  // 5. enregistrement, avec la consigne du mois en vigueur (strates du mur)
+  const { data: current } = await db.from('prompt').select('text').eq('id', 1).maybeSingle();
   const { error } = await db.from('posts').insert({
-    id, kind: hasImage ? 'image' : 'text', text, name: isRiku ? '' : name, lang, size,
+    id, kind, text, name: isRiku ? '' : name, lang, size, prompt: current?.text || '',
     image_path, thumb_path, width: full?.width ?? null, height: full?.height ?? null,
     is_riku: isRiku, status: isRiku ? 'approved' : 'pending', approved_at: isRiku ? new Date().toISOString() : null,
     ip_hash: hash,
@@ -115,5 +117,6 @@ Deno.serve(async req => {
       `${hasImage ? `Image ${full.width} × ${full.height} px` : 'Texte'}${name ? ` de « ${name} »` : ''}.\n\n` +
       `${text ? `« ${text.slice(0, 300)} »\n\n` : ''}Valider ou refuser : ${SITE_URL}admin/`);
   }
-  return json(req, 201, { ok: true, status: isRiku ? 'approved' : 'pending', kind: hasImage ? 'image' : 'text' });
+  // id : le navigateur du visiteur garde une copie « en attente » de son dépôt, qu'il retire dès qu'il est validé
+  return json(req, 201, { ok: true, id, status: isRiku ? 'approved' : 'pending', kind });
 });

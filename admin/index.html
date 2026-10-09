@@ -6,9 +6,9 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Mood — admin</title>
 <meta name="theme-color" content="#0b0b0b">
-<link rel="stylesheet" href="../css/fonts.css?v=af3ebca491">
-<link rel="stylesheet" href="../css/site.css?v=f5d59ed612">
-<link rel="stylesheet" href="admin.css?v=ffa5709076">
+<link rel="stylesheet" href="../css/fonts.css?v=4a16f2367f">
+<link rel="stylesheet" href="../css/site.css?v=a00ebdc2db">
+<link rel="stylesheet" href="admin.css?v=4aabfae5ce">
 </head>
 <body>
 <header class="bar">
@@ -34,6 +34,13 @@
       <button type="button" role="tab" data-tab="published" aria-selected="false">Live <span data-n="published"></span></button>
       <button type="button" role="tab" data-tab="mine" aria-selected="false">Drop</button>
     </nav>
+    <!-- consigne du mois : un court texte anglais (60 caractères au plus), affiché sur le mur et dans Drop -->
+    <form id="promptForm" class="adm-prompt">
+      <label for="promptText">Prompt</label>
+      <input type="text" id="promptText" maxlength="60" placeholder="e.g. trace." autocomplete="off">
+      <button type="submit" class="btn">Save</button>
+      <button type="button" class="link" id="promptClear">Clear</button>
+    </form>
     <p class="form-msg" id="dashMsg" role="status"></p>
     <ol id="cards" class="adm-cards"></ol>
 
@@ -44,7 +51,6 @@
         <button type="button" class="link" id="mineRemove" hidden>Remove</button>
       </div>
       <figure class="preview" id="minePreview" hidden><canvas aria-hidden="true"></canvas><figcaption id="mineInfo"></figcaption></figure>
-      <label class="grain" id="mineGrainRow" hidden><span>Grain</span><input type="range" id="mineGrain" min="0" max="100" step="1" value="0"><output id="mineGrainOut" for="mineGrain">0</output></label>
       <textarea id="mineText" rows="4" placeholder="Words" aria-label="Words"></textarea>
       <p class="hint count"><span id="mineCount"></span></p>
       <fieldset class="sizes"><legend>Size</legend>
@@ -58,6 +64,6 @@
   </section>
 </main>
 
-<script type="module" src="admin.js?v=8358471646"></script>
+<script type="module" src="admin.js?v=6b9d7e88e2"></script>
 </body>
 </html>

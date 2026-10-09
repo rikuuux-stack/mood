@@ -29,12 +29,18 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(-
 html.modal, html.modal body { overflow: hidden; }
 body {
   margin: 0; min-height: 100dvh;
-  background: var(--bg);
-  background-image: var(--noise);
+  background: transparent;              /* le fond et son grain sont sur la couche fixe ci-dessous */
   color: var(--fg);
   font: var(--light) 13px/1.65 var(--font);
   line-break: strict;
   overflow-wrap: anywhere;
+}
+/* fond + grain : une couche FIXE, à la taille du plus grand écran possible (100lvh : barre d'adresse
+   de l'iPhone repliée). Elle ne défile pas et ne change pas de taille quand la barre apparaît ou
+   disparaît : ni bande, ni saut. Pas de background-attachment: fixed (ignoré par l'iPhone). */
+body::before {
+  content: ''; position: fixed; top: 0; left: 0; right: 0; height: 100%; height: 100lvh; z-index: -1;
+  background: var(--bg) var(--noise); pointer-events: none;
 }
 button, input, textarea { font: inherit; color: inherit; }
 /* japonais : chasse proportionnelle (palt), plus serrée et plus lisible */
@@ -45,27 +51,42 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* focus : double anneau clair/noir, visible sur le fond, les fenêtres et les photos */
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; box-shadow: 0 0 0 6px var(--bg); }
 
-.skip { position: absolute; left: 8px; top: -60px; z-index: 100; background: var(--fg); color: var(--bg); padding: 8px 12px; }
+.skip { position: absolute; left: 8px; top: -60px; z-index: 1001; background: var(--fg); color: var(--bg); padding: 8px 12px; }
 .skip:focus { top: 8px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* ------------------------------------------------------------------ bandeau : Mood + Déposer */
+/* ------------------------------------------------------------------ Mood + Drop : flottants, sans bandeau
+ * Deux éléments fixes posés directement sur le mur : AUCUN fond, aucune bordure de barre. Le mur défile
+ * dessous. Toujours au-dessus des images (le mur et la liste sont isolés : isolation, z-index enfermés)
+ * et toujours lisibles grâce à mix-blend-mode: difference (clair sur le sombre, sombre sur le clair).
+ * Aucun parent ne doit porter de transform / filter (sinon position: fixed casse).
+ */
 .bar {
-  position: sticky; top: 0; z-index: 20;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: space-between; gap: 18px;
-  padding: calc(12px + var(--safe-t)) var(--gutter) 12px;
-  background: var(--bg) var(--noise);   /* même grain que la page : pas de bande lisse en haut */
+  padding: calc(12px + var(--safe-t)) calc(var(--gutter) + env(safe-area-inset-right, 0px)) 12px calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  background: none; pointer-events: none;       /* la zone entre les deux reste cliquable (le mur dessous) */
+  mix-blend-mode: difference;
 }
+.bar > .id, .bar > .btn-drop { pointer-events: auto; }   /* .id est en « all: unset » : il faut le préciser */
 .id { all: unset; cursor: pointer; font-weight: 100; font-size: 1.4rem; line-height: 1; padding: 6px 0; }
 /* « Mood » à l'envers : retourné de 180°. L'espacement des lettres est compensé à gauche
    (après rotation, l'espace qui suit la dernière lettre se retrouve devant la première). */
-.id-name { display: inline-block; transform: rotate(180deg); letter-spacing: .3em; margin-left: -.3em; }
+.id-name { display: inline-block; transform: rotate(0); letter-spacing: .3em; margin-left: -.3em; transition: transform .5s ease; }
+/* « Mood » est à l'endroit au repos ; il se retourne brièvement à l'ouverture de la page, et au survol */
+.id-name { animation: flip .6s ease .35s backwards; }
+@keyframes flip { from { transform: rotate(180deg); } to { transform: rotate(0); } }
+@media (hover: hover) { .id:hover .id-name, .id:focus-visible .id-name { transform: rotate(180deg); } }
+@media (prefers-reduced-motion: reduce) { .id-name { animation: none; transition: none; } .id:hover .id-name, .id:focus-visible .id-name { transform: none; } }
 .btn-drop {
   border: var(--line) solid var(--fg); background: transparent; color: var(--fg);
   font-weight: var(--light); font-size: .8rem; letter-spacing: .1em;
   padding: 7px 12px; min-height: 38px;
 }
 .btn-drop:hover { background: var(--fg); color: var(--bg); }
+.bar .btn-drop { color: #fff; border-color: #fff; }   /* blanc pur : « difference » inverse exactement ce qui est dessous */
+.bar .id { color: #fff; }
+.bar .btn-drop:hover { background: #fff; color: #000; }
 .btn-drop:disabled { opacity: .5; cursor: progress; }
 .btn-drop--wide { width: 100%; margin-top: 4px; min-height: 44px; }
 .btn {
@@ -85,15 +106,38 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 }
 
 /* ------------------------------------------------------------------ mur */
-.wall { position: relative; list-style: none; margin: 0; padding: 0; }
-.item { position: absolute; opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+.wall { position: relative; list-style: none; margin: 0; padding: 0; isolation: isolate; }   /* z-index des éléments enfermés ici */
+.list { isolation: isolate; }
+.item {
+  position: absolute;
+  /* érosion (js/wall.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 (neuf) … 1 (plancher) */
+  --w: calc((1 - var(--v, 1)) / .7);
+  transition: opacity .2s ease, transform .14s ease;
+}
+/* images : les pixels clairs deviennent transparents par paliers (.age-1 … .age-4 → filtres #erode1 … #erode4,
+   index.html) ; il finit par ne rester que les parties sombres, on voit à travers. Le grain est alors
+   dans le filtre (plus fort à chaque palier) : le grain habituel (::after) s'efface, sinon il voilerait
+   les parties devenues transparentes. Aucun retour à neuf au survol : seulement à l'ouverture en grand. */
+.photo.is-loaded { background: transparent; }
+.item.age-1 .photo img { filter: url(#erode1); }
+.item.age-2 .photo img { filter: url(#erode2); }
+.item.age-3 .photo img { filter: url(#erode3); }
+.item.age-4 .photo img { filter: url(#erode4); }
+.item:is(.age-1, .age-2, .age-3, .age-4) .photo.is-loaded::after { display: none; }
+/* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (contraste ≥ 10:1 au plancher) */
+.item .sticker, .item .caption { color: color-mix(in srgb, #bdbdbd calc(100% * var(--w)), var(--fg)); }
+/* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */
+@media (hover: hover) {
+  .item:hover, .item:focus-within { z-index: 100000 !important; transform: translateY(-6px) scale(1.015); }
+}
+.item:focus-within { z-index: 100000 !important; }
+/* toucher : léger retour avant l'ouverture */
+@media (hover: none) { .item:active { transform: scale(.985); transition-duration: .08s; } }
 /* apparition en fondu quand l'image est prête (js/main.js : reveal) ; disparition des dépôts retirés */
-.item.is-in { opacity: 1; pointer-events: auto; }
-.item.no-fade { transition: none; }
-.item.is-out { opacity: 0; pointer-events: none; }
+.item.is-out { opacity: 0; pointer-events: none; transition: opacity .4s ease; }
 /* après une mise à jour en arrière-plan : les éléments glissent vers leur nouvelle place */
-.wall.glide .item { transition: opacity .4s ease, left .7s ease, top .7s ease; }
-@media (prefers-reduced-motion: reduce) { .item, .wall.glide .item { transition: none; } }
+.wall.glide .item { transition: opacity .4s ease, left .7s ease, top .7s ease, transform .14s ease; }
+@media (prefers-reduced-motion: reduce) { .item, .wall.glide .item { transition: none; } .item:hover, .item:focus-within, .item:active { transform: none !important; } }
 .item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
 .item-hit:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
 .fig { display: block; }
@@ -102,7 +146,10 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* photos : noir et blanc + grain, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
    Appliqué à l'affichage : les fichiers restent intacts, le traitement est le même pour tous. */
 .photo { position: relative; display: block; overflow: hidden; background: var(--photo-bg); }
-.photo img { display: block; filter: url(#tone); }   /* N&B + hautes lumières assombries (filtre SVG dans index.html) */
+.photo img { display: block; filter: url(#tone); opacity: 0; transition: opacity .22s ease; }   /* N&B + hautes lumières assombries (filtre SVG dans index.html) */
+/* le cadre (aux bonnes proportions) est là tout de suite ; l'image y apparaît en fondu quand elle est prête */
+.photo.is-loaded img { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
 .photo::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
@@ -122,17 +169,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .caption { display: block; padding: 5px 1px 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
 .caption-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: pre-line; }
 
-/* marque de l'auteur du site : petit carré clair façon tampon, sans texte */
-.stamp {
-  position: absolute; top: -6px; right: -6px; z-index: 1;
-  width: 14px; height: 14px; background-color: var(--fg);
-  background-image: radial-gradient(rgba(0,0,0,.25) .8px, transparent 1.1px);
-  background-size: 3px 3px;
-  box-shadow: inset 0 0 0 2px var(--fg), inset 0 0 0 3px rgba(0,0,0,.35);
-}
-.stamp.stamp--inline { position: relative; top: 0; right: 0; display: inline-block; width: 11px; height: 11px; vertical-align: -1px; }
-.item--text .stamp { top: -2px; left: 2px; right: auto; width: 11px; height: 11px; }
-.item--text.is-author .sticker { padding-top: 16px; }
 
 /* ------------------------------------------------------------------ liste */
 .list { list-style: none; max-width: 620px; margin: 0 auto; padding: 12px var(--gutter) 24px; display: grid; gap: 36px; }
@@ -142,8 +178,8 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .row .sticker-text, .row .caption-text { -webkit-line-clamp: unset; display: block; }
 .row-meta { margin: 6px 0 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
 
-.empty { margin: 48px var(--gutter); color: var(--muted); font-size: 12px; }
-.more-wrap { text-align: center; margin: 24px 0; }
+.empty { margin: 48px var(--gutter); color: var(--muted); font-size: 13px; }
+.empty .link { color: var(--fg); }
 
 /* ------------------------------------------------------------------ fenêtres */
 .dlg {
@@ -209,16 +245,30 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .sizes span { display: grid; place-items: center; width: 40px; height: 40px; border: var(--line) solid var(--rule); font: var(--light) 13px var(--mono); cursor: pointer; }
 .sizes input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .sizes input:focus-visible + span { outline: 2px solid var(--fg); outline-offset: 2px; }
-/* grain : curseur à filet fin, gris uniquement */
-.grain { display: grid; grid-template-columns: auto 1fr 2.5em; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
-.grain[hidden] { display: none; }
-.grain output { font-family: var(--mono); text-align: right; color: var(--fg); }
-.grain input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; background: transparent; margin: 0; }
-.grain input::-webkit-slider-runnable-track { height: 1px; background: var(--muted); }
-.grain input::-moz-range-track { height: 1px; background: var(--muted); }
-.grain input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -9px; border-radius: 0; background: var(--fg); border: 0; }
-.grain input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 0; background: var(--fg); border: 0; }
-.grain input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .preview figcaption { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin-top: 6px; }
 .captcha-mock { font-size: 13px; }
 .form-msg { margin: 0; min-height: 1.5em; font-size: 13px; }
+
+/* ------------------------------------------------------------------ contexte, consigne, strates */
+.intro { padding: calc(64px + var(--safe-t)) var(--gutter) 0; }   /* au départ sous « Mood » ; puis défile sous lui */
+@media (max-width: 639px) { .intro { padding-top: calc(54px + var(--safe-t)); } }
+.context { margin: 0; font-size: 12px; color: var(--muted); }
+.prompt { margin: 2px 0 0; font: var(--light) 12px/1.5 var(--mono); color: var(--fg); }
+.drop-form .prompt { margin: 0; }
+/* séparateur de strates : un filet fin et le mot de la consigne de ce mois-là (rien s'il n'y en avait pas) */
+.stratum { position: absolute; list-style: none; height: 64px; border-top: var(--line) solid var(--rule); pointer-events: none; }
+.stratum span { display: block; padding-top: 8px; font: var(--light) 11px/1.4 var(--mono); color: var(--muted); letter-spacing: .04em; }
+
+/* mon dépôt en attente (chez moi seulement) */
+.item.is-pending { opacity: .55; }
+.pending-tag, .row.is-pending .row-meta { display: block; margin-top: 4px; font: var(--light) 11px/1.4 var(--mono); color: var(--muted); }
+
+/* panneau Mood : manifeste */
+.manifesto { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 14px; line-height: 1.5; }
+.hint.small { font-size: 11px; }
+
+/* agrandissement : précédent / suivant */
+.viewer-nav { display: flex; gap: 4px; margin-left: auto; }
+.nav { all: unset; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; font-size: 20px; color: var(--fg); }
+.nav:disabled { color: var(--rule); cursor: default; }
+.nav:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }

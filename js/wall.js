@@ -11,7 +11,7 @@
  *   - une image n'est jamais recouverte à plus de `limit` (30 % sur ordinateur, 15 % sur mobile) :
  *     on additionne la surface que lui prennent tous les éléments posés au-dessus d'elle ;
  *   - le plus récent est toujours au-dessus ;
- *   - les éléments dérivent lentement (`drift`) : toutes ces règles valent à chaque instant ;
+ *   - le mur est immobile : c'est le temps qui le transforme (érosion, strates : voir plus bas) ;
  *   - placement stable : tout dépend de l'identifiant du dépôt (graine) et de la largeur du mur ;
  *   - les plus récents en haut ; on remplit de haut en bas en cherchant la place la plus haute
  *     qui respecte la règle de recouvrement (d'où des chevauchements naturels, jamais excessifs).
@@ -57,59 +57,43 @@ export function sizeFor(post, W, mobile) {
   return { w: Math.round(clamp(w, Math.min(120, W), W * 0.6)) };
 }
 
-/* ------------------------------------------------------------------ dérive (mouvement lent)
- * Chaque élément bouge doucement autour de sa place ; le décalage ne dépasse JAMAIS `A` px sur
- * chaque axe (la marge réservée par le placement). Tout dépend de l'identifiant (stable).
- * Styles (choisis par l'auteur, essai avec ?motion=a|b|c ; sans paramètre : « calme ») :
- *   calme       ±12 / ±8 px, ≤ 3 px/s, courbe de Lissajous, un tour en 40 à 70 s ;
- *   a  souffle  ±16 / ±12 px, ≤ 5 px/s, un tour en ≈ 25 s ;
- *   b  flottement ±24 / ±16 px, ≤ 8 px/s, deux rythmes mélangés (moins régulier) ;
- *   c  houle    ±16 / ±12 px, ≈ 6 px/s, les voisins bougent ensemble : une vague traverse le mur en ≈ 20 s.
+/* ------------------------------------------------------------------ le temps
+ * Le mur est immobile : c'est le TEMPS qui le transforme.
+ *
+ * Érosion (courbe « Saison », 90 jours) : chaque dépôt s'estompe avec le temps passé sur le mur (depuis
+ * sa validation) — intact 7 jours, puis de plus en plus pâle, de plus en plus lentement, sans jamais
+ * descendre sous 30 % : ≈ 70 % à 30 jours, ≈ 39 % à 90 jours, ≈ 31 % à 180 jours.
+ * Au-delà de 180 jours, il quitte le mur et ne vit plus que dans la vue List (toujours à 100 %).
+ * Images : les pixels CLAIRS deviennent transparents avec l'âge (on voit à travers), par paliers fixes
+ * (stageOf → classes .age-1 … .age-4, filtres SVG #erode1 … #erode4 dans index.html) : quatre filtres
+ * partagés par toutes les images, rien de calculé image par image. L'image ne redevient neuve
+ * qu'à l'ouverture en grand. Textes : à peine adoucis, toujours lisibles (css/site.css).
  */
-export const MOTIONS = {
-  calm: { A: { desktop: 12, mobile: 8 }, vmax: 3 },
-  a: { A: { desktop: 16, mobile: 12 }, vmax: 5 },
-  b: { A: { desktop: 24, mobile: 16 }, vmax: 8 },
-  c: { A: { desktop: 16, mobile: 12 }, vmax: 6 },
-};
-export const DRIFT = MOTIONS.calm.A;               // compatibilité
-export const motionStyle = s => (s in MOTIONS ? s : 'calm');
+export const TIME = { fresh: 7, floor: 0.3, k: 41, wallDays: 180 };
+const DAY = 86400e3;
+export const ageDays = (iso, now = Date.now()) => Math.max(0, (now - Date.parse(iso)) / DAY);
+/** Visibilité (0,3 … 1) d'un dépôt selon son âge en jours. */
+export function visibility(days) {
+  if (!(days > TIME.fresh)) return 1;
+  return TIME.floor + (1 - TIME.floor) * Math.exp(-(days - TIME.fresh) / TIME.k);
+}
+/**
+ * Palier d'érosion d'une image (0 = neuve … 4 = il ne reste que les parties sombres), selon sa visibilité.
+ * Usure w = (1 − v) / 0,7 : palier 1 dès w ≥ 0,08 (≈ 10 j), 2 dès 0,3 (≈ 22 j), 3 dès 0,55 (≈ 40 j), 4 dès 0,8 (≈ 73 j).
+ */
+export const STAGES = [0.08, 0.3, 0.55, 0.8];
+export function stageOf(v) {
+  const w = (1 - v) / (1 - TIME.floor);
+  return STAGES.filter(s => w >= s - 1e-9).length;
+}
+/** Un dépôt reste sur le mur pendant 180 jours ; ensuite, seulement dans la vue List. */
+export const onWall = days => days < TIME.wallDays;
 
 /**
- * Paramètres de mouvement d'un élément. style : calm | a | b | c ; pos : { x, y, W } (houle : la
- * phase dépend de la position, pour que la vague traverse le mur).
- * Chaque axe = somme de sinusoïdes dont les amplitudes totalisent au plus A ; vitesse ≤ vmax.
+ * Strates : le mur se lit de haut en bas comme des couches de temps. Une strate = les dépôts d'un même
+ * mois ET d'une même consigne (gardée sur chaque dépôt). Un mois sans consigne forme une strate sans mot.
  */
-export function drift(id, A, style = 'calm', pos = { x: 0, y: 0, W: 1000 }) {
-  const r = rng(id + ':drift');
-  const st = motionStyle(style), vmax = MOTIONS[st].vmax;
-  const axis = () => r() * 6.283;
-  if (st === 'c') {                                   // houle : orbite elliptique, phase selon la position
-    const ax = A * (0.85 + 0.15 * r()), ay = ax * 0.6;
-    const w = vmax / ax * 0.95;                       // vitesse ≤ ω·ax ≤ vmax
-    const k = w / (pos.W / 20);                       // la vague traverse la largeur en ≈ 20 s
-    const ph = -(k * pos.x + 0.6 * k * pos.y) + (r() - 0.5) * 0.6;
-    return { terms: [[ax, w, ph, 0, 0, 0], [0, 0, 0, ay, w, ph + Math.PI / 2]] };
-  }
-  if (st === 'b') {                                   // flottement : deux rythmes par axe
-    const one = () => { const a1 = A * (0.55 + 0.1 * r()), a2 = A - a1 - 0.5;
-      // vitesse par axe ≤ a1·w1 + a2·w2 ≤ vmax / √2
-      const w1 = (0.5 + 0.5 * r()) * vmax / Math.SQRT2 / (a1 + 1.5 * a2), w2 = w1 * 1.5; return [a1, w1, axis(), a2, w2, axis()]; };
-    const x = one(), y = one();
-    return { terms: [[x[0], x[1], x[2], 0, 0, 0], [x[3], x[4], x[5], 0, 0, 0], [0, 0, 0, y[0], y[1], y[2]], [0, 0, 0, y[3], y[4], y[5]]] };
-  }
-  const ax = A * (0.6 + 0.4 * r()), ay = A * (0.6 + 0.4 * r());
-  const wmax = vmax / (A * Math.SQRT2);              // vitesse ≤ √((ax·wx)² + (ay·wy)²) ≤ vmax
-  const wmin = st === 'calm' ? wmax * 0.53 : wmax * 0.6;
-  const wx = wmin + (wmax - wmin) * r(), wy = wmin + (wmax - wmin) * r();
-  return { terms: [[ax, wx, axis(), 0, 0, 0], [0, 0, 0, ay, wy, axis()]] };
-}
-/** Décalage (px) à l'instant t (secondes). |dx|, |dy| ≤ A. */
-export function offsetAt(d, t) {
-  let x = 0, y = 0;
-  for (const [ax, wx, px, ay, wy, py] of d.terms) { if (ax) x += ax * Math.sin(wx * t + px); if (ay) y += ay * Math.sin(wy * t + py); }
-  return { x, y };
-}
+export const strataKey = p => `${(p.createdAt || '').slice(0, 7)}|${p.prompt || ''}`;
 
 /** Bande du commentaire, en bas d'une boîte. */
 const strip = (r, capH) => ({ x: r.x, y: r.y + r.h - (capH || 0), w: r.w, h: capH || 0 });
@@ -127,10 +111,7 @@ export const zOf = (i, n) => n - i;
 
 /**
  * boxes : [{ id, kind, w, h, capH }] dans l'ordre d'affichage (le plus récent d'abord).
- * drift : amplitude maximale du mouvement (px). Le placement se fait sur des boîtes AGRANDIES de
- * `drift` de chaque côté (toute la zone que l'élément peut balayer) : les règles (recouvrement,
- * espace autour des textes, commentaires) sont donc respectées à CHAQUE instant, même quand deux
- * voisins se rapprochent au maximum. Le recouvrement est compté par rapport à la surface réelle.
+ * drift : marge réservée autour de chaque élément (px) — 0 depuis que le mur est immobile.
  * Le plus récent est au-dessus : un élément n'est recouvert que par ceux posés avant lui.
  * Retourne { rects: [{ x, y, w, h, z }], height, overlaps: [[i, j], …] }.
  */
@@ -144,8 +125,9 @@ export function layout(boxes, W, opts = {}) {
  * Placement PROGRESSIF : la place d'un élément ne dépend que des éléments plus récents (posés
  * avant lui). On peut donc placer le premier écran tout de suite, puis le reste par morceaux.
  * n : nombre total d'éléments (pour l'ordre d'empilement). add(box) → rect ; height() ; overlaps.
+ * top / first : pour une strate qui commence plus bas (décalage vertical, indice de son premier élément).
  */
-export function createLayout(W, n, { limit = 0.3, pad = 24, mobile = false, drift: A = 0 } = {}) {
+export function createLayout(W, n, { limit = 0.3, pad = 24, mobile = false, drift: A = 0, top = 0, first = 0 } = {}) {
   const inner = W - 2 * pad;
   const placed = [];            // boîtes agrandies : { x, y, w, h, kind, capH }
   const overlaps = [];
@@ -197,10 +179,11 @@ export function createLayout(W, n, { limit = 0.3, pad = 24, mobile = false, drif
     placed.forEach((p, j) => { if (inter(rect, p)) overlaps.push([j, idx]); });
     placed.push(rect);
     bottom = Math.max(bottom, rect.y + rect.h);
-    return { x: rect.x + A + pad, y: rect.y + A + pad, w: rect.w - 2 * A, h: rect.h - 2 * A, z: zOf(idx++, n) };
+    return { x: rect.x + A + pad, y: rect.y + A + pad + top, w: rect.w - 2 * A, h: rect.h - 2 * A, z: zOf(first + idx++, n) };
   }
   let bottom = 0;
-  return { add, overlaps, height: () => Math.ceil(bottom + 2 * pad), get count() { return idx; } };
+  // height : bas de la strate (top compris) ; overlaps : indices locaux à cette strate
+  return { add, overlaps, height: () => Math.ceil(top + bottom + 2 * pad), get count() { return idx; } };
 }
 
 /** Pour les tests : part de chaque élément recouverte par ceux qui sont au-dessus de lui (selon z). */

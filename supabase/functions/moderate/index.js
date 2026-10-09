@@ -7,12 +7,13 @@
  *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
  *   POST { action: 'resize', id, size }  → taille d'affichage changée (s / m / l), quel que soit le statut
+ *   POST { action: 'prompt', text }      → consigne du mois (texte anglais, 60 caractères au plus ; vide = aucune)
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
 import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
 
-const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_riku, status, report_count, created_at, approved_at';
+const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_riku, status, report_count, created_at, approved_at, prompt';
 const SIZES = ['s', 'm', 'l'];
 
 async function withUrls(db, rows, bucket) {
@@ -65,7 +66,9 @@ Deno.serve(async req => {
       q('hidden').order('created_at', { ascending: false }),
       q('approved').order('approved_at', { ascending: false }).limit(300),
     ]);
+    const pr = await db.from('prompt').select('text').eq('id', 1).maybeSingle();
     return json(req, 200, {
+      prompt: pr.data?.text || '',
       pending: await withUrls(db, p.data || [], 'pending'),
       hidden: await withUrls(db, h.data || [], 'published'),
       published: await withUrls(db, a.data || [], 'published'),
@@ -76,6 +79,13 @@ Deno.serve(async req => {
   let body;
   try { body = await req.json(); } catch { return fail(req, 400, 'bad'); }
   const { action, id, size } = body || {};
+  if (action === 'prompt') {                               // consigne du mois : pas de dépôt concerné
+    const text = String(body.text ?? '').trim();
+    if ([...text].length > 60) return fail(req, 400, 'tooLong');
+    const { error } = await db.from('prompt').upsert({ id: 1, text, updated_at: new Date().toISOString() });
+    if (error) { console.error('[moderate] consigne impossible :', error.code, error.message); return fail(req, 500, 'db'); }
+    return json(req, 200, { ok: true, prompt: text });
+  }
   const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
   if (!row) return fail(req, 404, 'gone');
 

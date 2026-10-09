@@ -1,64 +1,65 @@
-// Règles du mur (lisibilité) : node tests/wall.test.mjs  → code de sortie 0 si tout est respecté.
-// Les éléments dérivent lentement : on vérifie les règles au repos ET à des centaines d'instants
-// du mouvement (plus le pire cas : deux voisins rapprochés au maximum).
-import { layout, createLayout, coverage, sizeFor, drift, offsetAt, MOTIONS, SIZES } from '../js/wall.js';
+// Règles du mur : node tests/wall.test.mjs  → code de sortie 0 si tout est respecté.
+// Le mur est immobile ; c'est le temps qui le transforme (érosion, strates).
+import { layout, createLayout, coverage, sizeFor, SIZES, visibility, stageOf, onWall, strataKey, TIME } from '../js/wall.js';
+import { CONFIG } from '../js/config.js';
 import { SAMPLE_POSTS } from './fixtures.mjs';
 const inter = (a, b) => { const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y); return x > 0 && y > 0 ? x * y : 0; };
 const strip = (r, c) => ({ x: r.x, y: r.y + r.h - c, w: r.w, h: c });
 let fail = 0;
+const check = (label, ok, info = '') => { if (!ok) fail++; console.log(`${ok ? 'OK ' : 'ÉCHEC'} ${label}${info ? ' → ' + info : ''}`); };
 
-for (const style of Object.keys(MOTIONS))
-for (const [W, mobile, limit] of [[1366,false,.3],[1920,false,.3],[1024,false,.3],[390,true,.15],[320,true,.15]]) {
-  const A = MOTIONS[style].A[mobile ? 'mobile' : 'desktop'], pad = mobile ? 16 : 24, g = mobile ? 28 : 24;
-  const posts = Array.from({length:150},(_,i)=>({...SAMPLE_POSTS[i%SAMPLE_POSTS.length], id:'p'+i, size: SIZES[(i*7)%3]}));
-  const boxes = posts.map(p=>{const s=sizeFor(p,W-2*pad-2*A,mobile);const h=p.kind==='text'?Math.round(s.font*1.45*Math.min(9,Math.ceil([...p.text].length*s.font*0.55/(s.w-32)))+60):Math.round(s.w*p.image.h/p.image.w);const capH=p.kind==='image'&&p.text?40:0;return {id:p.id,kind:p.kind,w:s.w,h:h+capH,capH};});
-  const t0=performance.now(); const L = layout(boxes, W, {limit, pad, mobile, drift: A}); const ms=performance.now()-t0;
-  const motions = boxes.map((b, i) => drift(b.id, A, style, { x: L.rects[i].x, y: L.rects[i].y, W }));
-
-  // 0. placement progressif (par morceaux) = placement d'un coup
-  const P = createLayout(W, boxes.length, { limit, pad, mobile, drift: A });
-  const chunked = [...boxes.slice(0, 7).map(b => P.add(b)), ...boxes.slice(7).map(b => P.add(b))];
-  const sameAsWhole = JSON.stringify(chunked) === JSON.stringify(L.rects) && P.height() === L.height;
-
-  // 1. vitesse (mesurée) et amplitude : jamais plus que le style ne le permet
-  let vmax = 0, amp = 0;
-  motions.forEach(d => { for (let t = 0; t < 120; t += 0.37) { const a = offsetAt(d, t), b = offsetAt(d, t + 0.01);
-    vmax = Math.max(vmax, Math.hypot(b.x - a.x, b.y - a.y) / 0.01); amp = Math.max(amp, Math.abs(a.x), Math.abs(a.y)); } });
-
-  // 2. le plus récent toujours au-dessus
-  const zWrong = L.overlaps.filter(([a, b]) => !(L.rects[Math.min(a, b)].z > L.rects[Math.max(a, b)].z)).length;
-
-  // 3. règles à chaque instant (0 à 10 min, 600 instants) + pire cas (boîtes agrandies de A)
-  const worst = { img: 0, textTouch: 0, textClose: 0, caption: 0, outside: 0 };
-  const check = rects => {
-    const cov = coverage(rects);
-    cov.forEach((c, i) => { if (boxes[i].kind === 'image') worst.img = Math.max(worst.img, c); else if (c > 0) worst.textTouch++; });
-    rects.forEach((a, i) => {
-      if (a.x < pad - A - 0.01 || a.x + a.w > W - pad + A + 0.01) worst.outside++;
-      if (boxes[i].kind === 'text') rects.forEach((b, j) => { if (i !== j && inter({ x: a.x - g, y: a.y - g, w: a.w + 2 * g, h: a.h + 2 * g }, b)) worst.textClose++; });
-      if (boxes[i].capH) rects.forEach((b, j) => { if (i !== j && inter(strip(a, boxes[i].capH), b)) worst.caption++; });
-    });
-  };
-  // seuls les voisins proches peuvent se toucher : on vérifie tout, mais sur un échantillon d'instants
-  for (let k = 0; k <= 600; k += 1) {
-    const t = k;            // secondes
-    check(L.rects.map((r, i) => { const o = offsetAt(motions[i], t); return { ...r, x: r.x + o.x, y: r.y + o.y }; }));
-  }
-  // pire cas pour chaque paire de voisins : l'un pousse au maximum vers l'autre
-  let worstPair = 0;
-  for (const [a, b] of L.overlaps) {
-    const [hi, lo] = L.rects[a].z > L.rects[b].z ? [L.rects[a], L.rects[b]] : [L.rects[b], L.rects[a]];
-    const G = r => ({ x: r.x - A, y: r.y - A, w: r.w + 2 * A, h: r.h + 2 * A });
-    worstPair = Math.max(worstPair, inter(G(hi), G(lo)) / (lo.w * lo.h));
-  }
-  const imageCoveredWorst = Math.max(...boxes.map((b, i) => b.kind !== 'image' ? 0 :
-    L.overlaps.filter(([x, y]) => x === i || y === i).reduce((s, [x, y]) => { const j = x === i ? y : x; if (L.rects[j].z < L.rects[i].z) return s;
-      const G = r => ({ x: r.x - A, y: r.y - A, w: r.w + 2 * A, h: r.h + 2 * A }); return s + inter(G(L.rects[i]), G(L.rects[j])); }, 0) / (L.rects[i].w * L.rects[i].h)));
-
-  const ok = sameAsWhole && vmax <= MOTIONS[style].vmax + 0.05 && amp <= A + 1e-9 && zWrong === 0 && worst.img <= limit + 1e-9 && worst.textTouch === 0 && worst.textClose === 0 && worst.caption === 0 && worst.outside === 0 && imageCoveredWorst <= limit + 1e-9;
-  if (!ok) fail++;
-  console.log(ok ? 'OK ' : 'ÉCHEC', { style, W, ms: Math.round(ms), progressifIdentique: sameAsWhole, amplitudeMax: amp.toFixed(1), vitesseMaxPxS: vmax.toFixed(2), ordreFaux: zWrong, maxImageCouverteEnMouvement: worst.img.toFixed(3),
-    pireCasImage: imageCoveredWorst.toFixed(3), textesTouchés: worst.textTouch, textesTropProches: worst.textClose, commentairesRecouverts: worst.caption, horsCadre: worst.outside,
-    imagesChevauchées: L.overlaps.length, parÉcran: (150 / (L.height / (mobile ? 700 : 800))).toFixed(1) });
+// 1. placement : recouvrement réduit (18 % ordinateur, 8 % iPhone), aucun texte ne touche rien
+check('recouvrement maximal : 18 % ordinateur, 8 % iPhone', CONFIG.wall.overlap === 0.18 && CONFIG.wall.overlapMobile === 0.08);
+for (const [W, mobile] of [[1366, false], [1920, false], [1024, false], [390, true], [320, true]]) {
+  const limit = mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad = mobile ? 16 : 24, g = mobile ? 28 : 24;
+  const posts = Array.from({ length: 150 }, (_, i) => ({ ...SAMPLE_POSTS[i % SAMPLE_POSTS.length], id: 'p' + i, size: SIZES[(i * 7) % 3] }));
+  const boxes = posts.map(p => { const s = sizeFor(p, W - 2 * pad, mobile); const h = p.kind === 'text' ? Math.round(s.font * 1.45 * Math.min(9, Math.ceil([...p.text].length * s.font * 0.55 / (s.w - 32))) + 60) : Math.round(s.w * p.image.h / p.image.w); const capH = p.kind === 'image' && p.text ? 40 : 0; return { id: p.id, kind: p.kind, w: s.w, h: h + capH, capH }; });
+  const t0 = performance.now(); const L = layout(boxes, W, { limit, pad, mobile }); const ms = performance.now() - t0;
+  // par morceaux (placement progressif) = d'un coup
+  const P = createLayout(W, boxes.length, { limit, pad, mobile });
+  const same = JSON.stringify([...boxes.slice(0, 7).map(b => P.add(b)), ...boxes.slice(7).map(b => P.add(b))]) === JSON.stringify(L.rects);
+  const cov = coverage(L.rects);
+  const maxImg = Math.max(...cov.filter((c, i) => boxes[i].kind === 'image'));
+  const textTouched = cov.filter((c, i) => boxes[i].kind === 'text' && c > 0).length;
+  let textClose = 0, captions = 0, outside = 0, zWrong = 0;
+  L.rects.forEach((a, i) => {
+    if (a.x < pad - 0.01 || a.x + a.w > W - pad + 0.01) outside++;
+    if (boxes[i].kind === 'text') L.rects.forEach((b, j) => { if (i !== j && inter({ x: a.x - g, y: a.y - g, w: a.w + 2 * g, h: a.h + 2 * g }, b)) textClose++; });
+    if (boxes[i].capH) L.rects.forEach((b, j) => { if (i !== j && inter(strip(a, boxes[i].capH), b)) captions++; });
+  });
+  for (const [a, b] of L.overlaps) if (!(L.rects[Math.min(a, b)].z > L.rects[Math.max(a, b)].z)) zWrong++;
+  const ok = same && maxImg <= limit + 1e-9 && !textTouched && !textClose && !captions && !outside && !zWrong;
+  check(`mur ${W} px`, ok, JSON.stringify({ ms: Math.round(ms), progressifIdentique: same, maxImageCouverte: +maxImg.toFixed(3), textesTouchés: textTouched, textesTropProches: textClose,
+    commentairesRecouverts: captions, horsCadre: outside, ordreFaux: zWrong, parÉcran: +(150 / (L.height / (mobile ? 700 : 800))).toFixed(1) }));
 }
-process.exit(fail);
+
+// 2. strate décalée : une deuxième strate commence sous la première
+{
+  const A = createLayout(1366, 4, { top: 0 }), B = createLayout(1366, 4, { top: 500, first: 2 });
+  const a = A.add({ id: 'a', kind: 'image', w: 200, h: 150 }), b = B.add({ id: 'b', kind: 'image', w: 200, h: 150 });
+  check('strates : la suivante commence plus bas, ordre d’empilement continu', b.y >= 500 && a.z === 4 && b.z === 2, `y ${a.y} / ${b.y}, z ${a.z} / ${b.z}`);
+}
+
+// 3. érosion (courbe « Saison », 90 jours) : intacte 7 jours, puis de plus en plus pâle, jamais sous 30 %
+const v = d => +visibility(d).toFixed(2);
+check('érosion : 100 % jusqu’à 7 jours', v(0) === 1 && v(7) === 1);
+check('érosion : ≈ 70 % à 30 jours, ≈ 39 % à 90 jours, ≈ 31 % à 180 jours', Math.abs(v(30) - 0.7) <= 0.02 && Math.abs(v(90) - 0.39) <= 0.02 && Math.abs(v(180) - 0.31) <= 0.02, `${v(30)} / ${v(90)} / ${v(180)}`);
+let mono = true, floor = true;
+for (let d = 0; d < 2000; d += 0.5) { if (visibility(d + 0.5) > visibility(d) + 1e-12) mono = false; if (visibility(d) < TIME.floor) floor = false; }
+check('érosion : jamais de remontée, jamais sous 30 %, aucune disparition brutale', mono && floor);
+check('fin de vie : sur le mur jusqu’à 180 jours, ensuite seulement dans la liste', onWall(0) && onWall(179.9) && !onWall(180) && !onWall(400));
+
+// 4. strates : un mois et une consigne ; un mois sans consigne forme sa propre strate
+check('strates : même mois + même consigne = même strate', strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: 'trace.' }) === strataKey({ createdAt: '2026-10-28T10:00:00Z', prompt: 'trace.' }));
+check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
+  strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: 'trace.' }) !== strataKey({ createdAt: '2026-10-03T10:00:00Z', prompt: 'light.' })
+  && strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: '' }) !== strataKey({ createdAt: '2026-11-02T10:00:00Z', prompt: '' }));
+{
+  const st = d => stageOf(visibility(d));
+  const days = Array.from({ length: 181 }, (_, d) => st(d));
+  check('érosion par paliers : neuve jusqu’à 10 j, 4 paliers fixes, palier 4 dès ≈ 73 j',
+    st(0) === 0 && st(10) === 0 && st(11) === 1 && st(23) === 2 && st(41) === 3 && st(74) === 4 && st(179) === 4);
+  check('paliers : jamais de retour en arrière avec l’âge', days.every((s, i) => i === 0 || s >= days[i - 1]));
+  check('paliers : seulement 0 à 4 (cinq classes CSS, quatre filtres)', new Set(days).size === 5 && Math.max(...days) === 4);
+}
+process.exit(fail ? 1 : 0);

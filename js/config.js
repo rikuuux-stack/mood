@@ -24,9 +24,10 @@ export const CONFIG = {
   },
 
   wall: {
-    pageSize: 150,          // éléments affichés avant « voir plus anciens »
-    overlap: 0.30,          // part maximale d'un élément recouverte (ordinateur)
-    overlapMobile: 0.15,    // idem sur mobile : densité réduite
+    batch: 500,            // dépôts lus par paquet (seulement les informations : textes, tailles, dates) ;
+                           // tous les paquets sont lus en arrière-plan, les images arrivent à l'approche de l'écran
+    overlap: 0.18,          // part maximale d'un élément recouverte (ordinateur)
+    overlapMobile: 0.08,    // idem sur mobile : densité réduite
     mobileBelow: 640,       // largeur (px) sous laquelle on passe en mise en page mobile
   },
 };

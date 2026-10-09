@@ -1,4 +1,6 @@
 /* Page de modération (administrateur seulement). Reprend css/site.css ; ici, seulement la mise en page propre à /admin/. */
+/* le bandeau du site public flotte sans fond ; ici (page de travail), il reste un bandeau simple en haut */
+.bar { position: sticky; background: var(--bg); mix-blend-mode: normal; pointer-events: auto; }
 .adm { max-width: 720px; margin: 0 auto; padding: 8px var(--gutter) calc(48px + var(--safe-b)); }
 .adm h1 { font-weight: var(--light); font-size: 1.1rem; letter-spacing: .06em; margin: 24px 0 8px; }
 .adm-login { display: grid; gap: 12px; max-width: 360px; }
@@ -27,3 +29,8 @@
 .adm-sizes button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .adm-sizes button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .adm-sizes button:disabled { opacity: .5; }
+/* consigne du mois */
+.adm-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.adm-prompt label { font: var(--light) 12px var(--mono); color: var(--muted); }
+.adm-prompt input { flex: 1 1 200px; font: inherit; font-size: 16px; padding: 8px 10px; border: var(--line) solid var(--rule); background: var(--bg); color: var(--fg); border-radius: 0; }
+.adm-prompt input:focus { border-color: var(--fg); }

@@ -3,8 +3,8 @@
  * Le jeton obtenu est vérifié par le serveur (supabase/functions/*) : sans lui, rien n'est accepté.
  * En mode maquette : une simple case à cocher, rien n'est vérifié.
  */
-import { CONFIG } from './config.js?v=1f46695844';
-import { mode } from './data.js?v=78561e8d4f';
+import { CONFIG } from './config.js?v=95312ca8f3';
+import { mode } from './data.js?v=637f4a0538';
 
 const widgets = new Map();            // élément → { id, token }
 let loading = null;

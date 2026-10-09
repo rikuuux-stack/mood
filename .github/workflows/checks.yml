@@ -1,6 +1,7 @@
 # Vérifications automatiques à chaque envoi et pull request :
 #  - les empreintes de cache (?v=…) sont à jour (sinon des visiteurs garderaient d'anciens fichiers) ;
-#  - les règles de lisibilité du mur sont respectées.
+#  - les règles de lisibilité du mur sont respectées ;
+#  - dans un vrai navigateur (iPhone émulé, données factices) : bandeau, fond fixe, érosion.
 name: Vérifications
 on:
   push:
@@ -19,3 +20,8 @@ jobs:
         run: node tests/wall.test.mjs
       - name: Contrôles serveur (formats, métadonnées, budget)
         run: node tests/server.test.mjs
+      - name: Navigateur (bandeau, fond, érosion)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tests/browser.test.mjs
