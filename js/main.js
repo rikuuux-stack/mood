@@ -72,7 +72,7 @@ function renderWall(items) {
   const W = wallEl.clientWidth || document.documentElement.clientWidth;
   lastW = W;
   const mobile = W < CONFIG.wall.mobileBelow;
-  const pad = mobile ? 12 : 24;
+  const pad = mobile ? 16 : 24;
   wallEl.replaceChildren();
   wallEl.style.height = '';
   // 1. créer chaque élément à sa largeur, pour mesurer la hauteur des stickers

@@ -15,7 +15,7 @@
   --safe-b: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
 }
-@media (max-width: 639px) { :root { --gutter: 12px; } }
+@media (max-width: 639px) { :root { --gutter: 16px; } }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
