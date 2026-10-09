@@ -108,7 +108,13 @@ export const onWall = days => days < TIME.wallDays;
  * Strates : le mur se lit de haut en bas comme des couches de temps. Une strate = les dépôts d'un même
  * mois ET d'une même consigne (gardée sur chaque dépôt). Un mois sans consigne forme une strate sans mot.
  */
-export const strataKey = p => `${(p.createdAt || '').slice(0, 7)}|${p.prompt || ''}`;
+// le mois est celui de l'APPAREIL du visiteur (son fuseau), pas le mois UTC : à Tokyo, un dépôt du 1er à 0 h 30
+// appartient bien à ce mois-là (tests/wall.test.mjs, tests/browser.test.mjs)
+export const localMonth = iso => {
+  const d = new Date(iso);
+  return Number.isNaN(+d) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+export const strataKey = p => `${localMonth(p.createdAt)}|${p.prompt || ''}`;
 
 /** Bande du commentaire, en bas d'une boîte. */
 const strip = (r, capH) => ({ x: r.x, y: r.y + r.h - (capH || 0), w: r.w, h: capH || 0 });

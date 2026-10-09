@@ -12,7 +12,7 @@
  * avec les mêmes valeurs (TONE, ERODE dans js/wall.js).
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
-import { TONE, ERODE } from './wall.js?v=cdc5d43083';
+import { TONE, ERODE } from './wall.js?v=108da4f5ee';
 import { stripMetadata } from './image.js?v=71b45ca5a4';
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
@@ -132,6 +132,7 @@ const rectIn = (el, li) => {
   return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
 };
 const pad2 = n => String(n).padStart(2, '0');
+/** Date du jour sur l'APPAREIL du visiteur (son fuseau horaire, jamais l'UTC) : JJ.MM.AAAA. */
 export const today = (d = new Date()) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 
 /**

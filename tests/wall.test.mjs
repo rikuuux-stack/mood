@@ -75,4 +75,17 @@ check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
     return f.includes(`values="${e.g} 0 0 0 ${off}`) && f.includes(`-${e.k} 0 0 0 ${c}"`);
   }));
 }
+{
+  // strates : mois LOCAL de l'appareil. 2026-09-30T15:30Z = 1er octobre 0 h 30 à Tokyo, encore le 30 septembre en UTC.
+  const was = process.env.TZ, iso = '2026-09-30T15:30:00Z';
+  process.env.TZ = 'Asia/Tokyo';
+  const tokyo = strataKey({ createdAt: iso, prompt: 'x' }), tokyoNow = strataKey({ createdAt: '2026-10-09T15:30:00Z', prompt: 'x' });
+  process.env.TZ = 'UTC';
+  const utc = strataKey({ createdAt: iso, prompt: 'x' });
+  process.env.TZ = 'America/Los_Angeles';
+  const la = strataKey({ createdAt: '2026-10-01T05:00:00Z', prompt: 'x' });   // 30 septembre 22 h à Los Angeles
+  if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+  check('strates : mois du fuseau de l’appareil (Tokyo 1er oct. 0 h 30 → octobre ; UTC → septembre ; Los Angeles → septembre)',
+    tokyo === '2026-10|x' && tokyo === tokyoNow && utc === '2026-09|x' && la === '2026-09|x', `${tokyo} ${utc} ${la}`);
+}
 process.exit(fail ? 1 : 0);

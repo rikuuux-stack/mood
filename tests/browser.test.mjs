@@ -16,6 +16,8 @@
  *     textes lisibles à tout âge (≥ 7:1) ;
  *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
  *     sans métadonnées, ligne du bas présente ; partage natif sur iPhone, téléchargement sur ordinateur ;
+ *   - fuseau de l'appareil (Asia/Tokyo, juste après minuit, encore la veille en UTC) : date du fragment
+ *     et strates du mur suivent la date LOCALE ;
  *   - tout le mur sans « More » : paquets lus en arrière-plan, images chargées à l'approche de l'écran,
  *     libérées au-delà de 3 écrans puis rechargées au retour, sans que la composition bouge.
  */
@@ -64,15 +66,15 @@ const rows = Array.from({ length: 520 }, (_, i) => {
 const JPG = fs.readFileSync(path.join(ROOT, 'tests/fixtures-img/clean.jpg'));
 
 const offsets = [], thumbs = new Set();
-async function fakeServer(ctx) {
+async function fakeServer(ctx, data = rows, current = 'trace') {
   await ctx.route(/supabase\.co\//, route => {
     const u = new URL(route.request().url());
     if (u.pathname.endsWith('/rest/v1/wall')) {
       offsets.push(+u.searchParams.get('offset') || 0);
       const off = +u.searchParams.get('offset') || 0, lim = +u.searchParams.get('limit') || 30;
-      return route.fulfill({ json: rows.slice(off, off + lim) });
+      return route.fulfill({ json: data.slice(off, off + lim) });
     }
-    if (u.pathname.endsWith('/rest/v1/current_prompt')) return route.fulfill({ json: [{ text: 'trace' }] });
+    if (u.pathname.endsWith('/rest/v1/current_prompt')) return route.fulfill({ json: current ? [{ text: current }] : [] });
     if (u.pathname.includes('/storage/v1/object/public/')) thumbs.add(u.pathname.split('/').pop());
     // comme Supabase Storage : en-tête CORS, sans quoi un canvas qui dessine l'image serait « tainted »
     if (u.pathname.includes('/storage/v1/object/public/')) return route.fulfill({ body: JPG, contentType: 'image/jpeg', headers: { 'Access-Control-Allow-Origin': '*' } });
@@ -274,6 +276,47 @@ ok(await pp.textContent('#keepGo') === 'Share', 'iPhone : le bouton propose « S
 await pp.tap('#keepGo'); await pp.waitForTimeout(300);
 const shared = await pp.evaluate(() => window.__shared);
 ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 10000, 'iPhone : menu de partage natif ouvert avec le fichier', JSON.stringify(shared));
+
+/* Fuseau de l'appareil : Tokyo, le 10 octobre à 0 h 30 (= 9 octobre 15 h 30 UTC) */
+{
+  const NOW = Date.parse('2026-10-09T15:30:00Z');
+  const row = (id, created, prompt, kind = 'image') => ({
+    id, kind, text: kind === 'text' ? 'mot' : '', name: '', size: 'm', prompt,
+    image_path: kind === 'image' ? `${id}.jpg` : null, thumb_path: kind === 'image' ? `${id}-t.jpg` : null,
+    width: kind === 'image' ? 37 : null, height: kind === 'image' ? 23 : null, created_at: created, approved_at: created,
+  });
+  // a : 10 oct. 0 h 10 à Tokyo (9 oct. en UTC) ; b : 30 sept. 23 h 50 à Tokyo ; c : 1er oct. 0 h 20 à Tokyo (30 sept. en UTC)
+  // (dans l'ordre du serveur : du plus récent au plus ancien)
+  const tz = [row('tz-a', '2026-10-09T15:10:00Z', 'light'), row('tz-c', '2026-09-30T15:20:00Z', 'light', 'text'), row('tz-b', '2026-09-30T14:50:00Z', 'light')];
+  const tk = await browser.newContext({ viewport: { width: 1280, height: 800 }, timezoneId: 'Asia/Tokyo', acceptDownloads: true });
+  await fakeServer(tk, tz, 'light');
+  const tp = await tk.newPage();
+  tp.on('pageerror', e => errors.push(e.message));
+  await tp.clock.setFixedTime(NOW);                  // l'heure de l'appareil (les minuteries restent réelles)
+  await tp.goto(BASE);
+  await tp.waitForFunction(() => document.querySelectorAll('#wall .item').length === 3 && [...document.querySelectorAll('#wall .item')].every(li => li.style.top));
+  const local = await tp.evaluate(() => ({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone, iso: new Date().toISOString() }));
+  // strates : a et c sont en octobre (heure de Tokyo), b en septembre → un seul filet, entre c et b
+  const strata = await tp.evaluate(() => {
+    const top = id => document.querySelector(`#wall .item[data-i]`) && [...document.querySelectorAll('#wall .item')].find(li => li.querySelector('img')?.dataset.src?.includes(id) || li.querySelector('img')?.src?.includes(id) || (id === 'tz-c' && li.classList.contains('item--text')))?.offsetTop;
+    const rules = [...document.querySelectorAll('#wall .stratum')].map(s => s.offsetTop);
+    return { rules, a: top('tz-a'), b: top('tz-b'), c: top('tz-c') };
+  });
+  ok(strata.rules.length === 1 && strata.rules[0] > Math.max(strata.a, strata.c) && strata.rules[0] < strata.b,
+    `strates selon le mois LOCAL (Tokyo) : un seul filet, entre octobre et septembre (${local.tz}, ${local.iso})`, JSON.stringify(strata));
+  const a = tp.locator('#wall .item.item--image').first();
+  await a.click(); await tp.waitForSelector('#viewer[open]');
+  await tp.click('#keepBtn'); await tp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
+  const foot = await tp.evaluate(async () => {
+    const { makeFragment } = await import('/js/fragment.js');
+    const li = document.querySelector('#wall .item.item--image');
+    return (await makeFragment({ li, wallEl: document.querySelector('#wall'), prompt: 'light' })).footer;
+  });
+  ok(foot === 'moodwall.pages.dev — 10.10.2026 — light', `fragment exporté à 0 h 30 à Tokyo (15 h 30 UTC la veille) : « ${foot} »`);
+  const [dl] = await Promise.all([tp.waitForEvent('download'), tp.click('#keepGo')]);
+  ok(dl.suggestedFilename().includes('10-10-2026'), `nom du fichier à la date locale : ${dl.suggestedFilename()}`);
+  await tk.close();
+}
 
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
 await browser.close(); server.close();

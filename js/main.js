@@ -14,7 +14,7 @@
  */
 import { CONFIG } from './config.js?v=95312ca8f3';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=018b09964c';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=cdc5d43083';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=108da4f5ee';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=71b45ca5a4';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=637f4a0538';
 import * as captcha from './captcha.js?v=4efce66ea2';
@@ -356,7 +356,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=93441404b6');
+    const { makeFragment, today } = await import('./fragment.js?v=e18cb309d5');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
