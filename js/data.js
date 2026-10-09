@@ -6,7 +6,7 @@
  *                 revérifiés là-bas). La clé utilisée ici est la clé publique « anon ».
  *   mode 'mock' : tout est simulé dans le navigateur (mur vide, aucun envoi). Forcé par ?mock dans l'URL.
  */
-import { CONFIG } from './config.js?v=dddb743260';
+import { CONFIG } from './config.js?v=05f59e2af5';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;

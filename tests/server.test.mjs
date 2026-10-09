@@ -63,6 +63,15 @@ const keys = ['eVideoUnsupported', 'eVideoStalled', 'eVideoEncode', 'eVideoOutpu
 check('messages vidéo présents en FR / JA / EN', ['fr', 'ja', 'en'].map(l => keys.filter(k => !STRINGS[l][k])), [[], [], []]);
 check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'].map(l => ['eVideoOutput', 'eVideoRejected'].every(k => STRINGS[l][k].includes('{why}'))), [true, true, true]);
 
+// page d'accueil : libellés en anglais même AVANT le JavaScript (aperçus de lien, traduction automatique, chargement lent)
+{
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  check('index.html : langue par défaut anglaise (lang="en")', /<html lang="en">/.test(html), true);
+  check('index.html : aucun libellé français en dur (Déposer, Signaler, Aller au contenu)', /Déposer|Signaler|Aller au contenu/.test(html), false);
+  check('index.html : description neutre, sans « moodboard »', [/moodboard|participatif/i.test(html), /<meta name="description" content="Images and words, left by anyone.">/.test(html), /og:description/.test(html)], [false, true, true]);
+  check('index.html : adresse de contact jamais en dur (CONFIG.contactEmail)', /@gmail\.com/.test(html), false);
+}
+
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);
 check('pseudo avec lien refusé', ['http://x', 'www.spam', 'buy.com', '@insta'].map(looksLikeLink), [true, true, true, true]);

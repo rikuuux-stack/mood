@@ -1,10 +1,19 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mood</title>
-<meta name="description" content="Mood — moodboard participatif.">
+<meta name="description" content="Images and words, left by anyone.">
+<!-- aperçus de lien (messageries, réseaux) : même phrase neutre, en anglais -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mood">
+<meta property="og:title" content="Mood">
+<meta property="og:description" content="Images and words, left by anyone.">
+<meta property="og:url" content="https://moodwall.pages.dev/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Mood">
+<meta name="twitter:description" content="Images and words, left by anyone.">
 <meta name="theme-color" content="#0b0b0b">
 <!-- connexion au serveur de données ouverte tout de suite, pendant le chargement du reste -->
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co" crossorigin>
@@ -83,12 +92,12 @@
     <feComposite in="g" in2="a" operator="in"/>
   </filter>
 </svg>
-<a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
+<a class="skip" href="#board" data-i18n="skip">Skip to content</a>
 
 <header class="bar">
   <!-- nom du site : à l'endroit au repos ; se retourne brièvement à l'ouverture de la page et au survol ; ouvre le panneau « à propos » -->
   <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
-  <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
+  <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Drop</button>
 </header>
 
 <main id="board" tabindex="-1">
@@ -129,7 +138,7 @@
     </div>
   </div>
   <details class="report" id="report">
-    <summary data-i18n="report">Signaler</summary>
+    <summary data-i18n="report">Report</summary>
     <form class="report-form" id="reportForm">
       <fieldset>
         <legend class="sr" data-i18n="reportTitle"></legend>
@@ -208,11 +217,12 @@
     </span>
     <button type="button" class="link" id="viewBtn"></button>
   </div>
-  <p class="hint small"><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
+  <!-- adresse de contact : une seule constante, CONFIG.contactEmail (js/config.js), posée ici par js/i18n.js -->
+  <p class="hint small"><a class="mail" data-contact></a></p>
   <p class="hint small" data-i18n="mentions"></p>
   <p class="hint small" data-i18n="mentionsKeep"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=60f6544694"></script>
+<script type="module" src="js/main.js?v=2fa677f1b7"></script>
 </body>
 </html>
