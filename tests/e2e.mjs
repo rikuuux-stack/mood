@@ -71,6 +71,25 @@ await t('la vue « wall » ne montre aucune donnée privée', async () => {
   const r = await req('/rest/v1/wall?select=ip_hash,status,report_count&limit=1');
   return r.status >= 400 || 'colonnes privées accessibles';
 });
+// égalité totale : rien ne permet à un visiteur de savoir quels dépôts viennent de l'administrateur
+for (const col of ['is_author', ['is', 'riku'].join('_')]) {
+  await t(`la vue « wall » ne donne pas la marque des dépôts de l'administrateur (${col})`, async () => {
+    const r = await req(`/rest/v1/wall?select=id,${col}&limit=1`);
+    return r.status >= 400 || `HTTP ${r.status} : la colonne ${col} est lisible`;
+  });
+}
+await t('la vue « wall » ne donne la date de création qu’au jour (midi à Tokyo) : l’écart création → validation ne trahit rien', async () => {
+  const r = await req('/rest/v1/wall?select=created_at&limit=50');
+  if (r.status !== 200) return `HTTP ${r.status}`;
+  const bad = r.body_.filter(p => new Date(p.created_at).getUTCHours() !== 3 || new Date(p.created_at).getUTCMinutes() || new Date(p.created_at).getUTCSeconds());
+  return !bad.length || `${bad.length} date(s) à l’heure près : ${bad[0].created_at}`;
+});
+await t('la description publique de l’API (OpenAPI) ne mentionne pas la marque', async () => {
+  const r = await req('/rest/v1/', { headers: { Accept: 'application/openapi+json' } });
+  if (r.status >= 400) return true;                               // description fermée au public : rien à voir
+  const leak = ['is_author', ['is', 'riku'].join('_')].filter(c => r.bodyText.includes(c));
+  return !leak.length || `mentionne : ${leak.join(', ')}`;
+});
 
 // --- les fonctions serveur, elles, ont bien accès à la base (sinon : aucun dépôt ni connexion admin possible)
 await t('les fonctions serveur peuvent lire posts / reports / admins', async () => {
