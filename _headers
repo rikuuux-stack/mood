@@ -1,0 +1,24 @@
+# Cloudflare Pages / Netlify — en-têtes HTTP
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# médias et 3D : cache long (renommer le fichier quand il change, ex. expo.v2.glb)
+/assets/*
+  Cache-Control: public, max-age=604800
+
+/assets/lightmaps/*.ktx2
+  Content-Type: image/ktx2
+
+/assets/models/*.glb
+  Content-Type: model/gltf-binary
+
+# code : revalidation à chaque visite (pas de build = pas de hash dans les noms)
+/js/*
+  Cache-Control: public, max-age=0, must-revalidate
+/css/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# three.js local : version figée dans le chemin → cache d'un an
+/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
