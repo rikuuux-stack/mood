@@ -447,6 +447,25 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
   }
 }
 
+// langue : libellés d'interface en anglais pour tous (FR / JA / EN), seuls les messages, mentions et libellés des
+// lecteurs d'écran suivent la langue (du navigateur, ou choisie dans le panneau Mood)
+for (const [locale, mention] of [['fr-FR', /modérés/], ['ja-JP', /確認後に掲載/], ['en-GB', /moderated|review/i]]) {
+  const lc = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 }, locale });
+  await fakeServer(lc);
+  const lp = await lc.newPage();
+  await lp.goto(BASE);
+  await lp.waitForSelector('.item');
+  const seen = await lp.evaluate(() => ({
+    lang: document.documentElement.lang, drop: document.querySelector('.btn-drop').textContent, report: document.querySelector('#report summary').textContent,
+    send: document.querySelector('#send')?.textContent, mail: document.querySelector('[data-contact]').getAttribute('href'),
+    mentions: document.querySelector('[data-i18n="mentions"]').textContent, skip: document.querySelector('.skip').textContent,
+  }));
+  ok(seen.drop === 'Drop' && seen.report === 'Report', `${locale} : libellés en anglais (Drop, Report)`, JSON.stringify(seen));
+  ok(seen.lang === locale.slice(0, 2) && mention.test(seen.mentions), `${locale} : mentions et lecteurs d'écran dans la langue du navigateur (« ${seen.skip} »)`, JSON.stringify(seen));
+  ok(seen.mail === 'mailto:rikuuux@gmail.com', `${locale} : adresse de contact posée depuis la config`, seen.mail);
+  await lc.close();
+}
+
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
 await browser.close(); server.close();
 if (failed) { console.log(`\n${failed} test(s) en échec.`); process.exit(1); }

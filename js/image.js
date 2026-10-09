@@ -9,7 +9,7 @@
  *      un canvas ne recopie AUCUNE métadonnée → EXIF, GPS, XMP, profil appareil disparaissent ;
  *   4. vérification du résultat : si une métadonnée subsistait malgré tout, on bloque l'envoi.
  */
-import { CONFIG } from './config.js?v=dddb743260';
+import { CONFIG } from './config.js?v=05f59e2af5';
 
 export class ImageError extends Error {
   constructor(code, detail) { super(code); this.code = code; this.detail = detail; }

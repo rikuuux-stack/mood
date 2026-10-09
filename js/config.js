@@ -12,6 +12,8 @@ export const CONFIG = {
   supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92dmR0dGhueWtxdmdhcnJqaW5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MzI4MTYsImV4cCI6MjEwNzEwODgxNn0.OV-yWqBOF0vs47Mm6994ExYS--XvitjiyNEJ9tzr1pM',
   turnstileSiteKey: '0x4AAAAAAFSIN7Gn9I0x45WP',   // clé publique (site key) Turnstile
 
+  // adresse de contact affichée sur le site (panneau Mood, mentions « demande de retrait ») : LA SEULE à changer
+  // le jour où une adresse neutre la remplace. (Distincte du compte administrateur et des alertes e-mail : voir CLAUDE.md.)
   contactEmail: 'rikuuux@gmail.com',
 
   upload: {
