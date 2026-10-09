@@ -3,7 +3,7 @@
 project_id = "ovvdtthnykqvgarrjina"
 
 # verify_jwt = true : chaque appel doit porter une clé valide (la clé publique « anon » du site,
-# ou le jeton de session de RIKU). Les contrôles réels (captcha, admin…) sont faits dans le code.
+# ou le jeton de session de l'administrateur). Les contrôles réels (captcha, admin…) sont faits dans le code.
 [functions.submit]
 entrypoint = "./functions/submit/index.js"
 verify_jwt = true

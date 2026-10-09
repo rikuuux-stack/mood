@@ -4,7 +4,7 @@ Rien de ce que déposent les visiteurs n'est visible avant que tu l'aies validé
 
 ## Se connecter
 
-1. Ouvre `https://rikuuux-stack.github.io/riku-portfolio/admin/` (ajoute-la à l'écran d'accueil de ton iPhone).
+1. Ouvre `https://moodwall.pages.dev/admin/` (ajoute-la à l'écran d'accueil de ton iPhone).
 2. E-mail `rikuuux@gmail.com` + ton mot de passe ▸ **Se connecter**.
    La connexion reste active sur cet appareil ; **Se déconnecter** en haut à droite.
 

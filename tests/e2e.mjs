@@ -8,7 +8,7 @@ const cfg = readFileSync(new URL('../js/config.js', import.meta.url), 'utf8');
 const URL_ = cfg.match(/supabaseUrl: '([^']+)'/)[1];
 const KEY = cfg.match(/supabaseAnonKey: '([^']+)'/)[1];
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
-const ORIGIN = 'https://rikuuux-stack.github.io';
+const ORIGIN = 'https://moodwall.pages.dev';
 const fx = n => new Blob([readFileSync(new URL(`./fixtures-img/${n}`, import.meta.url))], { type: n.endsWith('.webp') ? 'image/webp' : n.endsWith('.png') ? 'image/png' : 'image/jpeg' });
 
 let failed = 0;
@@ -74,9 +74,17 @@ for (const bucket of ['pending', 'published']) {
 }
 
 // --- fonction submit : refus avant tout enregistrement
-await t('CORS : le site est autorisé à appeler les fonctions', async () => {
-  const r = await fetch(`${URL_}/functions/v1/submit`, { method: 'OPTIONS', headers: { Origin: ORIGIN, 'Access-Control-Request-Method': 'POST' } });
-  return r.headers.get('access-control-allow-origin') === ORIGIN || `allow-origin = ${r.headers.get('access-control-allow-origin')}`;
+const preflight = origin => fetch(`${URL_}/functions/v1/submit`, { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } })
+  .then(r => r.headers.get('access-control-allow-origin'));
+for (const origin of [ORIGIN, 'https://rikuuux-stack.github.io']) {
+  await t(`CORS : ${origin} est autorisé à appeler les fonctions`, async () => {
+    const got = await preflight(origin);
+    return got === origin || `allow-origin = ${got}`;
+  });
+}
+await t('CORS : un autre site n’est pas autorisé', async () => {
+  const got = await preflight('https://moodwall.pages.dev.evil.example');
+  return got !== 'https://moodwall.pages.dev.evil.example' || `allow-origin = ${got}`;
 });
 await t('dépôt sans case « droits » refusé', async () => code(await submitForm({ text: 'test', consent: '0' }), 'rights'));
 await t('dépôt vide refusé', async () => code(await submitForm({}), 'empty'));

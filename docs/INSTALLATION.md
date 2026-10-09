@@ -12,7 +12,7 @@ Les clés **secrètes** ne vont jamais dans le code ni dans une conversation : u
 ## Étape 1 — La clé secrète Turnstile, dans Supabase
 
 1. Cloudflare ▸ **Turnstile** ▸ ton widget ▸ **Settings**.
-   - Vérifie que **Hostnames** contient `rikuuux-stack.github.io`.
+   - Vérifie que **Hostnames** contient `moodwall.pages.dev` (et `rikuuux-stack.github.io` pendant la transition).
    - Copie la **Secret Key**.
 2. Supabase ▸ ton projet ▸ menu de gauche **Edge Functions** ▸ onglet **Secrets**.
 3. **Add new secret** :
@@ -54,7 +54,7 @@ Il en faut deux.
    Plus personne ne peut se créer de compte ; le tien est le seul.
 
 Le compte `rikuuux@gmail.com` devient administrateur automatiquement (règle dans la base).
-Connexion : `https://rikuuux-stack.github.io/riku-portfolio/admin/`.
+Connexion : `https://moodwall.pages.dev/admin/`.
 
 ## Étape 4 (facultative) — L'alerte e-mail à chaque dépôt
 

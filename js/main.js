@@ -1,5 +1,5 @@
 /**
- * RIKU — moodboard ouvert. Point d'entrée.
+ * Mood — moodboard ouvert. Point d'entrée.
  *   - charge les dépôts validés (js/data.js : Supabase, ou maquette avec ?mock) ;
  *   - deux vues : MUR (composition libre, js/wall.js) et LISTE (colonne simple) ;
  *   - toucher / survol : l'élément passe au premier plan ; second toucher : agrandissement ;
@@ -9,11 +9,11 @@
  * Les textes des visiteurs ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=1f46695844';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=270e9271c0';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=9a0ab09e4a';
 import { layout, sizeFor } from './wall.js?v=37bc413c94';
 import { prepareImage, ImageError } from './image.js?v=73ede16b64';
-import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=004f01af46';
-import * as captcha from './captcha.js?v=640299d7b3';
+import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=93840c5394';
+import * as captcha from './captcha.js?v=873a411edc';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -24,7 +24,7 @@ applyI18n();
 
 /* ------------------------------------------------------------------ vue mémorisée */
 try { if (localStorage.getItem('view') === 'list') view = 'list'; } catch {}
-// un seul bouton, dans le panneau RIKU : il affiche le nom de l'autre vue (« Liste » sur le mur, « Mur » sur la liste)
+// un seul bouton, dans le panneau « à propos » : il affiche le nom de l'autre vue (« Liste » sur le mur, « Mur » sur la liste)
 const viewBtn = $('#viewBtn');
 viewBtn.addEventListener('click', () => { setView(view === 'wall' ? 'list' : 'wall'); $('#about').close(); scrollTo(0, 0); });
 const viewLabel = () => { viewBtn.textContent = t(view === 'wall' ? 'viewList' : 'viewWall'); };
@@ -40,7 +40,7 @@ document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click'
 onLangChange(() => { viewLabel(); render(); refreshDropTexts(); });
 
 /* ------------------------------------------------------------------ éléments */
-const label = p => p.isRiku ? t('byRiku') : t(p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
+const label = p => p.isAuthor ? t('byAuthor') : t(p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
 const ariaOf = p => p.text ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p);
 
 function stamp(inline = false) { const s = document.createElement('span'); s.className = inline ? 'stamp stamp--inline' : 'stamp'; s.setAttribute('aria-hidden', 'true'); return s; }
@@ -68,7 +68,7 @@ function content(p, { full = false, font, byline = false } = {}) {
   if (font) s.style.setProperty('--fs', `${font}px`);
   const tx = document.createElement('span'); tx.className = 'sticker-text'; tx.textContent = p.text;
   s.append(tx);
-  if (byline && p.name && !p.isRiku) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
+  if (byline && p.name && !p.isAuthor) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
   return s;
 }
 
@@ -92,14 +92,14 @@ function renderWall(items) {
   const nodes = items.map((p, i) => {
     const { w, font } = sizeFor(p, W - 2 * pad, mobile);
     const li = document.createElement('li');
-    li.className = `item item--${p.kind}${p.isRiku ? ' is-riku' : ''}`;
+    li.className = `item item--${p.kind}${p.isAuthor ? ' is-author' : ''}`;
     li.style.width = `${w}px`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
     b.setAttribute('aria-label', ariaOf(p));
     b.append(content(p, { font }));
     li.append(b);
-    if (p.isRiku) li.append(stamp());
+    if (p.isAuthor) li.append(stamp());
     li.dataset.i = i;
     const photoH = p.kind === 'image' ? Math.round(w * p.image.h / p.image.w) : 0;
     if (photoH) li.querySelector('.photo').style.height = `${photoH}px`;
@@ -133,8 +133,8 @@ function renderList(items) {
     b.append(content(p));
     const meta = document.createElement('p');
     meta.className = 'row-meta';
-    meta.textContent = `${p.isRiku ? 'RIKU' : (p.name || t('anon'))} · ${formatDate(p.createdAt)}`;
-    if (p.isRiku) meta.prepend(stamp(true), ' ');
+    meta.textContent = p.isAuthor ? formatDate(p.createdAt) : `${p.name || t('anon')} · ${formatDate(p.createdAt)}`;
+    if (p.isAuthor) meta.prepend(stamp(true), ' ');
     li.append(b, meta);
     li.dataset.i = i;
     return li;
@@ -193,8 +193,8 @@ function openViewer(p) {
   current = p;
   const meta = $('#viewerMeta');
   meta.replaceChildren();
-  if (p.isRiku) meta.append(stamp(true), ' ');
-  meta.append(`${p.isRiku ? 'RIKU' : (p.name || t('anon'))} · ${formatDate(p.createdAt)}`);
+  if (p.isAuthor) meta.append(stamp(true), ' ');
+  meta.append(p.isAuthor ? formatDate(p.createdAt) : `${p.name || t('anon')} · ${formatDate(p.createdAt)}`);
   $('#viewerBody').replaceChildren(content(p, { full: true }));
   const r = $('#report'); r.open = false;
   captcha.reset($('[data-captcha]', $('#reportForm')));

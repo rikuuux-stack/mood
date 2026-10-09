@@ -22,7 +22,7 @@ export class ServerError extends Error {
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = {}) {
   if (mode === 'mock') {
-    const { MOCK_POSTS } = await import('./mock.js?v=75d61f5f8f');
+    const { MOCK_POSTS } = await import('./mock.js?v=ca4d28d365');
     return MOCK_POSTS.slice(offset, offset + limit);
   }
   const q = new URLSearchParams({
@@ -32,7 +32,7 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = 
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/wall?${q}`, { headers: headers() });
   if (!r.ok) throw new ServerError('server', r.status);
   return (await r.json()).map(p => ({
-    id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isRiku: p.is_riku,
+    id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isAuthor: p.is_riku,
     createdAt: p.created_at,
     image: p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
   }));

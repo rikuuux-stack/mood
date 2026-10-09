@@ -4,7 +4,7 @@
  * Champs : text, name, lang, consent=1, captcha (jeton Turnstile), image (grande), thumb (miniature).
  * Ordre des contrôles : d'abord ce qui ne coûte rien (formats, tailles, budget), puis le captcha,
  * puis la limite de fréquence. Rien n'est visible publiquement : le dépôt part en « pending »,
- * fichiers dans le bucket privé. Exception : si l'appelant est RIKU (connecté), son dépôt est publié
+ * fichiers dans le bucket privé. Exception : si l'appelant est l'administrateur (connecté), son dépôt est publié
  * directement avec sa marque, sans captcha ni limite.
  */
 import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, SITE_URL } from '../_shared/http.js';
@@ -68,7 +68,7 @@ Deno.serve(async req => {
   if (who.status === 'error') return fail(req, 500, 'server');
   const isRiku = who.status === 'admin';
 
-  // 2. captcha et 3. limite de fréquence (pas pour RIKU)
+  // 2. captcha et 3. limite de fréquence (pas pour l'administrateur)
   let hash = null;
   if (!isRiku) {
     if (!(await verifyCaptcha(req, form.get('captcha')))) return fail(req, 403, 'captcha');
@@ -79,7 +79,7 @@ Deno.serve(async req => {
     if ((await count(1)) >= PER_HOUR || (await count(24)) >= PER_DAY) return fail(req, 429, 'rate');
   }
 
-  // 4. fichiers : bucket privé « pending » (ou « published » pour RIKU)
+  // 4. fichiers : bucket privé « pending » (ou « published » pour l'administrateur)
   const id = crypto.randomUUID();
   const bucket = isRiku ? 'published' : 'pending';
   let image_path = null, thumb_path = null;
@@ -105,7 +105,7 @@ Deno.serve(async req => {
     return fail(req, 500, 'db');
   }
 
-  // 6. alerte e-mail à RIKU (pas pour ses propres dépôts)
+  // 6. alerte e-mail à l'administrateur (pas pour ses propres dépôts)
   if (!isRiku) {
     await notify('Mood — nouveau dépôt à valider',
       `${hasImage ? `Image ${full.width} × ${full.height} px` : 'Texte'}${name ? ` de « ${name} »` : ''}.\n\n` +
