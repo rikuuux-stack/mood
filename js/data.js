@@ -6,7 +6,7 @@
  *                 revérifiés là-bas). La clé utilisée ici est la clé publique « anon ».
  *   mode 'mock' : tout est simulé dans le navigateur (mur vide, aucun envoi). Forcé par ?mock dans l'URL.
  */
-import { CONFIG } from './config.js?v=95312ca8f3';
+import { CONFIG } from './config.js?v=dddb743260';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;
@@ -87,7 +87,10 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {})
   const posts = (await r.json()).map(p => ({
     id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', size: p.size || 'm', prompt: p.prompt || '',
     createdAt: p.created_at, approvedAt: p.approved_at || p.created_at,
-    image: p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
+    // vidéo : image fixe (thumb_path) partout ; le fichier vidéo (image_path) seulement à l'ouverture
+    image: !p.image_path ? null : p.kind === 'video'
+      ? { src: publicUrl(p.thumb_path), thumb: publicUrl(p.thumb_path), video: publicUrl(p.image_path), w: p.width, h: p.height }
+      : { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height },
   }));
   if (offset === 0) save({ posts });
   return posts;
@@ -102,8 +105,8 @@ async function call(fn, init) {
   return out;
 }
 
-/** Envoie un dépôt : { text, name, lang, size: 's'|'m'|'l', image: { full, thumb } | null, captcha }. */
-export async function submitPost({ text, name, lang, size = 'm', image, captcha }) {
+/** Envoie un dépôt : { text, name, lang, size: 's'|'m'|'l', image: { full, thumb } | null, video: { video, poster } | null, captcha }. */
+export async function submitPost({ text, name, lang, size = 'm', image, video, captcha }) {
   if (mode === 'mock') { await wait(600); return { ok: true }; }
   const form = new FormData();
   form.append('text', text);
@@ -112,6 +115,10 @@ export async function submitPost({ text, name, lang, size = 'm', image, captcha 
   form.append('size', size);
   form.append('consent', '1');
   form.append('captcha', captcha);
+  if (video) {                                          // vidéo / GIF converti : MP4 + image fixe
+    form.append('video', video.video, 'video.mp4');
+    form.append('poster', video.poster, 'poster.jpg');
+  }
   if (image) {
     const ext = t => (t === 'image/webp' ? 'webp' : t === 'image/png' ? 'png' : 'jpg');
     form.append('image', image.full, `image.${ext(image.full.type)}`);

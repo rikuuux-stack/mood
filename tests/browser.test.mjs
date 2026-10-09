@@ -64,6 +64,8 @@ const rows = Array.from({ length: 520 }, (_, i) => {
   };
 });
 const JPG = fs.readFileSync(path.join(ROOT, 'tests/fixtures-img/clean.jpg'));
+const MP4 = fs.readFileSync(path.join(ROOT, 'tests/fixtures-img/v-ok.mp4'));   // fausse vidéo générée (480 × 270, 2 s)
+const mp4Requests = [];
 
 const offsets = [], thumbs = new Set();
 async function fakeServer(ctx, data = rows, current = 'trace') {
@@ -77,6 +79,10 @@ async function fakeServer(ctx, data = rows, current = 'trace') {
     if (u.pathname.endsWith('/rest/v1/current_prompt')) return route.fulfill({ json: current ? [{ text: current }] : [] });
     if (u.pathname.includes('/storage/v1/object/public/')) thumbs.add(u.pathname.split('/').pop());
     // comme Supabase Storage : en-tête CORS, sans quoi un canvas qui dessine l'image serait « tainted »
+    if (u.pathname.includes('/storage/v1/object/public/') && u.pathname.endsWith('.mp4')) {
+      mp4Requests.push(u.pathname);
+      return route.fulfill({ body: MP4, contentType: 'video/mp4', headers: { 'Access-Control-Allow-Origin': '*', 'Accept-Ranges': 'none' } });
+    }
     if (u.pathname.includes('/storage/v1/object/public/')) return route.fulfill({ body: JPG, contentType: 'image/jpeg', headers: { 'Access-Control-Allow-Origin': '*' } });
     return route.fulfill({ status: 404, json: {} });
   });
@@ -88,7 +94,8 @@ let failed = 0;
 const ok = (cond, label, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL'}  ${label}${cond ? '' : `  ${extra}`}`); if (!cond) failed++; };
 const onWallRows = rows.filter(r => now - Date.parse(r.approved_at) < 180 * DAY).length;
 
-const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
+// PW_CHANNEL=chrome : Google Chrome (lit le H.264, comme un iPhone) ; sinon le Chromium de test
+const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
 const ctx = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
 await fakeServer(ctx);
 const pg = await ctx.newPage();
@@ -276,6 +283,124 @@ ok(await pp.textContent('#keepGo') === 'Share', 'iPhone : le bouton propose « S
 await pp.tap('#keepGo'); await pp.waitForTimeout(300);
 const shared = await pp.evaluate(() => window.__shared);
 ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 10000, 'iPhone : menu de partage natif ouvert avec le fichier', JSON.stringify(shared));
+
+/* Images de toute taille et tout format : converties sur l'appareil aux normes du site (≤ 2000 px, ≤ 5 Mo,
+   WebP ou JPEG, sans métadonnées) ; refus seulement si illisible ou énorme (> 60 Mo, > 100 mégapixels).
+   Fausses images fabriquées ici : une « photo » 6000 × 8000 de plus de 15 Mo, une image de 110 mégapixels. */
+{
+  // PNG en niveaux de gris de 11 000 × 10 000 (110 Mpx), uni : quelques centaines de Ko une fois compressé
+  const zlib = await import('node:zlib');
+  const crc = (() => { const t = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
+    return b => { let c = -1; for (const x of b) c = t[(c ^ x) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }; })();
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const W = 11000, Hh = 10000, ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(Hh, 4); ihdr[8] = 8; ihdr[9] = 0;
+  const row = Buffer.alloc(W + 1, 128); row[0] = 0;
+  const def = zlib.createDeflate({ level: 9 }), parts = []; def.on('data', d => parts.push(d));
+  const done = new Promise(r => def.on('end', r));
+  for (let y = 0; y < Hh; y++) def.write(row); def.end(); await done;
+  const huge = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', Buffer.concat(parts)), chunk('IEND', Buffer.alloc(0))]);
+  const ic = await browser.newContext(devices['iPhone 12']);
+  await fakeServer(ic);
+  const ip = await ic.newPage();
+  ip.on('pageerror', e => errors.push(e.message));
+  await ip.goto(BASE);
+  const res = await ip.evaluate(async hugeBytes => {
+    const { decodeImage, renderImage, hasMetadata } = await import('/js/image.js');
+    const run = async file => {
+      try { const out = await renderImage(await decodeImage(file)); return { w: out.width, h: out.height, full: out.full.size, type: out.full.type, meta: await hasMetadata(out.full) || await hasMetadata(out.thumb) }; }
+      catch (e) { return { code: e.code }; }
+    };
+    // « photo » 6000 × 8000 : dégradés + bruit fin, JPEG très peu compressé (> 15 Mo)
+    const c = document.createElement('canvas'); c.width = 6000; c.height = 8000;
+    const g = c.getContext('2d'), band = g.createImageData(6000, 400);
+    for (let y0 = 0; y0 < 8000; y0 += 400) {
+      for (let i = 0; i < band.data.length; i += 4) { const v = 60 + (y0 / 8000) * 150 + Math.random() * 60; band.data[i] = v; band.data[i + 1] = v * 0.9; band.data[i + 2] = v * 0.8; band.data[i + 3] = 255; }
+      g.putImageData(band, 0, y0);
+    }
+    const big = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.98)); c.width = c.height = 0;
+    return {
+      bigIn: big.size,
+      big: await run(new File([big], 'photo.jpg', { type: 'image/jpeg' })),
+      typeless: await run(new File([big], 'IMG_0001', { type: '' })),                          // type non annoncé (cas iPhone)
+      huge: await run(new File([new Uint8Array(hugeBytes)], 'huge.png', { type: 'image/png' })),
+      heavy: await run(new File([new Uint8Array(61 * 1024 * 1024)], 'heavy.jpg', { type: 'image/jpeg' })),
+      broken: await run(new File([new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3])], 'broken.jpg', { type: 'image/jpeg' })),
+    };
+  }, [...huge]);
+  ok(res.bigIn > 15 * 1048576, `fausse photo 6000 × 8000 générée : ${(res.bigIn / 1048576).toFixed(1)} Mo`);
+  ok(res.big.w === 1500 && res.big.h === 2000 && res.big.full <= 5 * 1048576 && !res.big.meta,
+    `photo 6000 × 8000 de ${(res.bigIn / 1048576).toFixed(0)} Mo convertie : ${res.big.w} × ${res.big.h}, ${Math.round(res.big.full / 1024)} Ko ${res.big.type}, sans métadonnées`, JSON.stringify(res.big));
+  ok(res.typeless.w === 1500, 'image sans type annoncé : lue quand même', JSON.stringify(res.typeless));
+  ok(res.huge.code === 'eHuge', 'image de 110 mégapixels refusée avec un message clair (eHuge)', JSON.stringify(res.huge));
+  ok(res.heavy.code === 'eHuge', 'fichier de plus de 60 Mo refusé avec un message clair (eHuge)', JSON.stringify(res.heavy));
+  ok(res.broken.code === 'eDecode', 'fichier illisible refusé avec un message clair (eDecode)', JSON.stringify(res.broken));
+  await ic.close();
+}
+
+/* Vidéos : l'image fixe sur le mur (aucun téléchargement de la vidéo), lecture à l'ouverture, libération à la fermeture */
+{
+  const vrow = (id, days) => ({
+    id, kind: 'video', text: '', name: '', size: 'm', prompt: '', duration: 2,
+    image_path: `${id}.mp4`, thumb_path: `${id}-poster.jpg`, width: 480, height: 270,
+    created_at: new Date(now - days * DAY).toISOString(), approved_at: new Date(now - days * DAY).toISOString(),
+  });
+  const vrows = [vrow('vid-new', 0), ...rows.slice(1, 8), vrow('vid-old', 120)];
+  for (const reduce of [false, true]) {
+    const vc = await browser.newContext({ ...devices['iPhone 12'], reducedMotion: reduce ? 'reduce' : 'no-preference' });
+    await fakeServer(vc, vrows);
+    const vp = await vc.newPage();
+    vp.on('pageerror', e => errors.push(e.message));
+    mp4Requests.length = 0;
+    await vp.goto(BASE);
+    await vp.waitForFunction(() => document.querySelectorAll('#wall .item--video').length === 2 && [...document.querySelectorAll('#wall .item')].every(li => li.style.top));
+    await vp.waitForTimeout(400);
+    if (!reduce) {
+      const wall = await vp.evaluate(() => [...document.querySelectorAll('#wall .item--video')].map(li => ({
+        img: li.querySelector('.photo img')?.dataset.src || li.querySelector('.photo img')?.getAttribute('src') || '',
+        mark: !!li.querySelector('.vmark'), video: !!li.querySelector('video'), age: (li.className.match(/age-(\d)/) || [])[1] || '0',
+        filter: getComputedStyle(li.querySelector('.photo img')).filter,
+      })));
+      ok(wall.every(w => w.img.endsWith('-poster.jpg') && w.mark && !w.video), 'mur : une vidéo s’affiche comme son image fixe, avec un petit ▶', JSON.stringify(wall));
+      ok(wall[1].age === '4' && wall[1].filter.includes('#erode4'), 'mur : l’image fixe d’une vieille vidéo suit les paliers d’érosion des photos', JSON.stringify(wall[1]));
+      ok(mp4Requests.length === 0, `mur : aucune vidéo téléchargée tant qu’on ne l’ouvre pas (${mp4Requests.length})`);
+      await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
+      const list = await vp.evaluate(() => [...document.querySelectorAll('#list .row--video')].map(r => ({ mark: !!r.querySelector('.vmark'), video: !!r.querySelector('video') })));
+      ok(list.length === 2 && list.every(r => r.mark && !r.video) && mp4Requests.length === 0, 'liste : image fixe + ▶, aucune vidéo téléchargée', JSON.stringify(list));
+      await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
+    }
+    await vp.locator('#wall .item--video').first().tap();
+    await vp.waitForSelector('#viewer[open] video');
+    await vp.waitForTimeout(800);
+    const open = await vp.evaluate(() => {
+      const v = document.querySelector('#viewer video');
+      return { src: v.getAttribute('src') || '', muted: v.muted, loop: v.loop, inline: v.playsInline, autoplay: v.autoplay, paused: v.paused,
+        button: !!document.querySelector('#viewer .vplay'), filter: getComputedStyle(v).filter, canPlay: v.canPlayType('video/mp4; codecs="avc1.42E01E"') };
+    });
+    ok(open.src.endsWith('vid-new.mp4') && mp4Requests.length > 0, `${reduce ? '« Réduire les animations » : ' : ''}ouverture : la vidéo est téléchargée à ce moment-là`, JSON.stringify(open));
+    ok(open.muted && open.loop && open.inline && open.filter === 'none', 'agrandissement : vidéo muette, en boucle, neuve (aucun filtre d’érosion)', JSON.stringify(open));
+    if (reduce) ok(!open.autoplay && open.paused && open.button, '« Réduire les animations » : pas de lecture automatique, un bouton ▶', JSON.stringify(open));
+    else ok(open.autoplay && !open.button, 'lecture automatique (muette) à l’ouverture', JSON.stringify(open));
+    if (open.canPlay && !reduce) {
+      const played = await vp.waitForFunction(() => document.querySelector('#viewer video').currentTime > 0.2, null, { timeout: 8000 }).then(() => true, () => false);
+      ok(played, 'la vidéo joue vraiment (navigateur avec H.264)');
+    } else if (!open.canPlay) console.log('SAUTÉ  lecture réelle : ce Chromium de test ne lit pas le H.264 (vérifiée dans GitHub avec Google Chrome, puis sur iPhone)');
+    await vp.keyboard.press('Escape');
+    await vp.waitForSelector('#viewer:not([open])', { state: 'attached' });
+    const closed = await vp.evaluate(() => ({ videos: document.querySelectorAll('video').length, body: document.querySelector('#viewerBody').childElementCount }));
+    ok(closed.videos === 0 && closed.body === 0, 'fermeture : la vidéo est arrêtée et libérée de la mémoire', JSON.stringify(closed));
+    // Keep : le fragment utilise l'image fixe érodée
+    if (!reduce) {
+      const frag = await vp.evaluate(async () => {
+        const { makeFragment } = await import('/js/fragment.js');
+        const li = document.querySelectorAll('#wall .item--video')[1];
+        const out = await makeFragment({ li, wallEl: document.querySelector('#wall') });
+        return out.photos;
+      });
+      ok(frag.drawn > 0 && frag.missing === 0, 'Keep : la vidéo apparaît dans le fragment par son image fixe', JSON.stringify(frag));
+    }
+    await vc.close();
+  }
+}
 
 /* Fuseaux : le MUR suit le fuseau de référence Asia/Tokyo pour tout le monde ; la DATE du fragment suit le téléphone */
 {

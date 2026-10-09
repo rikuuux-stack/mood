@@ -4,6 +4,7 @@ import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../supabase/f
 import { textBudget as serverBudget } from '../supabase/functions/_shared/budget.js';
 import { textBudget as siteBudget } from '../js/budget.js';
 import { stripMetadata } from '../js/image.js';
+import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -23,6 +24,17 @@ for (const [n, type, meta] of [['clean.jpg', 'image/jpeg', false], ['exif.jpg', 
 }
 check('toowide.png : dimensions', dimensions(f('toowide.png')), { width: 2001, height: 10 });
 check('faux fichier (GIF) refusé', sniffType(new TextEncoder().encode('GIF89a......')), null);
+
+// vidéos : type réel lu dans le fichier (pas l'extension), son, GPS, taille, durée (limites de submit)
+const VIDEO = { maxSide: 480, maxShort: 480, maxDuration: 60.5 };
+for (const [n, want] of [['v-ok.mp4', ''], ['v-long.mp4', 'duration'], ['v-audio.mp4', 'audio'], ['v-720.mp4', 'size'],
+  ['v-gps.mov', 'location'], ['v-hevc.mp4', 'video'], ['clean.jpg', 'video']]) {
+  check(`${n} : contrôle vidéo`, checkVideo(inspectMp4(f(n)), VIDEO), want);
+}
+check('v-ok.mp4 : 480 × 270, 2 s, H.264, muet', (({ codec, width, height, duration, hasAudio }) => ({ codec, width, height, duration, hasAudio }))(inspectMp4(f('v-ok.mp4'))),
+  { codec: 'avc1', width: 480, height: 270, duration: 2, hasAudio: false });
+check('js/mp4.js est une copie exacte de supabase/functions/_shared/mp4.js',
+  readFileSync(new URL('../js/mp4.js', import.meta.url), 'utf8') === readFileSync(new URL('../supabase/functions/_shared/mp4.js', import.meta.url), 'utf8'), true);
 
 // budget : le serveur applique exactement la même règle que le site
 let diff = 0;

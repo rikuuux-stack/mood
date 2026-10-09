@@ -5,8 +5,8 @@
  * Toutes les actions passent par la fonction serveur « moderate », qui revérifie que le compte
  * connecté est bien administrateur. Les textes des dépôts sont insérés via textContent uniquement.
  */
-import { CONFIG } from '../js/config.js?v=95312ca8f3';
-import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=71b45ca5a4';
+import { CONFIG } from '../js/config.js?v=dddb743260';
+import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=a3f88b470d';
 import { textBudget, textLength } from '../js/budget.js?v=0d99de1d5b';
 
 const $ = s => document.querySelector(s);
@@ -77,6 +77,7 @@ async function refresh() {
   }
   for (const k of ['pending', 'hidden', 'published']) $(`[data-n="${k}"]`).textContent = `(${data[k].length})`;
   if (typeof data.prompt === 'string' && document.activeElement !== $('#promptText')) $('#promptText').value = data.prompt;
+  showStorage(data.storage);
   render();
 }
 
@@ -114,6 +115,20 @@ function sizePicker(r) {
   return box;
 }
 
+/** Stockage : « 712 MB / 1 GB », en évidence dès 700 Mo (les nouvelles vidéos sont refusées à 900 Mo). */
+function showStorage(st) {
+  const el = $('#storage');
+  if (!st) { el.hidden = true; return; }
+  const mb = n => Math.round(n / 1048576);
+  el.hidden = false;
+  el.classList.toggle('warn', st.used >= st.warn);
+  el.textContent = `Storage ${mb(st.used)} MB / 1 GB` + (st.used >= st.cap ? ' — FULL: new videos refused' : st.used >= st.warn ? ` — warning: videos refused from ${mb(st.cap)} MB` : '');
+}
+const sizeOf = async url => {                         // poids réel du fichier (vidéos)
+  try { const r = await fetch(url, { method: 'HEAD' }); const n = +r.headers.get('content-length'); return n ? `${(n / 1048576).toFixed(2)} MB` : null; }
+  catch { return null; }
+};
+
 function render() {
   $('#mine').hidden = tab !== 'mine';
   const list = $('#cards');
@@ -128,12 +143,18 @@ function render() {
   }
   list.replaceChildren(...rows.map(r => {
     const li = document.createElement('li'); li.className = 'adm-card';
-    if (r.image_url) { const img = document.createElement('img'); img.src = r.image_url; img.alt = ''; img.loading = 'lazy'; li.append(img); }
+    if (r.kind === 'video' && r.image_url) {          // vidéo : visible et jouable avant de valider (chargée à la demande)
+      const v = document.createElement('video');
+      v.controls = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'none';
+      v.poster = r.thumb_url || ''; v.src = r.image_url;
+      li.append(v);
+    } else if (r.image_url) { const img = document.createElement('img'); img.src = r.image_url; img.alt = ''; img.loading = 'lazy'; li.append(img); }
     if (r.text) { const t = document.createElement('p'); t.className = 'adm-text'; t.textContent = r.text; li.append(t); }
     const meta = document.createElement('p'); meta.className = 'adm-meta';
     meta.textContent = [r.is_author ? 'me' : (r.name || 'anon'), fmt(r.created_at),
-      r.width ? `${r.width}×${r.height}` : null, r.prompt ? `prompt: ${r.prompt}` : null, r.report_count ? `${r.report_count} reports` : null].filter(Boolean).join(' · ');
+      r.width ? `${r.width}×${r.height}` : null, r.kind === 'video' ? `video ${Number(r.duration).toFixed(1)} s` : null, r.prompt ? `prompt: ${r.prompt}` : null, r.report_count ? `${r.report_count} reports` : null].filter(Boolean).join(' · ');
     li.append(meta, sizePicker(r));
+    if (r.kind === 'video' && r.image_url) sizeOf(r.image_url).then(w => { if (w) meta.textContent += ` · ${w}`; });
     const bar = document.createElement('div'); bar.className = 'adm-actions';
     for (const [action, label, risky] of ACTIONS[tab]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label;

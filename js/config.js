@@ -15,8 +15,11 @@ export const CONFIG = {
   contactEmail: 'rikuuux@gmail.com',
 
   upload: {
-    maxBytes: 5 * 1024 * 1024,                         // 5 Mo
-    types: ['image/jpeg', 'image/png', 'image/webp'],
+    maxBytes: 5 * 1024 * 1024,                         // 5 Mo : fichier ENVOYÉ (après conversion sur l'appareil)
+    // à l'entrée, toute image que l'appareil sait lire (JPEG, PNG, WebP, HEIC / HEIF d'iPhone, GIF fixe…) est
+    // acceptée puis convertie ; refus seulement au-delà de ce que la mémoire d'un iPhone supporte sans risque :
+    maxInputBytes: 60 * 1024 * 1024,                   // 60 Mo
+    maxInputPixels: 100e6,                             // 100 mégapixels (ex. 10 000 × 10 000)
     maxSide: 2000,                                     // px, grande image
     thumbSide: 800,                                    // px, miniature du mur
     maxText: 500,

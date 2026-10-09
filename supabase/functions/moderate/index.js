@@ -1,7 +1,8 @@
 /**
  * /functions/v1/moderate — modération, réservée à l'administrateur (compte connecté inscrit dans « admins »).
  *
- *   GET                                  → { pending, hidden, published } (images en attente : liens signés 1 h)
+ *   GET                                  → { pending, hidden, published, storage } (fichiers en attente : liens signés 1 h ;
+ *                                          storage = place occupée, plafond 900 Mo, avertissement dès 700 Mo)
  *   POST { action: 'approve', id }       → fichiers déplacés du bucket privé vers le public, dépôt visible
  *   POST { action: 'reject',  id }       → dépôt en attente supprimé (fichiers + ligne)
  *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
@@ -13,8 +14,9 @@
  */
 import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
 
-const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_author, status, report_count, created_at, approved_at, prompt';
+const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, duration, is_author, status, report_count, created_at, approved_at, prompt';
 const SIZES = ['s', 'm', 'l'];
+const MB = 1024 * 1024, STORAGE = { cap: 900 * MB, warn: 700 * MB };    // offre gratuite : 1 Go (même plafond que submit)
 
 async function withUrls(db, rows, bucket) {
   const paths = rows.flatMap(r => (r.image_path ? [r.image_path, r.thumb_path] : []));
@@ -67,8 +69,11 @@ Deno.serve(async req => {
       q('approved').order('approved_at', { ascending: false }).limit(300),
     ]);
     const pr = await db.from('prompt').select('text').eq('id', 1).maybeSingle();
+    const used = await db.rpc('storage_used');
+    if (used.error) console.error('[moderate] stockage utilisé illisible :', used.error.message);
     return json(req, 200, {
       prompt: pr.data?.text || '',
+      storage: { used: Number(used.data) || 0, ...STORAGE },
       pending: await withUrls(db, p.data || [], 'pending'),
       hidden: await withUrls(db, h.data || [], 'published'),
       published: await withUrls(db, a.data || [], 'published'),

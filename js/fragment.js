@@ -13,7 +13,7 @@
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
 import { TONE, ERODE } from './wall.js?v=8906cf420f';
-import { stripMetadata } from './image.js?v=71b45ca5a4';
+import { stripMetadata } from './image.js?v=a3f88b470d';
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
 const BG = [11, 11, 11];
