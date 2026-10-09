@@ -14,10 +14,10 @@
  */
 import { CONFIG } from './config.js?v=dddb743260';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=123647c65c';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=8906cf420f';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME } from './wall.js?v=8906cf420f';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=a3f88b470d';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=7bb3934f8a';
-import * as captcha from './captcha.js?v=94658e943e';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=be47b3c07b';
+import * as captcha from './captcha.js?v=ac3b2365e2';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 import { serverError, videoError } from './errors.js?v=d67ec3ce38';
 
@@ -50,7 +50,7 @@ onLangChange(() => { viewLabel(); showPrompt(); render(); refreshDropTexts(); })
  * Liste : tout, à 100 %.
  */
 const asPending = p => ({ ...p, pending: true });
-const wallItems = () => [...pending.map(asPending), ...posts.filter(p => onWall(ageDays(p.approvedAt)))];
+const wallItems = () => [...pending.map(asPending), ...posts.filter(p => !p.expired && onWall(ageDays(p.approvedAt)))];
 const listItems = () => [...pending.map(asPending), ...posts];
 const items = () => (view === 'wall' ? wallItems() : listItems());
 
@@ -283,8 +283,34 @@ function renderWall(list, { glide = false } = {}) {
   if (i < wallNodes.length) setTimeout(more, 0);
 }
 
+/*
+ * Dépôt EXPIRÉ (à 180 jours, quand l'auteur l'active) : ses fichiers sont supprimés, il ne reste qu'une ligne de
+ * texte, façon On Kawara : la date du dépôt, le type, sa durée de vie sur le mur, la consigne du mois.
+ * « OCT.9,2026  image  180 days  trace ». Rien à ouvrir.
+ */
+const kawara = iso => {
+  const d = new Date(Date.parse(iso) + 9 * 3600e3);                  // jour du dépôt à Tokyo (fuseau du mur)
+  return `${['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUNE', 'JULY', 'AUG', 'SEPT', 'OCT', 'NOV', 'DEC'][d.getUTCMonth()]}.${d.getUTCDate()},${d.getUTCFullYear()}`;
+};
+function kawaraLine(p) {
+  const line = document.createElement('p'); line.className = 'kawara';
+  for (const [cls, txt] of [['k-date', kawara(p.createdAt)], ['k-kind', p.kind], ['k-life', `${TIME.wallDays} days`], ['k-prompt', p.prompt || '']]) {
+    const s = document.createElement('span'); s.className = cls; s.textContent = txt; line.append(s);
+  }
+  return line;
+}
 function renderList(list) {
-  listEl.replaceChildren(...list.map((p, i) => {
+  let open = 0, register = null;                      // index parmi les dépôts qui s'ouvrent ; bloc de lignes expirées en cours
+  listEl.replaceChildren(...list.map(p => {
+    // dépôts expirés qui se suivent : un seul bloc, une ligne chacun (registre serré)
+    if (p.expired) {
+      if (register) { register.append(kawaraLine(p)); return null; }
+      register = document.createElement('li'); register.className = 'row row--expired';
+      register.append(kawaraLine(p));
+      return register;
+    }
+    register = null;
+    const i = open++;
     const li = document.createElement('li');
     li.className = `row row--${p.kind === 'video' ? 'image row--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
     const b = document.createElement('button');
@@ -297,7 +323,7 @@ function renderList(list) {
     li.append(b, meta);
     li.dataset.i = i;
     return li;
-  }));
+  }).filter(Boolean));
   watch(listEl);
 }
 
@@ -311,7 +337,8 @@ addEventListener('pointerdown', e => { lastPointer = e.pointerType; }, { capture
 function openFrom(e, sel) {
   const el = e.target.closest(sel);
   if (!el) return;
-  const i = +el.dataset.i, list = items();
+  if (!el.dataset.i) return;                          // dépôt expiré : une ligne de texte, rien à ouvrir
+  const i = +el.dataset.i, list = items().filter(p => !p.expired);
   const go = () => openViewer(list, i);
   if (lastPointer === 'touch' && !reducedMotion.matches && e.detail !== 0) setTimeout(go, 80); else go();
 }

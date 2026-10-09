@@ -26,6 +26,7 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium
           node tests/browser.test.mjs
+          node tests/admin-expiry.test.mjs
         env:
           PW_CHANNEL: chrome          # Google Chrome du runner GitHub : lit le H.264 (lecture réelle des vidéos)
       - name: Conversion vidéo et GIF (Google Chrome, H.264 ; poids réels sur 60 s)

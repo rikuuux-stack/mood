@@ -298,3 +298,10 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .convert progress::-webkit-progress-value { background: var(--fg); }
 .convert progress::-moz-progress-bar { background: var(--fg); }
 .convert .link { justify-self: start; }
+
+/* ------------------------------------------------------------------ dépôt expiré (vue List) : texte seul, façon On Kawara
+ * La date du dépôt, le type, la durée de vie sur le mur, la consigne. Mono, fin, gris ; rien à ouvrir. */
+.row--expired { display: grid; gap: 6px; }       /* dépôts expirés consécutifs : un bloc, une ligne chacun */
+.kawara { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font: var(--light) 12px/1.6 var(--mono); letter-spacing: .06em; color: var(--muted); }
+.kawara .k-date { color: var(--fg); width: 12.5ch; }
+.kawara .k-prompt:empty { display: none; }

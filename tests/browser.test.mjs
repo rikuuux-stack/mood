@@ -449,6 +449,24 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
   }
 }
 
+// dépôts EXPIRÉS (à 180 jours, quand l'auteur l'active) : dans la vue List, une ligne de texte façon On Kawara,
+// rien à ouvrir ; les autres dépôts s'ouvrent toujours (démonstration ?mock=expired, fausses données)
+{
+  const ec = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
+  await ec.addInitScript(() => localStorage.setItem('view', 'list'));
+  const ep = await ec.newPage();
+  await ep.goto(`${BASE}?mock=expired`);
+  await ep.waitForSelector('.kawara');
+  const line = await ep.$eval('.kawara', l => [...l.children].map(x => x.textContent));
+  ok(/^[A-Z]{3,5}\.\d{1,2},\d{4}$/.test(line[0]) && ['image', 'video'].includes(line[1]) && line[2] === '180 days', `dépôt expiré : « ${line.join('  ')} » (date, type, durée de vie, consigne)`, JSON.stringify(line));
+  ok(!(await ep.$$eval('.row--expired img, .row--expired video, .row--expired button', x => x.length)), 'dépôt expiré : ni image, ni vidéo, ni bouton');
+  await ep.click('.row--expired'); await ep.waitForTimeout(200);
+  ok(!(await ep.evaluate(() => document.querySelector('#viewer').open)), 'dépôt expiré : un toucher n’ouvre rien');
+  await ep.click('.row:not(.row--expired) .item-hit'); await ep.waitForSelector('#viewer[open]');
+  ok(/\S/.test(await ep.textContent('#viewerBody')), 'les autres dépôts de la liste s’ouvrent toujours (le bon : un texte)');
+  await ec.close();
+}
+
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
 await browser.close(); server.close();
 if (failed) { console.log(`\n${failed} test(s) en échec.`); process.exit(1); }
