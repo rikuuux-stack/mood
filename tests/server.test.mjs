@@ -5,6 +5,7 @@ import { textBudget as serverBudget } from '../supabase/functions/_shared/budget
 import { textBudget as siteBudget } from '../js/budget.js';
 import { stripMetadata } from '../js/image.js';
 import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
+import { summarize } from '../supabase/functions/_shared/stats.js';
 import { serverError, videoError, WHY } from '../js/errors.js';
 import { STRINGS } from '../js/strings.js';
 
@@ -62,6 +63,20 @@ check('conversion : erreurs du navigateur gardent leur raison', [videoError({ co
 const keys = ['eVideoUnsupported', 'eVideoStalled', 'eVideoEncode', 'eVideoOutput', 'eVideoRejected', 'eTooBigVideo', 'eVideoBrowser', ...WHY.map(w => `why_${w}`)];
 check('messages vidéo présents en FR / JA / EN', ['fr', 'ja', 'en'].map(l => keys.filter(k => !STRINGS[l][k])), [[], [], []]);
 check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'].map(l => ['eVideoOutput', 'eVideoRejected'].every(k => STRINGS[l][k].includes('{why}'))), [true, true, true]);
+
+// journal de modération : chiffres par mois (heure de Tokyo) et par consigne
+{
+  const s = summarize([
+    { at: '2026-09-30T14:00:00Z', decision: 'approved', reason: null, prompt: 'trace' },     // 30 sept. 23 h à Tokyo → septembre
+    { at: '2026-09-30T15:00:00Z', decision: 'rejected', reason: 'spam', prompt: 'trace' },   // 1er oct. 0 h à Tokyo → octobre
+    { at: '2026-10-02T03:00:00Z', decision: 'rejected', reason: 'rights', prompt: 'light' },
+    { at: '2026-10-03T03:00:00Z', decision: 'rejected', reason: null, prompt: 'light' },     // ancienne page sans raison → other
+    { at: '2026-10-04T03:00:00Z', decision: 'removed', reason: null, prompt: 'trace' },
+  ]);
+  check('journal : mois à l’heure de Tokyo, du plus récent au plus ancien', s.months.map(m => [m.month, m.approved, m.rejected, m.removed]), [['2026-10', 0, 3, 1], ['2026-09', 1, 0, 0]]);
+  check('journal : refus par raison (sans raison → other)', s.months[0].reasons, { rights: 1, offensive: 0, private: 0, spam: 1, test: 0, other: 1 });
+  check('journal : dépôts par consigne (les retraits ne comptent pas comme dépôts)', s.prompts.map(p => [p.prompt, p.approved, p.rejected]), [['trace', 1, 1], ['light', 0, 2]].sort((a, b) => (b[1] + b[2]) - (a[1] + a[2])));
+}
 
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);

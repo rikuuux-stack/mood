@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0b0b">
 <link rel="stylesheet" href="../css/fonts.css?v=4a16f2367f">
 <link rel="stylesheet" href="../css/site.css?v=5cbec1c67a">
-<link rel="stylesheet" href="admin.css?v=7864bf6c7f">
+<link rel="stylesheet" href="admin.css?v=db79d3d1f9">
 </head>
 <body>
 <header class="bar">
@@ -35,6 +35,7 @@
       <button type="button" role="tab" data-tab="hidden" aria-selected="false">Reported <span data-n="hidden"></span></button>
       <button type="button" role="tab" data-tab="published" aria-selected="false">Live <span data-n="published"></span></button>
       <button type="button" role="tab" data-tab="mine" aria-selected="false">Drop</button>
+      <button type="button" role="tab" data-tab="stats" aria-selected="false">Stats</button>
     </nav>
     <!-- consigne du mois : un court texte anglais (60 caractères au plus), affiché sur le mur et dans Drop -->
     <form id="promptForm" class="adm-prompt">
@@ -45,6 +46,9 @@
     </form>
     <p class="form-msg" id="dashMsg" role="status"></p>
     <ol id="cards" class="adm-cards"></ol>
+
+    <!-- Journal de modération résumé (aucune donnée personnelle) : par mois (heure de Tokyo) et par consigne -->
+    <section id="stats" class="adm-stats" hidden></section>
 
     <!-- Dépôt direct de l'auteur du site : publié tout de suite, avec la marque -->
     <form id="mine" class="drop-form adm-mine" hidden>
@@ -66,6 +70,6 @@
   </section>
 </main>
 
-<script type="module" src="admin.js?v=ffc99ab632"></script>
+<script type="module" src="admin.js?v=c2f362043c"></script>
 </body>
 </html>

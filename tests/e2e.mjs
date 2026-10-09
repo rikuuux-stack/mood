@@ -38,7 +38,7 @@ await t('le mur public (vue « wall ») est lisible', async () => {
   const r = await req('/rest/v1/wall?select=id,kind,text&limit=5');
   return r.status === 200 && Array.isArray(r.body_) ? true : status(r, 200);
 });
-for (const table of ['posts', 'reports', 'admins']) {
+for (const table of ['posts', 'reports', 'admins', 'moderation_log']) {
   await t(`la table « ${table} » est fermée au public`, async () => {
     const r = await req(`/rest/v1/${table}?select=*&limit=1`);
     // refusé (401/403/404), ou au pire aucune ligne visible
