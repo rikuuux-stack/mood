@@ -1,0 +1,12 @@
+{
+  "lightmap": {
+    "file": "lightmap.webp",
+    "encoding": "log2",
+    "min": 0.001953125,
+    "stops": 13.0,
+    "size": 2048,
+    "uv": 1,
+    "note": "éclairage seul (Diffuse direct+indirect, sans couleur)",
+    "png": "lightmap.png"
+  }
+}
