@@ -172,6 +172,7 @@ Un kanji oublié s'affiche quand même, dans la police japonaise du système.
 - **Netlify** : même principe, `_headers` compris.
 - **GitHub Pages** : fonctionne, mais sans en-têtes de cache personnalisés (`_headers` est ignoré) et en publiant le dépôt tel quel (voir ci-dessous).
 - **À ne pas publier :** `assets/lightmaps/src/`, `assets/models/*.src.glb`, `tools/`, `docs/`. `.gitignore` exclut les masters ; `bash tools/publish.sh` produit `_a-mettre-en-ligne/` sans `tools/`, `docs/`, `README.md`, `lightmaps/src/`, `lightmaps/*.png` ni `*.src.glb`. Publier la racine du dépôt (cas de GitHub Pages) expose donc `tools/` et `docs/`.
+- **Activer GitHub Pages** (une seule fois, dans les réglages du dépôt) : *Settings ▸ Pages ▸ Build and deployment ▸ Source : Deploy from a branch*, choisir la branche (par ex. `main`) et le dossier `/ (root)`. Le fichier `.nojekyll` à la racine désactive Jekyll. Le site est servi sous `https://<compte>.github.io/riku-portfolio/` : tous les chemins sont relatifs, il n'y a rien à configurer.
 - Les **films complets** restent sur Vimeo, Mux ou Cloudflare Stream. Le site ne contient que des aperçus.
 
 ## 7. Tester en local
