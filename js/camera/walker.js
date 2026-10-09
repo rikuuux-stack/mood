@@ -312,16 +312,17 @@ export class Walker {
   /* ================================================================ aller à une œuvre */
   stationIndexOf(work) { return this.rail.stations.findIndex(k => k.work === work); }
 
-  jumpTo(work) {
+  /** `onArrive` est appelé à l'arrivée (pas si le visiteur reprend la main). */
+  jumpTo(work, onArrive) {
     const i = typeof work === 'number' ? work : this.stationIndexOf(work);
     const k = this.rail.stations[i];
     if (!k) return;
     const e = new THREE.Euler().setFromQuaternion(k.quaternion, 'YXZ');
     const target = { x: k.position.x, z: k.position.z, yaw: this.#nearAngle(e.y), pitch: clamp(e.x, -0.3, 0.3) };
     const dist = Math.hypot(target.x - this.pos.x, target.z - this.pos.z);
-    if (this.caps.reduceMotion || dist > 14) { this.#cut(target); return; }
+    if (this.caps.reduceMotion || dist > 14) { this.#cut(target, onArrive); return; }
     this.auto = { from: { x: this.pos.x, z: this.pos.z, yaw: this.yaw, pitch: this.pitch }, to: target, t: 0,
-      dur: clamp(dist / 3, 0.8, 2.4) };
+      dur: clamp(dist / 3, 0.8, 2.4), onArrive };
   }
 
   #nearAngle(a) {                       // le plus court chemin angulaire
@@ -330,7 +331,7 @@ export class Walker {
     return a;
   }
 
-  #cut(t) {
+  #cut(t, onArrive) {
     const dip = $('#dip');
     dip.classList.add('on');
     setTimeout(() => {
@@ -338,6 +339,7 @@ export class Walker {
       this.yaw = this.tYaw = t.yaw; this.pitch = this.tPitch = t.pitch;
       this.floorY = this.#floorAt(t.x, t.z) ?? this.floorY;
       requestAnimationFrame(() => dip.classList.remove('on'));
+      onArrive?.();
     }, 190);
   }
 
@@ -352,7 +354,7 @@ export class Walker {
     this.pos.x = nx; this.pos.z = nz;
     this.tYaw = a.from.yaw + (a.to.yaw - a.from.yaw) * e;
     this.tPitch = a.from.pitch + (a.to.pitch - a.from.pitch) * e;
-    if (a.t >= 1) this.auto = null;
+    if (a.t >= 1) { this.auto = null; a.onArrive?.(); }
   }
 
   timecodes() {

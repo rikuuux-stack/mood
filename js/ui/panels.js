@@ -3,6 +3,7 @@
  * touche Échap, verrouillage du défilement de la page (qui pilote la caméra).
  */
 const stack = [];
+const pinned = new Set();       // panneaux qu'on ne ferme pas : ils sont la seule vue disponible
 let returnFocus = null;
 const listeners = new Set();
 
@@ -21,9 +22,12 @@ export function openPanel(el) {
   notify();
 }
 
+/** Un panneau épinglé ignore Échap et [data-close] (sans 3D, l'index est tout le site). */
+export const pinPanel = (el, on = true) => { on ? pinned.add(el) : pinned.delete(el); };
+
 export function closePanel(el) {
   const i = stack.indexOf(el);
-  if (i < 0) return;
+  if (i < 0 || pinned.has(el)) return;
   stack.splice(i, 1);
   el.hidden = true;
   if (!stack.length) {

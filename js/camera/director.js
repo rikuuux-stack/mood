@@ -75,15 +75,16 @@ export class Director {
   /* ------------------------------------------------------------ sauts */
   stationIndexOf(work) { return this.rail.stations.findIndex(k => k.work === work); }
 
-  jumpTo(work) {
+  /** `onArrive` est appelé une fois la tête de lecture posée (pas si l'utilisateur reprend la main). */
+  jumpTo(work, onArrive) {
     const i = typeof work === 'number' ? work : this.stationIndexOf(work);
     const k = this.rail.stations[i];
     if (!k) return;
     const from = this.state.pos;
     const y = k.tMid * this.pxPerSec;
-    if (this.caps.reduceMotion) { this.#instant(y); return; }
-    if (Math.abs(i - from) > CONFIG.cutThreshold) { this.#cut(y); return; }
-    this.#travel(y);
+    if (this.caps.reduceMotion) { this.#instant(y); onArrive?.(); return; }
+    if (Math.abs(i - from) > CONFIG.cutThreshold) { this.#cut(y, onArrive); return; }
+    this.#travel(y, onArrive);
   }
   // depuis la position VISÉE (et non la caméra amortie) : appuyer deux fois avance de deux œuvres
   next() { this.jumpTo(clamp(Math.round(this.rail.stationPosAt(this.target) + 0.51), 0, this.rail.stations.length - 1)); }
@@ -97,17 +98,18 @@ export class Director {
   }
 
   /** Coupe franche : fondu au noir, on replace la tête de lecture, retour image. */
-  #cut(y) {
+  #cut(y, onArrive) {
     this.#cancelTween();
     this.dip.classList.add('on');
     setTimeout(() => {
       this.#instant(y);
+      onArrive?.();
       requestAnimationFrame(() => this.dip.classList.remove('on'));
     }, 190);
   }
 
   /** Travelling : on anime le défilement lui-même, la caméra suit avec son inertie. */
-  #travel(y) {
+  #travel(y, onArrive) {
     this.#cancelTween();
     const y0 = scrollY, dy = y - y0;
     const dur = clamp(Math.abs(dy) / this.pxPerSec * 0.28, 0.7, 2.4) * 1000;
@@ -118,7 +120,7 @@ export class Director {
       const e = f < 0.5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2;   // easeInOutCubic
       scrollTo(0, y0 + dy * e);
       if (f < 1) this.tween = requestAnimationFrame(step);
-      else { this.tween = null; setTimeout(() => this.#noSnap(false), 120); }
+      else { this.tween = null; setTimeout(() => this.#noSnap(false), 120); onArrive?.(); }
     };
     this.tween = requestAnimationFrame(step);
   }
