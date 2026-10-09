@@ -1,6 +1,7 @@
 /** Textes d'interface FR / JA / EN. {x} = valeur insérée. */
 export const STRINGS = {
   fr: {
+    siteMenu: 'Mood — à propos de RIKU',
     moderated: 'Dépôts modérés.',
     skip: 'Aller au contenu',
     role: 'Félix Cardonnel — image & direction artistique',
@@ -43,6 +44,7 @@ export const STRINGS = {
     eTooLong: 'Trop long : {max} caractères au maximum avec cette image.',
   },
   ja: {
+    siteMenu: 'Mood — RIKUについて',
     moderated: '投稿は承認制です。',
     skip: 'コンテンツへ移動',
     role: 'フェリックス・カルドネル — 映像・アートディレクション',
@@ -85,6 +87,7 @@ export const STRINGS = {
     eTooLong: '長すぎます。この画像では{max}文字までです。',
   },
   en: {
+    siteMenu: 'Mood — about RIKU',
     moderated: 'Posts are moderated.',
     skip: 'Skip to content',
     role: 'Félix Cardonnel — image & art direction',

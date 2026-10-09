@@ -1,4 +1,4 @@
-# RIKU — moodboard ouvert
+# Mood — le moodboard ouvert de RIKU
 
 Site de RIKU (Félix Cardonnel) : un mur de moodboard où chacun peut déposer une image ou un court texte. Rien n'est publié sans validation de RIKU.
 

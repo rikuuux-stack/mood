@@ -32,16 +32,16 @@ export function sizeFor(post, W, mobile) {
   const r = rng(post.id + ':size');
   if (post.kind === 'text') {
     const n = [...post.text].length;
-    const font = mobile ? (n <= 60 ? 17 : 14) : (n <= 60 ? 19 : n <= 200 ? 15 : 14);   // petites lettres, traits fins
-    const base = mobile ? W * (n <= 60 ? 0.6 : 0.78) : (n <= 60 ? 230 : n <= 200 ? 270 : 300);
-    return { w: Math.round(clamp(base * (0.92 + r() * 0.16), 200, W)), font };
+    const font = mobile ? (n <= 60 ? 15 : 13) : (n <= 60 ? 16 : n <= 200 ? 13 : 12);   // petites lettres, traits fins
+    const base = mobile ? W * (n <= 60 ? 0.52 : 0.68) : (n <= 60 ? 200 : n <= 200 ? 230 : 260);
+    return { w: Math.round(clamp(base * (0.92 + r() * 0.16), 170, W)), font };
   }
   const ar = post.image.w / post.image.h;
   if (mobile) {
-    const w = W * (ar < 1 ? 0.56 : 0.72) * (0.92 + r() * 0.22);
-    return { w: Math.round(clamp(w, 160, W)) };
+    const w = W * (ar < 1 ? 0.44 : 0.58) * (0.92 + r() * 0.22);
+    return { w: Math.round(clamp(w, 140, W)) };
   }
-  const base = clamp(W / 4.6, 200, 340);
+  const base = clamp(W / 6, 150, 260);
   const scale = [0.8, 1, 1.15, 1.4][Math.floor(r() * 4)] * (ar < 1 ? 0.85 : 1);
   return { w: Math.round(clamp(base * scale, 160, W * 0.6)) };
 }
