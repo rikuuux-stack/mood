@@ -58,16 +58,58 @@ export function sizeFor(post, W, mobile) {
 }
 
 /* ------------------------------------------------------------------ dérive (mouvement lent)
- * Chaque élément décrit une courbe douce (Lissajous) autour de sa place : décalage au plus `A` px
- * sur chaque axe, vitesse au plus A × 0,17 × √2 ≈ 3 px/s (A = 12), un tour en 40 à 70 s. Tout dépend de l'identifiant (stable).
+ * Chaque élément bouge doucement autour de sa place ; le décalage ne dépasse JAMAIS `A` px sur
+ * chaque axe (la marge réservée par le placement). Tout dépend de l'identifiant (stable).
+ * Styles (choisis par l'auteur, essai avec ?motion=a|b|c ; sans paramètre : « calme ») :
+ *   calme       ±12 / ±8 px, ≤ 3 px/s, courbe de Lissajous, un tour en 40 à 70 s ;
+ *   a  souffle  ±16 / ±12 px, ≤ 5 px/s, un tour en ≈ 25 s ;
+ *   b  flottement ±24 / ±16 px, ≤ 8 px/s, deux rythmes mélangés (moins régulier) ;
+ *   c  houle    ±16 / ±12 px, ≈ 6 px/s, les voisins bougent ensemble : une vague traverse le mur en ≈ 20 s.
  */
-export const DRIFT = { desktop: 12, mobile: 8 };
-export function drift(id, A) {
+export const MOTIONS = {
+  calm: { A: { desktop: 12, mobile: 8 }, vmax: 3 },
+  a: { A: { desktop: 16, mobile: 12 }, vmax: 5 },
+  b: { A: { desktop: 24, mobile: 16 }, vmax: 8 },
+  c: { A: { desktop: 16, mobile: 12 }, vmax: 6 },
+};
+export const DRIFT = MOTIONS.calm.A;               // compatibilité
+export const motionStyle = s => (s in MOTIONS ? s : 'calm');
+
+/**
+ * Paramètres de mouvement d'un élément. style : calm | a | b | c ; pos : { x, y, W } (houle : la
+ * phase dépend de la position, pour que la vague traverse le mur).
+ * Chaque axe = somme de sinusoïdes dont les amplitudes totalisent au plus A ; vitesse ≤ vmax.
+ */
+export function drift(id, A, style = 'calm', pos = { x: 0, y: 0, W: 1000 }) {
   const r = rng(id + ':drift');
-  return { ax: A * (0.6 + 0.4 * r()), ay: A * (0.6 + 0.4 * r()), wx: 0.09 + 0.08 * r(), wy: 0.09 + 0.08 * r(), px: r() * 6.283, py: r() * 6.283 };
+  const st = motionStyle(style), vmax = MOTIONS[st].vmax;
+  const axis = () => r() * 6.283;
+  if (st === 'c') {                                   // houle : orbite elliptique, phase selon la position
+    const ax = A * (0.85 + 0.15 * r()), ay = ax * 0.6;
+    const w = vmax / ax * 0.95;                       // vitesse ≤ ω·ax ≤ vmax
+    const k = w / (pos.W / 20);                       // la vague traverse la largeur en ≈ 20 s
+    const ph = -(k * pos.x + 0.6 * k * pos.y) + (r() - 0.5) * 0.6;
+    return { terms: [[ax, w, ph, 0, 0, 0], [0, 0, 0, ay, w, ph + Math.PI / 2]] };
+  }
+  if (st === 'b') {                                   // flottement : deux rythmes par axe
+    const one = () => { const a1 = A * (0.55 + 0.1 * r()), a2 = A - a1 - 0.5;
+      // vitesse par axe ≤ a1·w1 + a2·w2 ≤ vmax / √2
+      const w1 = (0.5 + 0.5 * r()) * vmax / Math.SQRT2 / (a1 + 1.5 * a2), w2 = w1 * 1.5; return [a1, w1, axis(), a2, w2, axis()]; };
+    const x = one(), y = one();
+    return { terms: [[x[0], x[1], x[2], 0, 0, 0], [x[3], x[4], x[5], 0, 0, 0], [0, 0, 0, y[0], y[1], y[2]], [0, 0, 0, y[3], y[4], y[5]]] };
+  }
+  const ax = A * (0.6 + 0.4 * r()), ay = A * (0.6 + 0.4 * r());
+  const wmax = vmax / (A * Math.SQRT2);              // vitesse ≤ √((ax·wx)² + (ay·wy)²) ≤ vmax
+  const wmin = st === 'calm' ? wmax * 0.53 : wmax * 0.6;
+  const wx = wmin + (wmax - wmin) * r(), wy = wmin + (wmax - wmin) * r();
+  return { terms: [[ax, wx, axis(), 0, 0, 0], [0, 0, 0, ay, wy, axis()]] };
 }
-/** Décalage (px) à l'instant t (secondes). |dx| ≤ ax ≤ A, |dy| ≤ ay ≤ A. */
-export const offsetAt = (d, t) => ({ x: d.ax * Math.sin(d.wx * t + d.px), y: d.ay * Math.sin(d.wy * t + d.py) });
+/** Décalage (px) à l'instant t (secondes). |dx|, |dy| ≤ A. */
+export function offsetAt(d, t) {
+  let x = 0, y = 0;
+  for (const [ax, wx, px, ay, wy, py] of d.terms) { if (ax) x += ax * Math.sin(wx * t + px); if (ay) y += ay * Math.sin(wy * t + py); }
+  return { x, y };
+}
 
 /** Bande du commentaire, en bas d'une boîte. */
 const strip = (r, capH) => ({ x: r.x, y: r.y + r.h - (capH || 0), w: r.w, h: capH || 0 });
@@ -92,14 +134,26 @@ export const zOf = (i, n) => n - i;
  * Le plus récent est au-dessus : un élément n'est recouvert que par ceux posés avant lui.
  * Retourne { rects: [{ x, y, w, h, z }], height, overlaps: [[i, j], …] }.
  */
-export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false, drift: A = 0 } = {}) {
+export function layout(boxes, W, opts = {}) {
+  const L = createLayout(W, boxes.length, opts);
+  const rects = boxes.map(b => L.add(b));
+  return { rects, height: L.height(), overlaps: L.overlaps };
+}
+
+/**
+ * Placement PROGRESSIF : la place d'un élément ne dépend que des éléments plus récents (posés
+ * avant lui). On peut donc placer le premier écran tout de suite, puis le reste par morceaux.
+ * n : nombre total d'éléments (pour l'ordre d'empilement). add(box) → rect ; height() ; overlaps.
+ */
+export function createLayout(W, n, { limit = 0.3, pad = 24, mobile = false, drift: A = 0 } = {}) {
   const inner = W - 2 * pad;
   const placed = [];            // boîtes agrandies : { x, y, w, h, kind, capH }
   const overlaps = [];
   const tries = mobile ? 6 : 14;
   const gap = mobile ? 28 : 24;          // espace libre autour d'un texte
 
-  boxes.forEach((b0, idx) => {
+  let idx = 0;
+  function add(b0) {
     const r = rng(b0.id + ':pos');
     const w0 = Math.min(b0.w, inner - 2 * A);
     const b = { kind: b0.kind, w: w0 + 2 * A, h: b0.h + 2 * A, capH: b0.capH ? b0.capH + 2 * A : 0 };
@@ -142,12 +196,11 @@ export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false, drift:
     const rect = { x: best.x, y: best.y, w, h, kind: b.kind, capH };
     placed.forEach((p, j) => { if (inter(rect, p)) overlaps.push([j, idx]); });
     placed.push(rect);
-  });
-
-  const n = boxes.length;
-  const rects = placed.map((p, i) => ({ x: p.x + A + pad, y: p.y + A + pad, w: p.w - 2 * A, h: p.h - 2 * A, z: zOf(i, n) }));
-  const height = Math.ceil(Math.max(0, ...placed.map(p => p.y + p.h)) + 2 * pad);
-  return { rects, height, overlaps };
+    bottom = Math.max(bottom, rect.y + rect.h);
+    return { x: rect.x + A + pad, y: rect.y + A + pad, w: rect.w - 2 * A, h: rect.h - 2 * A, z: zOf(idx++, n) };
+  }
+  let bottom = 0;
+  return { add, overlaps, height: () => Math.ceil(bottom + 2 * pad), get count() { return idx; } };
 }
 
 /** Pour les tests : part de chaque élément recouverte par ceux qui sont au-dessus de lui (selon z). */

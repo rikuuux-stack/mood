@@ -1,5 +1,6 @@
 /**
- * Dérive lente des éléments du mur (quelques px/s, trajectoires douces : js/wall.js → drift / offsetAt).
+ * Dérive lente des éléments du mur (quelques px/s, trajectoires douces : js/wall.js → drift / offsetAt ;
+ * style choisi dans js/main.js, essai avec ?motion=a|b|c).
  *
  *   - uniquement `transform` (calculé par la carte graphique) : la mise en page ne bouge jamais ;
  *   - seuls les éléments visibles à l'écran sont animés (IntersectionObserver) ;
@@ -8,7 +9,7 @@
  *   - « Réduire les animations » (prefers-reduced-motion) : tout reste immobile.
  * Le temps de l'animation n'avance que pendant qu'elle tourne : aucun saut à la reprise.
  */
-import { drift, offsetAt } from './wall.js?v=adc98a8050';
+import { drift, offsetAt } from './wall.js?v=14d76741cd';
 
 export function createMotion(isActive) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
@@ -40,10 +41,10 @@ export function createMotion(isActive) {
     if (reduce.matches) for (const el of items.keys()) el.style.transform = '';
   }
 
-  /** Nouveaux éléments à animer : [{ el, id }] ; A = amplitude maximale (px). */
-  function set(list, A) {
+  /** Éléments à animer : [{ el, id, x, y }] ; A = amplitude maximale (px) ; style : calm | a | b | c ; W = largeur du mur. */
+  function set(list, A, style, W) {
     io.disconnect(); items.clear(); visible.clear();
-    for (const { el, id } of list) { items.set(el, drift(id, A)); io.observe(el); }
+    for (const { el, id, x, y } of list) { items.set(el, drift(id, A, style, { x, y, W })); io.observe(el); }
     if (!reduce.matches) for (const el of items.keys()) place(el);     // position de départ, même avant d'être visible
     update();
   }

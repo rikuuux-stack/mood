@@ -19,6 +19,23 @@ export class ServerError extends Error {
   constructor(code, status) { super(code); this.code = code; this.status = status; }
 }
 
+/* ------------------------------------------------------------------ mur gardé sur l'appareil
+ * La première page du mur est rangée dans localStorage : au retour, le mur s'affiche aussitôt,
+ * puis se met à jour en arrière-plan. Ignorée au-delà de 24 h (un dépôt retiré ne réapparaît pas).
+ */
+const CACHE_KEY = 'mood-wall-v1', CACHE_MAX = 24 * 3600e3;
+export function cachedPosts() {
+  if (mode === 'mock') return null;
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (c && Array.isArray(c.posts) && Date.now() - c.t < CACHE_MAX) return c.posts;
+  } catch {}
+  return null;
+}
+function savePosts(posts) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), posts })); } catch {}
+}
+
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = {}) {
   if (mode === 'mock') {
@@ -31,11 +48,13 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = 
   });
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/wall?${q}`, { headers: headers() });
   if (!r.ok) throw new ServerError('server', r.status);
-  return (await r.json()).map(p => ({
+  const posts = (await r.json()).map(p => ({
     id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isAuthor: p.is_riku, size: p.size || 'm',
     createdAt: p.created_at,
     image: p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
   }));
+  if (offset === 0) savePosts(posts);
+  return posts;
 }
 
 async function call(fn, init) {

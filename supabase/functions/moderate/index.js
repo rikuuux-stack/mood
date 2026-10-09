@@ -10,7 +10,7 @@
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
-import { cors, json, fail, service, caller } from '../_shared/http.js';
+import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
 
 const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_riku, status, report_count, created_at, approved_at';
 const SIZES = ['s', 'm', 'l'];
@@ -34,7 +34,7 @@ async function moveFiles(db, row, from, to) {
   for (const p of [row.image_path, row.thumb_path]) {
     const { data, error } = await db.storage.from(from).download(p);
     if (error) throw error;
-    const up = await db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true });
+    const up = await db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE });
     if (up.error) throw up.error;
   }
   await db.storage.from(from).remove([row.image_path, row.thumb_path]);

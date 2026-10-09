@@ -8,7 +8,7 @@
  * fichiers dans le bucket privé. Exception : si l'appelant est l'administrateur (connecté), son dépôt est publié
  * directement avec sa marque, sans captcha ni limite.
  */
-import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, SITE_URL } from '../_shared/http.js';
+import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, SITE_URL, CACHE } from '../_shared/http.js';
 import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../_shared/image.js';
 import { textBudget, textLength } from '../_shared/budget.js';
 
@@ -91,7 +91,7 @@ Deno.serve(async req => {
     image_path = `${id}.${EXT[full.type]}`;
     thumb_path = `${id}-thumb.${EXT[thumb.type]}`;
     for (const [path, f] of [[image_path, full], [thumb_path, thumb]]) {
-      const { error } = await db.storage.from(bucket).upload(path, f.bytes, { contentType: f.type, upsert: false });
+      const { error } = await db.storage.from(bucket).upload(path, f.bytes, { contentType: f.type, upsert: false, cacheControl: CACHE });
       if (error) { console.error('[submit] stockage impossible :', error.message); return fail(req, 500, 'storage'); }
     }
   }
