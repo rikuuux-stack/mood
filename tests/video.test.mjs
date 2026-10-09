@@ -129,7 +129,7 @@ ok(!c.ok && c.code === 'canceled', 'conversion annulable', JSON.stringify(c));
 for (const [label, pattern] of [['bruit animé (pire cas : poids plafonné par le débit constant)', 'noise'], ['mire animée (cas courant)', 'mire']]) {
   const url = sources[pattern];
   const r = await convert(url, { start: 1 });
-  ok(r.ok && r.bytes <= 4 * 1024 * 1024, `60 s, ${label} : ${r.ok ? `${(r.bytes / 1048576).toFixed(2)} Mo, ${r.kbps} kb/s, ${r.info.duration} s, image fixe ${Math.round(r.poster.size / 1024)} Ko, converti en ${(r.ms / 1000).toFixed(1)} s` : r.code}`, JSON.stringify(r));
+  ok(r.ok && r.bytes <= 4 * 1024 * 1024, `60 s, ${label} : ${r.ok ? `${(r.bytes / 1048576).toFixed(2)} Mo, ${r.kbps} kb/s, ${r.info.duration} s, image fixe ${Math.round(r.poster.size / 1024)} Ko, converti en ${(r.ms / 1000).toFixed(1)} s` : `${r.code} (${r.detail})`}`, JSON.stringify(r));
 }
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
 await browser.close(); server.close();

@@ -80,21 +80,24 @@ async function constantRate(w, h) {
   catch { cbr = false; }
   return cbr;
 }
+const PASSES = [1, 0.5, 1 / 3];                         // part des images gardées : 24, 12 puis 8 i/s
 async function retry(run) {
-  let bitrate = VIDEO.bitrate;
-  for (let pass = 0; ; pass++) {
-    const blob = await run(bitrate);
-    if (blob.size <= VIDEO.maxBytes || pass) return blob;
-    bitrate = Math.floor(bitrate * 0.85 * VIDEO.maxBytes / blob.size);
+  let bitrate = VIDEO.bitrate, sizes = [];
+  for (let pass = 0; pass < PASSES.length; pass++) {
+    const blob = await run(bitrate, PASSES[pass]);
+    sizes.push(blob.size);
+    if (blob.size <= VIDEO.maxBytes) return blob;
+    bitrate = Math.max(60_000, Math.floor(bitrate * 0.85 * VIDEO.maxBytes / blob.size));
   }
+  throw new VideoError('eTooBig', `passes ${sizes.join(' / ')} octets, débit constant ${cbr}`);
 }
 
 /** Encodeur image par image : add(t, durée) encode le canvas tel qu'il est, puis finish() → Blob MP4. */
-async function webcodecsEncoder(c, bitrate = VIDEO.bitrate) {
+async function webcodecsEncoder(c, bitrate = VIDEO.bitrate, fps = VIDEO.fps) {
   const MB = await lib();
   const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
   const src = new MB.CanvasSource(c, { codec: 'avc', bitrate, bitrateMode: (await constantRate(c.width, c.height)) ? 'constant' : 'variable', keyFrameInterval: 2 });
-  output.addVideoTrack(src, { frameRate: VIDEO.fps });
+  output.addVideoTrack(src, { frameRate: fps });
   await output.start();
   return {
     realtime: false,
@@ -173,10 +176,10 @@ async function openDecodable(MB, input, track, file) {
       const work = canvas(width, height);
       let fps = VIDEO.fps;
       try { const st = await track.computePacketStats(120); if (st.averagePacketRate > 0) fps = Math.min(VIDEO.fps, Math.round(st.averagePacketRate)); } catch {}
-      const step = 1 / fps;
       // chaque image décodée (dans le bon sens), redessinée en noir et blanc + courbe, encodée ; ≤ 24 i/s
-      const pass = async bitrate => {
-        const enc = await webcodecsEncoder(work.c, bitrate);
+      const pass = async (bitrate, keep) => {
+        const rate = Math.max(1, Math.round(fps * keep)), step = 1 / rate;
+        const enc = await webcodecsEncoder(work.c, bitrate, rate);
         const frames = new MB.CanvasSink(track, { width, height, fit: 'fill', poolSize: 2 });
         let next = 0, n = 0;
         try {
