@@ -76,16 +76,16 @@ for (const bucket of ['pending', 'published']) {
 // --- fonction submit : refus avant tout enregistrement
 const preflight = origin => fetch(`${URL_}/functions/v1/submit`, { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } })
   .then(r => r.headers.get('access-control-allow-origin'));
-for (const origin of [ORIGIN, 'https://rikuuux-stack.github.io']) {
-  await t(`CORS : ${origin} est autorisé à appeler les fonctions`, async () => {
-    const got = await preflight(origin);
-    return got === origin || `allow-origin = ${got}`;
+await t(`CORS : ${ORIGIN} est autorisé à appeler les fonctions`, async () => {
+  const got = await preflight(ORIGIN);
+  return got === ORIGIN || `allow-origin = ${got}`;
+});
+for (const other of ['https://rikuuux-stack.github.io', 'https://moodwall.pages.dev.evil.example']) {
+  await t(`CORS : ${other} n’est pas autorisé`, async () => {
+    const got = await preflight(other);
+    return got !== other || `allow-origin = ${got}`;
   });
 }
-await t('CORS : un autre site n’est pas autorisé', async () => {
-  const got = await preflight('https://moodwall.pages.dev.evil.example');
-  return got !== 'https://moodwall.pages.dev.evil.example' || `allow-origin = ${got}`;
-});
 await t('dépôt sans case « droits » refusé', async () => code(await submitForm({ text: 'test', consent: '0' }), 'rights'));
 await t('dépôt vide refusé', async () => code(await submitForm({}), 'empty'));
 await t('pseudo avec lien refusé', async () => code(await submitForm({ text: 'test', name: 'www.spam.com' }), 'name'));

@@ -12,10 +12,9 @@ export const ADMIN_EMAIL = 'rikuuux@gmail.com';
 export const SITE_URL = 'https://moodwall.pages.dev/';
 
 // Origines autorisées à appeler les fonctions : le site (Cloudflare Pages, avec ses aperçus
-// <id>.moodwall.pages.dev), l'ancienne adresse GitHub Pages le temps de la transition, et un serveur local.
+// <id>.moodwall.pages.dev) et un serveur local pour tester.
 const ORIGINS = [
   /^https:\/\/([a-z0-9-]+\.)?moodwall\.pages\.dev$/,
-  /^https:\/\/rikuuux-stack\.github\.io$/,            // transition : à retirer quand l'ancienne adresse n'est plus utilisée
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
 ];
 

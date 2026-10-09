@@ -12,7 +12,7 @@ Les clés **secrètes** ne vont jamais dans le code ni dans une conversation : u
 ## Étape 1 — La clé secrète Turnstile, dans Supabase
 
 1. Cloudflare ▸ **Turnstile** ▸ ton widget ▸ **Settings**.
-   - Vérifie que **Hostnames** contient `moodwall.pages.dev` (et `rikuuux-stack.github.io` pendant la transition).
+   - Vérifie que **Hostnames** contient `moodwall.pages.dev`.
    - Copie la **Secret Key**.
 2. Supabase ▸ ton projet ▸ menu de gauche **Edge Functions** ▸ onglet **Secrets**.
 3. **Add new secret** :
@@ -36,7 +36,7 @@ Il en faut deux.
 - Oublié ? Supabase ▸ **Project Settings** ▸ **Database** ▸ **Reset database password**.
 
 **Dans GitHub**
-1. Dépôt `riku-portfolio` ▸ **Settings** ▸ **Secrets and variables** ▸ **Actions** ▸ **New repository secret**.
+1. Dépôt `mood` ▸ **Settings** ▸ **Secrets and variables** ▸ **Actions** ▸ **New repository secret**.
 2. Crée :
    - `SUPABASE_ACCESS_TOKEN` = le jeton (a)
    - `SUPABASE_DB_PASSWORD` = le mot de passe (b)
