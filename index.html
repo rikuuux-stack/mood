@@ -9,9 +9,9 @@
 <!-- connexion au serveur de données ouverte tout de suite, pendant le chargement du reste -->
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co" crossorigin>
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co">
-<link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=d70e044bc6" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/fonts.css?v=af3ebca491">
-<link rel="stylesheet" href="css/site.css?v=f5d59ed612">
+<link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=c87dd264cf" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/fonts.css?v=4a16f2367f">
+<link rel="stylesheet" href="css/site.css?v=83fad2a320">
 </head>
 <body>
 <!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
@@ -30,15 +30,20 @@
 <a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
 
 <header class="bar">
-  <!-- nom du site, écrit à l'envers (retourné) ; ouvre le panneau « à propos » -->
+  <!-- nom du site : à l'endroit au repos ; se retourne brièvement à l'ouverture de la page et au survol ; ouvre le panneau « à propos » -->
   <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
   <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
 </header>
 
 <main id="board" tabindex="-1">
+  <!-- contexte + consigne du mois (réglée depuis /admin/, absente s'il n'y en a pas) -->
+  <div class="intro">
+    <p class="context" data-i18n="context"></p>
+    <p class="prompt" id="prompt" hidden></p>
+  </div>
   <ul id="wall" class="wall"></ul>
   <ol id="list" class="list" hidden></ol>
-  <p id="empty" class="empty" hidden data-i18n="empty"></p>
+  <p id="empty" class="empty" hidden><span data-i18n="empty"></span> <button type="button" class="link" data-open="drop" data-i18n="startWall"></button></p>
   <p class="more-wrap"><button type="button" id="more" class="link" hidden data-i18n="more"></button></p>
 </main>
 
@@ -47,6 +52,10 @@
 <dialog id="viewer" class="dlg dlg--viewer" aria-labelledby="viewerMeta">
   <div class="dlg-head">
     <p class="viewer-meta" id="viewerMeta"></p>
+    <span class="viewer-nav">
+      <button type="button" class="nav" id="prev" data-i18n-label="prev">‹</button>
+      <button type="button" class="nav" id="next" data-i18n-label="next">›</button>
+    </span>
     <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
   <div class="viewer-body" id="viewerBody"></div>
@@ -69,7 +78,7 @@
 </dialog>
 
 <!-- Dépôt : une image, des mots, ou les deux. Plus l'image a de pixels, moins il reste de mots (js/budget.js).
-     Le visiteur choisit la taille d'affichage (S / M / L) et le grain de l'image (0 à 100, appliqué avant l'envoi). -->
+     Le visiteur choisit la taille d'affichage (S / M / L). Le grain est une règle globale du site (pas de réglage). -->
 <dialog id="drop" class="dlg dlg--drop" aria-labelledby="dropTitle">
   <form id="dropForm" class="drop-form" novalidate>
     <div class="dlg-head">
@@ -86,8 +95,8 @@
     </div>
     <p class="hint" data-i18n="imageHint"></p>
     <figure class="preview" id="preview" hidden><span class="photo"><canvas aria-hidden="true"></canvas></span><figcaption id="previewInfo"></figcaption></figure>
-    <label class="grain" id="grainRow" hidden><span data-i18n="grain"></span><input type="range" id="grain" min="0" max="100" step="1" value="0"><output id="grainOut" for="grain">0</output></label>
 
+    <p class="prompt" id="dropPrompt" hidden></p>
     <textarea id="text" rows="4" data-i18n-placeholder="textPlaceholder"></textarea>
     <p class="hint count" id="count" aria-live="polite"><span id="countN"></span></p>
     <fieldset class="sizes"><legend data-i18n="size"></legend>
@@ -110,7 +119,10 @@
     <h2 id="aboutTitle">Mood</h2>
     <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
-  <p><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
+  <!-- manifeste : les règles du mur, en quatre lignes -->
+  <ul class="manifesto">
+    <li data-i18n="m1"></li><li data-i18n="m2"></li><li data-i18n="m3"></li><li data-i18n="m4"></li>
+  </ul>
   <div class="prefs">
     <span class="langs" role="group" aria-label="Langue / 言語 / Language">
       <button type="button" class="link" data-lang="fr" lang="fr">FR</button>
@@ -119,10 +131,10 @@
     </span>
     <button type="button" class="link" id="viewBtn"></button>
   </div>
-  <p class="hint"><span class="stamp stamp--inline" aria-hidden="true"></span> <span data-i18n="stampLegend"></span></p>
-  <p class="hint" data-i18n="mentions"></p>
+  <p class="hint small"><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
+  <p class="hint small" data-i18n="mentions"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=2cb6501142"></script>
+<script type="module" src="js/main.js?v=6b22065330"></script>
 </body>
 </html>

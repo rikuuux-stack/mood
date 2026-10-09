@@ -6,7 +6,7 @@
  *                 revérifiés là-bas). La clé utilisée ici est la clé publique « anon ».
  *   mode 'mock' : tout est simulé dans le navigateur (mur vide, aucun envoi). Forcé par ?mock dans l'URL.
  */
-import { CONFIG } from './config.js?v=1f46695844';
+import { CONFIG } from './config.js?v=887f663b99';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;
@@ -23,37 +23,73 @@ export class ServerError extends Error {
  * La première page du mur est rangée dans localStorage : au retour, le mur s'affiche aussitôt,
  * puis se met à jour en arrière-plan. Ignorée au-delà de 24 h (un dépôt retiré ne réapparaît pas).
  */
-const CACHE_KEY = 'mood-wall-v1', CACHE_MAX = 24 * 3600e3;
+const CACHE_KEY = 'mood-wall-v2', CACHE_MAX = 24 * 3600e3;   // v2 : avec la consigne de chaque dépôt
 export function cachedPosts() {
   if (mode === 'mock') return null;
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-    if (c && Array.isArray(c.posts) && Date.now() - c.t < CACHE_MAX) return c.posts;
+    if (c && Array.isArray(c.posts) && Date.now() - c.t < CACHE_MAX) return { posts: c.posts, prompt: c.prompt || '' };
   } catch {}
   return null;
 }
-function savePosts(posts) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), posts })); } catch {}
+function save(patch) {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') || {};
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ...c, ...patch, t: Date.now() }));
+  } catch {}
+}
+
+/* ------------------------------------------------------------------ consigne du mois
+ * Un court texte anglais réglé depuis /admin/ (table prompt) ; vide = pas de consigne ce mois-ci.
+ */
+export async function fetchPrompt() {
+  if (mode === 'mock') return '';
+  const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/current_prompt?select=text`, { headers: headers() });
+  if (!r.ok) throw new ServerError('server', r.status);
+  const prompt = (await r.json())[0]?.text || '';
+  save({ prompt });
+  return prompt;
+}
+
+/* ------------------------------------------------------------------ mes dépôts en attente
+ * Après l'envoi, le navigateur du visiteur garde une petite copie de SON dépôt (texte + miniature
+ * d'≈ 40 Ko) et la montre sur SON mur, marquée « Under review », jusqu'à la validation. Personne
+ * d'autre ne la voit. Effacée dès que le dépôt apparaît sur le mur, ou au bout de 14 jours (refusé).
+ */
+const PENDING_KEY = 'mood-pending-v1', PENDING_MAX = 14 * 86400e3;
+export function pendingPosts() {
+  try {
+    const list = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+    return Array.isArray(list) ? list.filter(p => Date.now() - Date.parse(p.createdAt) < PENDING_MAX) : [];
+  } catch { return []; }
+}
+function savePending(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); } catch {} }
+export function addPending(p) { savePending([p, ...pendingPosts().filter(x => x.id !== p.id)].slice(0, 10)); }
+/** Retire les copies dont le dépôt est désormais publié (ids reçus du serveur). */
+export function settlePending(publishedIds) {
+  const ids = new Set(publishedIds), keep = pendingPosts().filter(p => !ids.has(p.id));
+  savePending(keep);                                    // retire aussi les copies de plus de 14 jours
+  return keep;
 }
 
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = {}) {
   if (mode === 'mock') {
-    const { MOCK_POSTS } = await import('./mock.js?v=ca4d28d365');
+    const { MOCK_POSTS } = await import('./mock.js?v=f62979d0a7');
     return MOCK_POSTS.slice(offset, offset + limit);
   }
   const q = new URLSearchParams({
-    select: 'id,kind,text,name,image_path,thumb_path,width,height,size,is_riku,created_at,approved_at',
+    select: 'id,kind,text,name,image_path,thumb_path,width,height,size,prompt,created_at,approved_at',
     order: 'approved_at.desc', offset: String(offset), limit: String(limit),
   });
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/wall?${q}`, { headers: headers() });
   if (!r.ok) throw new ServerError('server', r.status);
   const posts = (await r.json()).map(p => ({
-    id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isAuthor: p.is_riku, size: p.size || 'm',
-    createdAt: p.created_at,
+    id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', size: p.size || 'm', prompt: p.prompt || '',
+    createdAt: p.created_at, approvedAt: p.approved_at || p.created_at,
     image: p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
   }));
-  if (offset === 0) savePosts(posts);
+  if (offset === 0) save({ posts });
   return posts;
 }
 

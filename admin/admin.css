@@ -27,3 +27,8 @@
 .adm-sizes button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .adm-sizes button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .adm-sizes button:disabled { opacity: .5; }
+/* consigne du mois */
+.adm-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.adm-prompt label { font: var(--light) 12px var(--mono); color: var(--muted); }
+.adm-prompt input { flex: 1 1 200px; font: inherit; font-size: 16px; padding: 8px 10px; border: var(--line) solid var(--rule); background: var(--bg); color: var(--fg); border-radius: 0; }
+.adm-prompt input:focus { border-color: var(--fg); }

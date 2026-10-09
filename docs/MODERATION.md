@@ -17,14 +17,15 @@ La page est en anglais, avec des mots très courts (choix validé).
 | **Pending** (en attente) | les nouveaux dépôts, du plus ancien au plus récent | **Approve** : il apparaît sur le mur. **Reject** : il est supprimé définitivement (2ᵉ toucher, « Sure? », pour confirmer). |
 | **Reported** (signalés) | les dépôts masqués automatiquement après 3 signalements | **Restore** (les signalements sont effacés) ou **Delete** |
 | **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
-| **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L, grain | publié tout de suite, avec ton petit carré clair |
+| **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L | publié tout de suite, comme n'importe quel dépôt (aucune marque visible ; « me » ici seulement) |
+
+**Consigne du mois** : en haut, champ **Prompt** (un court texte anglais, 60 caractères au plus, ex. « trace. ») ▸ **Save**. Elle s'affiche « This month: trace. » sur le mur et dans Drop, et elle est gardée sur chaque nouveau dépôt : le mur se lit ainsi par strates (un mois, une consigne). **Clear** = pas de consigne ce mois-ci.
 
 **Taille d'affichage** : sous chaque dépôt, trois cases **S / M / L** (la taille choisie par le visiteur est pleine).
 Un toucher la change aussitôt, avant ou après validation.
 
 Les photos s'affichent ici **en couleur et telles qu'envoyées**, pour que tu juges le vrai contenu.
-Sur le mur, elles passent en noir et blanc avec du grain.
-Le **grain choisi par le visiteur** (curseur au dépôt) est déjà dans l'image : tu vois l'image finale.
+Sur le mur, elles passent en noir et blanc avec du grain (le même pour tous), puis pâlissent lentement avec le temps.
 
 ## Ce qui est déjà filtré avant d'arriver chez toi
 

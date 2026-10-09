@@ -5,8 +5,8 @@
  * Toutes les actions passent par la fonction serveur « moderate », qui revérifie que le compte
  * connecté est bien administrateur. Les textes des dépôts sont insérés via textContent uniquement.
  */
-import { CONFIG } from '../js/config.js?v=1f46695844';
-import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=6375903f29';
+import { CONFIG } from '../js/config.js?v=887f663b99';
+import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=63243cc491';
 import { textBudget, textLength } from '../js/budget.js?v=0d99de1d5b';
 
 const $ = s => document.querySelector(s);
@@ -76,6 +76,7 @@ async function refresh() {
     $('#dashMsg').textContent = e.message === 'admin' ? 'Not admin' : 'Server error — retry';
   }
   for (const k of ['pending', 'hidden', 'published']) $(`[data-n="${k}"]`).textContent = `(${data[k].length})`;
+  if (typeof data.prompt === 'string' && document.activeElement !== $('#promptText')) $('#promptText').value = data.prompt;
   render();
 }
 
@@ -131,7 +132,7 @@ function render() {
     if (r.text) { const t = document.createElement('p'); t.className = 'adm-text'; t.textContent = r.text; li.append(t); }
     const meta = document.createElement('p'); meta.className = 'adm-meta';
     meta.textContent = [r.is_riku ? 'me' : (r.name || 'anon'), fmt(r.created_at),
-      r.width ? `${r.width}×${r.height}` : null, r.report_count ? `${r.report_count} reports` : null].filter(Boolean).join(' · ');
+      r.width ? `${r.width}×${r.height}` : null, r.prompt ? `prompt: ${r.prompt}` : null, r.report_count ? `${r.report_count} reports` : null].filter(Boolean).join(' · ');
     li.append(meta, sizePicker(r));
     const bar = document.createElement('div'); bar.className = 'adm-actions';
     for (const [action, label, risky] of ACTIONS[tab]) {
@@ -150,8 +151,21 @@ function render() {
   }));
 }
 
+/* ------------------------------------------------------------------ consigne du mois
+ * Un court texte anglais (60 caractères au plus) : « This month: … » sur le mur et dans Drop, et gardé
+ * sur chaque nouveau dépôt (strates du mur). Vide = pas de consigne ce mois-ci.
+ */
+async function savePrompt(text) {
+  const btns = $('#promptForm').querySelectorAll('button'); btns.forEach(b => { b.disabled = true; });
+  try { const out = await moderate('POST', { action: 'prompt', text }); $('#promptText').value = out.prompt; $('#dashMsg').textContent = out.prompt ? 'Prompt saved' : 'No prompt'; }
+  catch (e) { if (e.message !== 'auth') $('#dashMsg').textContent = e.message === 'tooLong' ? '60 max' : 'Failed — retry'; }
+  btns.forEach(b => { b.disabled = false; });
+}
+$('#promptForm').addEventListener('submit', e => { e.preventDefault(); savePrompt($('#promptText').value.trim()); });
+$('#promptClear').addEventListener('click', () => { $('#promptText').value = ''; savePrompt(''); });
+
 /* ------------------------------------------------------------------ dépôt de l'auteur du site (publié directement, avec la marque) */
-// Même formulaire que le site : taille S / M / L et grain (ajouté à l'image avant l'envoi, aperçu en direct).
+// Même formulaire que le site : taille S / M / L. Pas de grain réglable : le grain est une règle globale du site.
 let src = null, preparing = null, imageError = '', sending = false;
 const budget = () => src ? textBudget(src.width, src.height) : textBudget();
 const IMAGE_ERRORS = { eType: 'Image refused: format', eTooBig: 'Image refused: too heavy', eMeta: 'Image refused: metadata', eDecode: 'Image refused: unreadable' };
@@ -161,23 +175,16 @@ const SERVER_ERRORS = {
   empty: 'Add an image or words', storage: 'Storage error', display: 'Unknown size',
 };
 const imageErrorText = e => IMAGE_ERRORS[e instanceof ImageError ? e.code : 'eDecode'] || IMAGE_ERRORS.eDecode;
-const submitBtn = $('#mine button[type=submit]'), mineGrain = $('#mineGrain'), mineCanvas = $('#minePreview canvas');
+const submitBtn = $('#mine button[type=submit]'), mineCanvas = $('#minePreview canvas');
 function refreshMine() {
   const n = textLength($('#mineText').value), max = budget();
   $('#mineCount').textContent = `${n} / ${max}`;
   $('#mineFileLabel').textContent = src ? 'Change' : 'Image';
   $('#mineRemove').hidden = !src && !imageError;
-  $('#mineGrainRow').hidden = !src;
   submitBtn.disabled = sending || !!preparing;
   submitBtn.textContent = sending || preparing ? '…' : 'Drop';
 }
 $('#mineText').addEventListener('input', refreshMine);
-let drawing = 0;
-mineGrain.addEventListener('input', () => {
-  $('#mineGrainOut').textContent = mineGrain.value;
-  if (!src || drawing) return;
-  drawing = requestAnimationFrame(() => { drawing = 0; if (src) drawPreview(mineCanvas, src, +mineGrain.value); });
-});
 $('#mineFile').addEventListener('change', async () => {
   const f = $('#mineFile').files[0];
   src = null; imageError = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
@@ -188,7 +195,7 @@ $('#mineFile').addEventListener('change', async () => {
     const d = await job;
     if (job !== preparing) return;                      // une autre image a été choisie entre-temps
     src = d;
-    drawPreview(mineCanvas, src, +mineGrain.value);
+    drawPreview(mineCanvas, src, 0);
     $('#mineInfo').textContent = `${d.width} × ${d.height}`;
     $('#minePreview').hidden = false;
   } catch (e) {
@@ -219,7 +226,7 @@ $('#mine').addEventListener('submit', async e => {
     let sentImage = false;
     if (src) {
       let img;
-      try { img = await renderImage(src, { grain: +mineGrain.value }); }
+      try { img = await renderImage(src); }
       catch (err) { throw new Error(`image:${imageErrorText(err)}`); }
       const ext = t => (t === 'image/webp' ? 'webp' : t === 'image/png' ? 'png' : 'jpg');
       form.append('image', img.full, `image.${ext(img.full.type)}`);
@@ -229,7 +236,7 @@ $('#mine').addEventListener('submit', async e => {
     const r = await fetch(`${API}/functions/v1/submit`, { method: 'POST', headers: { apikey: KEY, Authorization: `Bearer ${await token()}` }, body: form });
     const out = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(out.error || 'server');
-    $('#mine').reset(); src = null; $('#minePreview').hidden = true; $('#mineGrainOut').textContent = '0';
+    $('#mine').reset(); src = null; $('#minePreview').hidden = true;
     $('#mineMsg').textContent = sentImage && out.kind === 'text' ? 'Text live, image NOT received — delete it (Live) and retry' : 'Live';
     refresh();
   } catch (err) {

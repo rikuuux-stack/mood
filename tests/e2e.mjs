@@ -54,6 +54,19 @@ await t('la vue « wall » donne la taille d’affichage (s / m / l)', async () 
   const r = await req('/rest/v1/wall?select=id,size&limit=5');
   return (r.status === 200 && (r.body_ || []).every(p => ['s', 'm', 'l'].includes(p.size))) || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
 });
+await t('la consigne du mois est lisible publiquement (vue current_prompt)', async () => {
+  const r = await req('/rest/v1/current_prompt?select=text');
+  return (r.status === 200 && Array.isArray(r.body_) && r.body_.length <= 1) || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
+});
+await t('la table « prompt » est fermée au public (lecture et écriture)', async () => {
+  const a = await req('/rest/v1/prompt?select=*');
+  const b = await req('/rest/v1/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 1, text: 'pirate' }) });
+  return (a.status >= 400 && b.status >= 400) || `lecture ${a.status}, écriture ${b.status}`;
+});
+await t('la vue « wall » donne la consigne de chaque dépôt (strates)', async () => {
+  const r = await req('/rest/v1/wall?select=id,prompt&limit=5');
+  return r.status === 200 || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
+});
 await t('la vue « wall » ne montre aucune donnée privée', async () => {
   const r = await req('/rest/v1/wall?select=ip_hash,status,report_count&limit=1');
   return r.status >= 400 || 'colonnes privées accessibles';
