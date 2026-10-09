@@ -1,6 +1,6 @@
 // Règles du mur : node tests/wall.test.mjs  → code de sortie 0 si tout est respecté.
 // Le mur est immobile ; c'est le temps qui le transforme (érosion, strates).
-import { layout, createLayout, coverage, sizeFor, SIZES, visibility, onWall, strataKey, TIME } from '../js/wall.js';
+import { layout, createLayout, coverage, sizeFor, SIZES, visibility, stageOf, onWall, strataKey, TIME } from '../js/wall.js';
 import { CONFIG } from '../js/config.js';
 import { SAMPLE_POSTS } from './fixtures.mjs';
 const inter = (a, b) => { const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y); return x > 0 && y > 0 ? x * y : 0; };
@@ -54,4 +54,12 @@ check('strates : même mois + même consigne = même strate', strataKey({ create
 check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
   strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: 'trace.' }) !== strataKey({ createdAt: '2026-10-03T10:00:00Z', prompt: 'light.' })
   && strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: '' }) !== strataKey({ createdAt: '2026-11-02T10:00:00Z', prompt: '' }));
+{
+  const st = d => stageOf(visibility(d));
+  const days = Array.from({ length: 181 }, (_, d) => st(d));
+  check('érosion par paliers : neuve jusqu’à 10 j, 4 paliers fixes, palier 4 dès ≈ 73 j',
+    st(0) === 0 && st(10) === 0 && st(11) === 1 && st(23) === 2 && st(41) === 3 && st(74) === 4 && st(179) === 4);
+  check('paliers : jamais de retour en arrière avec l’âge', days.every((s, i) => i === 0 || s >= days[i - 1]));
+  check('paliers : seulement 0 à 4 (cinq classes CSS, quatre filtres)', new Set(days).size === 5 && Math.max(...days) === 4);
+}
 process.exit(fail ? 1 : 0);

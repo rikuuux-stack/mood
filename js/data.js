@@ -6,7 +6,7 @@
  *                 revérifiés là-bas). La clé utilisée ici est la clé publique « anon ».
  *   mode 'mock' : tout est simulé dans le navigateur (mur vide, aucun envoi). Forcé par ?mock dans l'URL.
  */
-import { CONFIG } from './config.js?v=887f663b99';
+import { CONFIG } from './config.js?v=95312ca8f3';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;
@@ -73,7 +73,7 @@ export function settlePending(publishedIds) {
 }
 
 /** Dépôts validés, du plus récent au plus ancien. */
-export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = {}) {
+export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {}) {
   if (mode === 'mock') {
     const { MOCK_POSTS } = await import('./mock.js?v=f62979d0a7');
     return MOCK_POSTS.slice(offset, offset + limit);

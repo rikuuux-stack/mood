@@ -11,12 +11,16 @@
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co">
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=c87dd264cf" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css?v=4a16f2367f">
-<link rel="stylesheet" href="css/site.css?v=83fad2a320">
+<link rel="stylesheet" href="css/site.css?v=a00ebdc2db">
 </head>
 <body>
 <!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
      Point d'entrée → sortie : 0 → 0 · 25 % → 24 % · 50 % → 47 % · 75 % → 64 % · 100 % → 76 %.
      Utilisé par css/site.css (.photo img). -->
+<!-- Érosion des images du mur (js/wall.js → stageOf, classes .age-1 … .age-4) : même traitement, puis grain
+     un peu plus fort et TRANSPARENCE selon la luminosité (avant le grain, pour un passage doux) : alpha = 1 − pente × (gris − seuil).
+     Palier 1 : seuls les blancs pâlissent … palier 4 : il ne reste que les parties sombres.
+     Quatre filtres partagés par toutes les images (rien de calculé image par image). -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <filter id="tone" color-interpolation-filters="sRGB">
     <feColorMatrix type="saturate" values="0"/>
@@ -25,6 +29,58 @@
       <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
       <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
     </feComponentTransfer>
+  </filter>
+  <filter id="erode1" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer result="t">
+      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+    </feComponentTransfer>
+    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
+    <feColorMatrix values="0.3 0 0 0 0.35  0.3 0 0 0 0.35  0.3 0 0 0 0.35  0 0 0 0 1"/>
+    <feBlend mode="overlay" in2="t" result="g"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1.6 0 0 0 1.96" result="a"/>
+    <feComposite in="g" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode2" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer result="t">
+      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+    </feComponentTransfer>
+    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
+    <feColorMatrix values="0.36 0 0 0 0.32  0.36 0 0 0 0.32  0.36 0 0 0 0.32  0 0 0 0 1"/>
+    <feBlend mode="overlay" in2="t" result="g"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.2 0 0 0 2.1" result="a"/>
+    <feComposite in="g" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode3" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer result="t">
+      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+    </feComponentTransfer>
+    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
+    <feColorMatrix values="0.42 0 0 0 0.29  0.42 0 0 0 0.29  0.42 0 0 0 0.29  0 0 0 0 1"/>
+    <feBlend mode="overlay" in2="t" result="g"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.8 0 0 0 2.12" result="a"/>
+    <feComposite in="g" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode4" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer result="t">
+      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+    </feComponentTransfer>
+    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
+    <feColorMatrix values="0.48 0 0 0 0.26  0.48 0 0 0 0.26  0.48 0 0 0 0.26  0 0 0 0 1"/>
+    <feBlend mode="overlay" in2="t" result="g"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -3.4 0 0 0 2.02" result="a"/>
+    <feComposite in="g" in2="a" operator="in"/>
   </filter>
 </svg>
 <a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
@@ -44,7 +100,6 @@
   <ul id="wall" class="wall"></ul>
   <ol id="list" class="list" hidden></ol>
   <p id="empty" class="empty" hidden><span data-i18n="empty"></span> <button type="button" class="link" data-open="drop" data-i18n="startWall"></button></p>
-  <p class="more-wrap"><button type="button" id="more" class="link" hidden data-i18n="more"></button></p>
 </main>
 
 
@@ -135,6 +190,6 @@
   <p class="hint small" data-i18n="mentions"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=6b22065330"></script>
+<script type="module" src="js/main.js?v=aeb033f2b6"></script>
 </body>
 </html>

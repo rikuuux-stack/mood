@@ -5,8 +5,8 @@
  * Toutes les actions passent par la fonction serveur « moderate », qui revérifie que le compte
  * connecté est bien administrateur. Les textes des dépôts sont insérés via textContent uniquement.
  */
-import { CONFIG } from '../js/config.js?v=887f663b99';
-import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=63243cc491';
+import { CONFIG } from '../js/config.js?v=95312ca8f3';
+import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=71b45ca5a4';
 import { textBudget, textLength } from '../js/budget.js?v=0d99de1d5b';
 
 const $ = s => document.querySelector(s);

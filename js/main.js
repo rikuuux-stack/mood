@@ -12,12 +12,12 @@
  *
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
-import { CONFIG } from './config.js?v=887f663b99';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=b9bb643d7f';
-import { createLayout, sizeFor, visibility, ageDays, onWall, strataKey } from './wall.js?v=4722e283c5';
-import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=63243cc491';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=44106a34a4';
-import * as captcha from './captcha.js?v=476277c2da';
+import { CONFIG } from './config.js?v=95312ca8f3';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=25875a6474';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=a3d815e6fe';
+import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=71b45ca5a4';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=637f4a0538';
+import * as captcha from './captcha.js?v=4efce66ea2';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -52,8 +52,6 @@ const asPending = p => ({ ...p, pending: true });
 const wallItems = () => [...pending.map(asPending), ...posts.filter(p => onWall(ageDays(p.approvedAt)))];
 const listItems = () => [...pending.map(asPending), ...posts];
 const items = () => (view === 'wall' ? wallItems() : listItems());
-// « More » sur le mur : seulement si la page suivante peut encore contenir des dépôts de moins de 180 jours
-const moreOK = () => hasMore && (view === 'list' || (posts.length > 0 && onWall(ageDays(posts.at(-1).approvedAt))));
 
 /* ------------------------------------------------------------------ consigne du mois */
 function showPrompt() {
@@ -68,19 +66,44 @@ const label = p => t(p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name |
 const ariaOf = p => (p.pending ? `${t('pending')} — ` : '') + (p.text ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
 const metaOf = p => (p.pending ? t('pending') : `${p.name || t('anon')} · ${formatDate(p.createdAt)}`);
 
+/*
+ * Images du mur et de la liste : téléchargées seulement à l'approche de l'écran (un écran de marge,
+ * au-dessus comme au-dessous), et LIBÉRÉES quand elles s'en éloignent (au-delà de 3 écrans) : la mémoire
+ * ne dépend plus de la taille du mur, seulement de ce qui est autour de l'écran. Revenir vers une image
+ * libérée la redemande au cache du navigateur (pas de nouveau téléchargement). Le cadre garde toujours
+ * sa taille : la composition ne bouge pas.
+ */
+const IO = 'IntersectionObserver' in window;
+const load = img => { img.src = img.dataset.src; delete img.dataset.src; if (far) far.observe(img); };
+const near = IO ? new IntersectionObserver(entries => entries.forEach(e => {
+  if (e.isIntersecting && e.target.dataset.src) { near.unobserve(e.target); load(e.target); }
+}), { rootMargin: '100% 0px' }) : null;
+const far = IO ? new IntersectionObserver(entries => entries.forEach(e => {
+  const img = e.target;
+  if (e.isIntersecting || !img.getAttribute('src')) return;
+  far.unobserve(img);
+  img.dataset.src = img.getAttribute('src'); img.removeAttribute('src');    // l'image décodée est libérée
+  img.parentElement?.classList.remove('is-loaded');
+  near.observe(img);
+}), { rootMargin: '300% 0px' }) : null;
+/** Surveille les images pas encore chargées sous `root` (appelé une fois l'élément à sa place). */
+function watch(root) {
+  root.querySelectorAll('img[data-src]').forEach(img => { if (near) near.observe(img); else load(img); });
+}
+
 /** Photo : cadre aux bonnes proportions tout de suite, image en fondu (≈ 220 ms) dès qu'elle est prête. */
 function photo(p, full) {
   const img = document.createElement('img');
   img.width = p.image.w; img.height = p.image.h;
   img.alt = full ? label(p) : '';
   img.decoding = 'async';
-  if (!full) img.loading = 'lazy';
   // noir et blanc + grain : appliqué par .photo (css/site.css) à toutes les photos déposées
   const ph = document.createElement('span'); ph.className = 'photo'; ph.append(img);
   const done = () => ph.classList.add('is-loaded');
-  img.addEventListener('load', done, { once: true });
-  img.addEventListener('error', done, { once: true });
-  img.src = full ? p.image.src : p.image.thumb;
+  img.addEventListener('load', done);                  // à chaque (re)chargement : l'image peut être libérée puis revenir
+  img.addEventListener('error', done);
+  if (!full) img.style.aspectRatio = `${p.image.w} / ${p.image.h}`;   // cadre à la bonne forme, même image libérée (liste)
+  if (full) img.src = p.image.src; else img.dataset.src = p.image.thumb;   // miniature : à l'approche de l'écran (watch)
   if (img.complete && img.naturalWidth) done();
   return ph;
 }
@@ -109,7 +132,6 @@ let lastW = 0;
 function render() {
   const list = items();
   $('#empty').hidden = list.length > 0 || posts.length > 0;
-  $('#more').hidden = !moreOK();
   if (view === 'wall') renderWall(list); else renderList(list);
 }
 
@@ -172,8 +194,11 @@ function renderWall(list, { glide = false } = {}) {
     const { w, font } = sizeFor(p, W - 2 * pad, mobile);
     const n = nodeFor(p, w, font);
     n.li.dataset.i = i;
-    // érosion : visibilité selon le temps passé sur le mur (un dépôt en attente garde son propre aspect)
-    n.li.style.setProperty('--v', p.pending ? '1' : visibility(ageDays(p.approvedAt, now)).toFixed(3));
+    // érosion : selon le temps passé sur le mur (un dépôt en attente garde son propre aspect) ;
+    // images : palier fixe (classe age-N → filtre partagé), textes : --v
+    const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)), stage = stageOf(v);
+    n.li.style.setProperty('--v', v.toFixed(3));
+    if (n.stage !== stage) { if (n.stage) n.li.classList.remove(`age-${n.stage}`); if (stage) n.li.classList.add(`age-${stage}`); n.stage = stage; }
     if (!n.li.isConnected) wallEl.append(n.li);
     return n;
   });
@@ -201,6 +226,7 @@ function renderWall(list, { glide = false } = {}) {
       }
       const r = L.add(boxes[i]);
       Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });   // le plus récent au-dessus
+      watch(n.li);                                       // à sa place : son image peut arriver quand l'écran approche
       bottom = Math.max(bottom, L.height());
     }
     wallEl.style.height = `${bottom}px`;
@@ -230,6 +256,7 @@ function renderList(list) {
     li.dataset.i = i;
     return li;
   }));
+  watch(listEl);
 }
 
 /* ------------------------------------------------------------------ interaction
@@ -254,16 +281,17 @@ addEventListener('resize', () => {
   clearTimeout(render.tm);
   render.tm = setTimeout(() => { if (Math.abs((wallEl.clientWidth || 0) - lastW) > 1) render(); }, 150);
 });
-// « More » : lot suivant (30 par 30)
-$('#more').addEventListener('click', async () => {
-  const more = $('#more'); more.disabled = true;
-  try { await loadPage(); render(); } catch { /* réessayer plus tard */ }
-  more.disabled = false;
-});
-async function loadPage() {
-  const page = await fetchPosts({ offset: posts.length });
-  posts = posts.concat(page);
-  hasMore = page.length === CONFIG.wall.pageSize;
+/* Tout le mur, sans bouton : les paquets suivants (500 par 500) sont lus en arrière-plan, et le mur
+   se complète à chaque paquet (les éléments déjà placés ne bougent pas : les nouveaux sont plus anciens). */
+async function loadRest() {
+  while (hasMore) {
+    let page;
+    try { page = await fetchPosts({ offset: posts.length }); } catch { return; }   // réessayé à la prochaine visite
+    const known = new Set(posts.map(p => p.id));
+    posts = posts.concat(page.filter(p => !known.has(p.id)));
+    hasMore = page.length === CONFIG.wall.batch;
+    render();
+  }
 }
 
 /* ------------------------------------------------------------------ fenêtres */
@@ -465,14 +493,14 @@ const freshPrompt = fetchPrompt().catch(() => null);
 const cached = cachedPosts();
 function applyFresh(page, pr) {
   const before = pending.length;
-  posts = page; hasMore = page.length === CONFIG.wall.pageSize;
+  posts = page; hasMore = page.length === CONFIG.wall.batch;
   pending = settlePending(page.map(p => p.id));
   if (pr !== null && pr !== undefined) prompt = pr;
   showPrompt();
   return before !== pending.length;
 }
 if (cached) {
-  posts = cached.posts; prompt = cached.prompt; hasMore = posts.length === CONFIG.wall.pageSize;
+  posts = cached.posts; prompt = cached.prompt; hasMore = posts.length === CONFIG.wall.batch;
   showPrompt();
   preload(posts);
   await fontsReady();
@@ -483,7 +511,7 @@ if (cached) {
     const pendingChanged = applyFresh(page, pr);
     if (!sameWall(was, page) || pendingChanged || prompt !== oldPrompt) {
       preload(posts);
-      $('#empty').hidden = items().length > 0 || posts.length > 0; $('#more').hidden = !moreOK();
+      $('#empty').hidden = items().length > 0 || posts.length > 0;
       if (view === 'wall') renderWall(items(), { glide: true }); else renderList(items());
     }
   } catch { /* serveur injoignable : on garde le mur de l'appareil */ }
@@ -493,4 +521,5 @@ if (cached) {
   await fontsReady();
   setView(view);
 }
+loadRest();                                           // les paquets suivants, en arrière-plan
 document.fonts?.addEventListener?.('loadingdone', () => { if (view === 'wall') render(); });

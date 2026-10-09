@@ -64,7 +64,10 @@ export function sizeFor(post, W, mobile) {
  * sa validation) — intact 7 jours, puis de plus en plus pâle, de plus en plus lentement, sans jamais
  * descendre sous 30 % : ≈ 70 % à 30 jours, ≈ 39 % à 90 jours, ≈ 31 % à 180 jours.
  * Au-delà de 180 jours, il quitte le mur et ne vit plus que dans la vue List (toujours à 100 %).
- * Au survol, au focus ou à l'ouverture, un dépôt retrouve toute sa visibilité (css/site.css).
+ * Images : les pixels CLAIRS deviennent transparents avec l'âge (on voit à travers), par paliers fixes
+ * (stageOf → classes .age-1 … .age-4, filtres SVG #erode1 … #erode4 dans index.html) : quatre filtres
+ * partagés par toutes les images, rien de calculé image par image. L'image ne redevient neuve
+ * qu'à l'ouverture en grand. Textes : à peine adoucis, toujours lisibles (css/site.css).
  */
 export const TIME = { fresh: 7, floor: 0.3, k: 41, wallDays: 180 };
 const DAY = 86400e3;
@@ -73,6 +76,15 @@ export const ageDays = (iso, now = Date.now()) => Math.max(0, (now - Date.parse(
 export function visibility(days) {
   if (!(days > TIME.fresh)) return 1;
   return TIME.floor + (1 - TIME.floor) * Math.exp(-(days - TIME.fresh) / TIME.k);
+}
+/**
+ * Palier d'érosion d'une image (0 = neuve … 4 = il ne reste que les parties sombres), selon sa visibilité.
+ * Usure w = (1 − v) / 0,7 : palier 1 dès w ≥ 0,08 (≈ 10 j), 2 dès 0,3 (≈ 22 j), 3 dès 0,55 (≈ 40 j), 4 dès 0,8 (≈ 73 j).
+ */
+export const STAGES = [0.08, 0.3, 0.55, 0.8];
+export function stageOf(v) {
+  const w = (1 - v) / (1 - TIME.floor);
+  return STAGES.filter(s => w >= s - 1e-9).length;
 }
 /** Un dépôt reste sur le mur pendant 180 jours ; ensuite, seulement dans la vue List. */
 export const onWall = days => days < TIME.wallDays;
