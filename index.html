@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>RIKU — moodboard ouvert</title>
+<title>RIKU</title>
 <meta name="description" content="RIKU (Félix Cardonnel), image et direction artistique entre Tokyo et Paris. Un moodboard ouvert : déposez une image ou un texte.">
-<meta name="theme-color" content="#111111">
+<meta name="theme-color" content="#9b9a96">
 <link rel="preload" href="assets/fonts/ZenKakuGothicNew-Bold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/site.css">
@@ -14,52 +14,43 @@
 <a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
 
 <header class="bar">
-  <button type="button" class="id" data-open="about" aria-haspopup="dialog">
-    <span class="id-name">RIKU</span>
-    <span class="id-role" data-i18n="role">Félix Cardonnel — image & direction artistique</span>
-  </button>
-  <div class="bar-tools">
-    <div class="seg" role="group" data-i18n-label="viewLabel">
-      <button type="button" data-view="wall" data-i18n="viewWall" aria-pressed="true">Mur</button>
-      <button type="button" data-view="list" data-i18n="viewList" aria-pressed="false">Liste</button>
-    </div>
-    <div class="seg langs" role="group" aria-label="Langue / 言語 / Language">
-      <button type="button" data-lang="fr" lang="fr">FR</button>
-      <button type="button" data-lang="ja" lang="ja">日本語</button>
-      <button type="button" data-lang="en" lang="en">EN</button>
-    </div>
-    <a class="bar-link" href="mailto:rikuuux@gmail.com" data-i18n="contact">Contact</a>
-  </div>
+  <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="about">RIKU</button>
+  <nav class="bar-tools">
+    <button type="button" class="link" id="viewBtn"></button>
+    <span class="langs" role="group" aria-label="Langue / 言語 / Language">
+      <button type="button" class="link" data-lang="fr" lang="fr">FR</button>
+      <button type="button" class="link" data-lang="ja" lang="ja">日本語</button>
+      <button type="button" class="link" data-lang="en" lang="en">EN</button>
+    </span>
+  </nav>
   <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
 </header>
-
-<p class="mock-banner" id="mockBanner" hidden data-i18n="mockBanner"></p>
-<p class="intro" data-i18n="intro"></p>
 
 <main id="board" tabindex="-1">
   <ul id="wall" class="wall"></ul>
   <ol id="list" class="list" hidden></ol>
   <p id="empty" class="empty" hidden data-i18n="empty"></p>
-  <p class="more-wrap"><button type="button" id="more" class="btn" hidden data-i18n="more"></button></p>
+  <p class="more-wrap"><button type="button" id="more" class="link" hidden data-i18n="more"></button></p>
 </main>
 
 <footer class="foot">
-  <p data-i18n="mentions"></p>
-  <p><span class="stamp stamp--inline" aria-hidden="true"></span> <span data-i18n="stampLegend"></span></p>
+  <span>RIKU — Félix Cardonnel</span>
+  <a href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a>
+  <span data-i18n="moderated"></span>
 </footer>
 
 <!-- Agrandissement d'un dépôt -->
 <dialog id="viewer" class="dlg dlg--viewer" aria-labelledby="viewerMeta">
   <div class="dlg-head">
     <p class="viewer-meta" id="viewerMeta"></p>
-    <button type="button" class="btn" data-close data-i18n="close">Fermer</button>
+    <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
   <div class="viewer-body" id="viewerBody"></div>
   <details class="report" id="report">
     <summary data-i18n="report">Signaler</summary>
     <form class="report-form" id="reportForm">
       <fieldset>
-        <legend data-i18n="reportTitle"></legend>
+        <legend class="sr" data-i18n="reportTitle"></legend>
         <label><input type="radio" name="reason" value="rights" required> <span data-i18n="rRights"></span></label>
         <label><input type="radio" name="reason" value="offensive"> <span data-i18n="rOffensive"></span></label>
         <label><input type="radio" name="reason" value="personal"> <span data-i18n="rPersonal"></span></label>
@@ -77,10 +68,10 @@
 <dialog id="drop" class="dlg dlg--drop" aria-labelledby="dropTitle">
   <form id="dropForm" class="drop-form" novalidate>
     <div class="dlg-head">
-      <h2 id="dropTitle" data-i18n="dropTitle"></h2>
-      <button type="button" class="btn" data-close data-i18n="close">Fermer</button>
+      <h2 id="dropTitle" data-i18n="drop"></h2>
+      <button type="button" class="x" data-close data-i18n-label="close">×</button>
     </div>
-    <div class="seg tabs" role="radiogroup">
+    <div class="tabs" role="radiogroup">
       <label><input type="radio" name="kind" value="image" checked> <span data-i18n="tabImage"></span></label>
       <label><input type="radio" name="kind" value="text"> <span data-i18n="tabText"></span></label>
     </div>
@@ -90,25 +81,18 @@
         <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
         <span class="btn" id="fileLabel" data-i18n="chooseImage"></span>
       </label>
-      <p class="hint" data-i18n="imageHint"></p>
+      <p class="hint" id="fileHint" data-i18n="imageHint"></p>
       <figure class="preview" id="preview" hidden><img alt=""><figcaption id="previewInfo"></figcaption></figure>
     </div>
 
     <div class="pane" data-pane="text" hidden>
-      <label class="field">
-        <span data-i18n="textLabel"></span>
-        <textarea id="text" rows="5" maxlength="500"></textarea>
-      </label>
+      <textarea id="text" rows="5" maxlength="500" data-i18n-label="tabText"></textarea>
       <p class="hint count" id="count" aria-live="polite"></p>
     </div>
 
-    <label class="field">
-      <span data-i18n="nameLabel"></span>
-      <input type="text" id="name" maxlength="40" autocomplete="nickname">
-    </label>
+    <input type="text" id="name" maxlength="40" autocomplete="nickname" data-i18n-placeholder="nameLabel">
     <label class="check"><input type="checkbox" id="rights"> <span data-i18n="rights"></span></label>
     <div class="captcha" data-captcha></div>
-    <p class="hint" data-i18n="mentions"></p>
     <button type="submit" class="btn-drop btn-drop--wide" id="send" data-i18n="send"></button>
     <p class="form-msg" id="dropMsg" role="status" aria-live="polite"></p>
   </form>
@@ -118,8 +102,9 @@
 <dialog id="about" class="dlg dlg--about" aria-labelledby="aboutTitle">
   <div class="dlg-head">
     <h2 id="aboutTitle">RIKU</h2>
-    <button type="button" class="btn" data-close data-i18n="close">Fermer</button>
+    <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
+  <p class="about-role" data-i18n="role"></p>
   <p data-i18n="aboutBody"></p>
   <p><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
   <p class="hint"><span class="stamp stamp--inline" aria-hidden="true"></span> <span data-i18n="stampLegend"></span></p>

@@ -28,6 +28,7 @@ export function apply(root = document) {
   document.documentElement.lang = lang;
   root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   root.querySelectorAll('[data-i18n-label]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nLabel)); });
+  root.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = el.ariaLabel = t(el.dataset.i18nPlaceholder); });
   document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
 }
 

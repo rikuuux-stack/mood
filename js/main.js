@@ -18,28 +18,30 @@ const wallEl = $('#wall'), listEl = $('#list');
 let posts = [], shown = CONFIG.wall.pageSize, view = 'wall';
 
 applyI18n();
-if (CONFIG.mode === 'mock') $('#mockBanner').hidden = false;
 
 /* ------------------------------------------------------------------ vue mémorisée */
 try { if (localStorage.getItem('view') === 'list') view = 'list'; } catch {}
-document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+// un seul bouton : il affiche le nom de l'autre vue (« Liste » sur le mur, « Mur » sur la liste)
+const viewBtn = $('#viewBtn');
+viewBtn.addEventListener('click', () => setView(view === 'wall' ? 'list' : 'wall'));
+const viewLabel = () => { viewBtn.textContent = t(view === 'wall' ? 'viewList' : 'viewWall'); };
 function setView(v) {
   view = v;
   try { localStorage.setItem('view', v); } catch {}
-  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  viewLabel();
   wallEl.hidden = v !== 'wall'; listEl.hidden = v !== 'list';
   render();
 }
 
 document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
-onLangChange(() => { render(); refreshDropTexts(); });
+onLangChange(() => { viewLabel(); render(); refreshDropTexts(); });
 
 /* ------------------------------------------------------------------ éléments */
 const label = p => p.isRiku ? t('byRiku') : t(p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
 
 function stamp(inline = false) { const s = document.createElement('span'); s.className = inline ? 'stamp stamp--inline' : 'stamp'; s.setAttribute('aria-hidden', 'true'); return s; }
 
-function content(p, { full = false, font } = {}) {
+function content(p, { full = false, font, byline = false } = {}) {
   if (p.kind === 'image') {
     const img = document.createElement('img');
     img.src = full ? p.image.src : p.image.thumb;
@@ -54,7 +56,7 @@ function content(p, { full = false, font } = {}) {
   if (font) s.style.setProperty('--fs', `${font}px`);
   const tx = document.createElement('span'); tx.className = 'sticker-text'; tx.textContent = p.text;
   s.append(tx);
-  if (p.name && !p.isRiku) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
+  if (byline && p.name && !p.isRiku) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
   return s;
 }
 const dark = p => (parseInt(p.id.replace(/\D/g, '').slice(-3) || '0', 10) % 3) === 1;
@@ -84,7 +86,7 @@ function renderWall(items) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
     b.setAttribute('aria-label', p.kind === 'text' ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
-    b.append(content(p, { font }));
+    b.append(content(p, { font, byline: false }));      // mur épuré : le pseudo s'affiche à l'agrandissement
     li.append(b);
     if (p.isRiku) li.append(stamp());
     li.dataset.i = i;
