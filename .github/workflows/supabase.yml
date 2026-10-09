@@ -51,3 +51,11 @@ jobs:
           node-version: 22
       - name: Tests de bout en bout (clé publique uniquement)
         run: node tests/e2e.mjs
+      - name: Production dans un vrai navigateur (aucun appel en erreur, images du premier écran affichées)
+        if: always()
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tests/prod.test.mjs
+        env:
+          PW_CHANNEL: chrome
