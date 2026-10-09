@@ -5,20 +5,26 @@ Rien de ce que déposent les visiteurs n'est visible avant que tu l'aies validé
 ## Se connecter
 
 1. Ouvre `https://moodwall.pages.dev/admin/` (ajoute-la à l'écran d'accueil de ton iPhone).
-2. E-mail `rikuuux@gmail.com` + ton mot de passe ▸ **Se connecter**.
-   La connexion reste active sur cet appareil ; **Se déconnecter** en haut à droite.
+2. E-mail `rikuuux@gmail.com` + ton mot de passe ▸ **Log in**.
+   La connexion reste active sur cet appareil ; **Log out** en haut à droite.
+
+La page est en anglais, avec des mots très courts (choix validé).
 
 ## Les quatre onglets
 
 | Onglet | Ce qu'il contient | Boutons |
 |---|---|---|
-| **En attente** | les nouveaux dépôts, du plus ancien au plus récent | **Valider** : il apparaît sur le mur. **Refuser** : il est supprimé définitivement (2ᵉ toucher pour confirmer). |
-| **Signalés** | les dépôts masqués automatiquement après 3 signalements | **Remettre en ligne** (les signalements sont effacés) ou **Supprimer** |
-| **Publiés** | ce qui est sur le mur | **Retirer du mur** (suppression définitive) |
-| **Déposer** | ton propre dépôt | publié tout de suite, avec ton petit carré clair |
+| **Pending** (en attente) | les nouveaux dépôts, du plus ancien au plus récent | **Approve** : il apparaît sur le mur. **Reject** : il est supprimé définitivement (2ᵉ toucher, « Sure? », pour confirmer). |
+| **Reported** (signalés) | les dépôts masqués automatiquement après 3 signalements | **Restore** (les signalements sont effacés) ou **Delete** |
+| **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
+| **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L, grain | publié tout de suite, avec ton petit carré clair |
+
+**Taille d'affichage** : sous chaque dépôt, trois cases **S / M / L** (la taille choisie par le visiteur est pleine).
+Un toucher la change aussitôt, avant ou après validation.
 
 Les photos s'affichent ici **en couleur et telles qu'envoyées**, pour que tu juges le vrai contenu.
 Sur le mur, elles passent en noir et blanc avec du grain.
+Le **grain choisi par le visiteur** (curseur au dépôt) est déjà dans l'image : tu vois l'image finale.
 
 ## Ce qui est déjà filtré avant d'arriver chez toi
 
@@ -29,7 +35,7 @@ Sur le mur, elles passent en noir et blanc avec du grain.
 
 ## Demande de retrait
 
-Quelqu'un écrit à rikuuux@gmail.com pour retirer un contenu : onglet **Publiés** ▸ **Retirer du mur**.
+Quelqu'un écrit à rikuuux@gmail.com pour retirer un contenu : onglet **Live** ▸ **Remove** (2ᵉ toucher pour confirmer).
 Le fichier et le texte sont supprimés du serveur (pas seulement cachés).
 
 ## Alerte e-mail

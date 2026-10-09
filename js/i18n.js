@@ -2,7 +2,7 @@
  * Langue : choix mémorisé, sinon langue du navigateur (ja → japonais, fr → français, sinon anglais).
  * Les éléments [data-i18n="clé"] reçoivent leur texte ; [data-i18n-label="clé"] leur aria-label.
  */
-import { STRINGS } from './strings.js?v=6a4c726dfe';
+import { STRINGS } from './strings.js?v=68d5cd5c08';
 import { CONFIG } from './config.js?v=1f46695844';
 
 const LANGS = ['fr', 'ja', 'en'];

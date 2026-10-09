@@ -26,13 +26,13 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = 
     return MOCK_POSTS.slice(offset, offset + limit);
   }
   const q = new URLSearchParams({
-    select: 'id,kind,text,name,image_path,thumb_path,width,height,is_riku,created_at,approved_at',
+    select: 'id,kind,text,name,image_path,thumb_path,width,height,size,is_riku,created_at,approved_at',
     order: 'approved_at.desc', offset: String(offset), limit: String(limit),
   });
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/wall?${q}`, { headers: headers() });
   if (!r.ok) throw new ServerError('server', r.status);
   return (await r.json()).map(p => ({
-    id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isAuthor: p.is_riku,
+    id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isAuthor: p.is_riku, size: p.size || 'm',
     createdAt: p.created_at,
     image: p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
   }));
@@ -47,13 +47,14 @@ async function call(fn, init) {
   return out;
 }
 
-/** Envoie un dépôt : { text, name, lang, image: { full, thumb } | null, captcha }. */
-export async function submitPost({ text, name, lang, image, captcha }) {
+/** Envoie un dépôt : { text, name, lang, size: 's'|'m'|'l', image: { full, thumb } | null, captcha }. */
+export async function submitPost({ text, name, lang, size = 'm', image, captcha }) {
   if (mode === 'mock') { await wait(600); return { ok: true }; }
   const form = new FormData();
   form.append('text', text);
   form.append('name', name);
   form.append('lang', lang);
+  form.append('size', size);
   form.append('consent', '1');
   form.append('captcha', captcha);
   if (image) {

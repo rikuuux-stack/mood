@@ -21,3 +21,9 @@
 .adm-actions .btn.confirm { background: var(--fg); color: var(--bg); }
 .adm-empty { color: var(--muted); font-size: 13px; }
 .adm-mine { margin-top: 8px; }
+/* taille d'affichage d'un dépôt : S / M / L, la taille actuelle est pleine */
+.adm-sizes { display: flex; gap: 6px; }
+.adm-sizes button { all: unset; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; border: var(--line) solid var(--rule); font: var(--light) 13px var(--mono); }
+.adm-sizes button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.adm-sizes button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.adm-sizes button:disabled { opacity: .5; }

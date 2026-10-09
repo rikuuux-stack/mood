@@ -1,7 +1,8 @@
 /**
  * Préparation d'une image AVANT l'envoi, entièrement sur l'appareil du visiteur :
  *   1. contrôle du format (JPEG / PNG / WebP) et du poids (≤ 5 Mo) ;
- *   2. redessin dans un canvas, réduit à 2000 px de côté maximum (+ miniature 800 px) ;
+ *   2. redessin dans un canvas, réduit à 2000 px de côté maximum (+ miniature 800 px), avec le grain
+ *      choisi par le visiteur (0 = aucun) ;
  *   3. ré-encodage (WebP, ou JPEG si le navigateur ne sait pas produire de WebP) :
  *      un canvas ne recopie AUCUNE métadonnée → EXIF, GPS, XMP, profil appareil disparaissent ;
  *   4. vérification du résultat : si une métadonnée subsistait malgré tout, on bloque l'envoi.
@@ -25,21 +26,46 @@ function load(file) {
 
 const toBlob = (canvas, type, q) => new Promise(res => canvas.toBlob(res, type, q));
 
-async function encode(img, side) {
-  const s = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
-  const w = Math.max(1, Math.round(img.naturalWidth * s)), h = Math.max(1, Math.round(img.naturalHeight * s));
+/* ------------------------------------------------------------------ grain (choisi au dépôt)
+ * Bruit gris (identique sur R, V, B : aucune teinte), ajouté aux pixels de l'image AVANT l'envoi :
+ * l'administrateur voit l'image finale. `amount` de 0 à 100 ; la taille d'un grain suit la taille
+ * de l'image (≈ 1/800 du grand côté) pour rester visible une fois l'image réduite sur le mur.
+ */
+export const GRAIN_MAX = 64;        // écart maximal (sur 255) à 100 %
+function addGrain(g, w, h, amount, cell) {
+  if (!(amount > 0)) return;
+  const amp = Math.min(100, amount) / 100 * GRAIN_MAX;
+  const im = g.getImageData(0, 0, w, h), d = im.data;
+  const row = new Float32Array(Math.ceil(w / cell));
+  for (let y = 0; y < h; y++) {
+    if (y % cell === 0) for (let i = 0; i < row.length; i++) row[i] = (Math.random() + Math.random() - 1) * amp;
+    for (let x = 0, o = y * w * 4; x < w; x++, o += 4) { const n = row[(x / cell) | 0]; d[o] += n; d[o + 1] += n; d[o + 2] += n; }
+  }
+  g.putImageData(im, 0, 0);
+}
+
+function canvasOf(src, w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
-  const g = c.getContext('2d');
+  const g = c.getContext('2d', { willReadFrequently: true });
   g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-  g.drawImage(img, 0, 0, w, h);
-  let blob = await toBlob(c, 'image/webp', 0.86);
-  if (!blob || blob.type !== 'image/webp') blob = await toBlob(c, 'image/jpeg', 0.88);   // Safari : pas de WebP
-  c.width = c.height = 0;                                                              // libère la mémoire (iOS)
-  if (!blob || !blob.size) throw new ImageError('eDecode');
+  g.drawImage(src, 0, 0, w, h);
+  return { c, g };
+}
+const fit = (w, h, side) => { const s = Math.min(1, side / Math.max(w, h)); return [Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))]; };
+
+/** WebP (ou JPEG pour Safari), métadonnées retirées ; qualité baissée si le fichier dépasse la limite. */
+async function encode(c) {
+  let blob = null;
+  for (const q of [0.86, 0.75, 0.62]) {
+    blob = await toBlob(c, 'image/webp', q);
+    if (!blob || blob.type !== 'image/webp') blob = await toBlob(c, 'image/jpeg', q + 0.02);   // Safari : pas de WebP
+    if (!blob || !blob.size) throw new ImageError('eDecode');
+    if (blob.size <= CONFIG.upload.maxBytes) break;            // le grain alourdit le fichier
+  }
   // Safari (iPhone) ajoute un bloc Exif technique à ses JPEG (espace colorimétrique, dimensions) :
   // on retire tout bloc de métadonnées nous-mêmes, sinon le contrôle ci-dessous bloquerait l'envoi.
-  return { blob: await stripMetadata(blob), w, h };
+  return stripMetadata(blob);
 }
 
 /** Type réel d'après les premiers octets (l'iPhone annonce parfois un type vide). */
@@ -52,17 +78,48 @@ async function sniff(file) {
   return null;
 }
 
-export async function prepareImage(file) {
+/** 1. Lecture : contrôle du format et du poids, décodage. → { img, width, height } (taille publiée). */
+export async function decodeImage(file) {
   const U = CONFIG.upload;
   if (!U.types.includes(file.type) && !U.types.includes(await sniff(file))) throw new ImageError('eType');
   if (file.size > U.maxBytes) throw new ImageError('eTooBig', file.size);
   const img = await load(file);
-  const full = await encode(img, U.maxSide);
-  const thumb = await encode(img, U.thumbSide);
-  if (full.blob.size > U.maxBytes) throw new ImageError('eTooBig', full.blob.size);
-  if (await hasMetadata(full.blob) || await hasMetadata(thumb.blob)) throw new ImageError('eMeta');
-  return { full: full.blob, thumb: thumb.blob, width: full.w, height: full.h };
+  const [width, height] = fit(img.naturalWidth, img.naturalHeight, U.maxSide);
+  return { img, width, height };
 }
+
+/** Aperçu en direct (petit, rapide) : dessine l'image et son grain dans `canvas`. */
+const previewCache = new WeakMap();
+export function drawPreview(canvas, src, grain, side = 800) {
+  const [w, h] = fit(src.width, src.height, side);
+  let base = previewCache.get(src);
+  if (!base || base.width !== w) {                     // pixels sans grain, gardés pour redessiner vite
+    const { c, g } = canvasOf(src.img, w, h);
+    base = g.getImageData(0, 0, w, h); c.width = c.height = 0;
+    previewCache.set(src, base);
+  }
+  canvas.width = w; canvas.height = h;
+  const g = canvas.getContext('2d', { willReadFrequently: true });
+  g.putImageData(base, 0, 0);
+  addGrain(g, w, h, grain, Math.max(1, Math.round(Math.max(w, h) / 800)));
+}
+
+/** 2. Image finale : grande (≤ 2000 px) avec son grain, miniature tirée de la grande (même grain). */
+export async function renderImage(src, { grain = 0 } = {}) {
+  const U = CONFIG.upload;
+  const full = canvasOf(src.img, src.width, src.height);
+  addGrain(full.g, src.width, src.height, grain, Math.max(1, Math.round(Math.max(src.width, src.height) / 800)));
+  const [tw, th] = fit(src.width, src.height, U.thumbSide);
+  const thumb = canvasOf(full.c, tw, th);
+  const [fullBlob, thumbBlob] = [await encode(full.c), await encode(thumb.c)];
+  full.c.width = full.c.height = thumb.c.width = thumb.c.height = 0;       // libère la mémoire (iOS)
+  if (fullBlob.size > U.maxBytes) throw new ImageError('eTooBig', fullBlob.size);
+  if (await hasMetadata(fullBlob) || await hasMetadata(thumbBlob)) throw new ImageError('eMeta');
+  return { full: fullBlob, thumb: thumbBlob, width: src.width, height: src.height };
+}
+
+/** Raccourci : lecture + image finale. */
+export async function prepareImage(file, opts) { return renderImage(await decodeImage(file), opts); }
 
 /**
  * Retire les blocs de métadonnées d'un JPEG (APP1 Exif/XMP, APP13 IPTC), d'un PNG (eXIf, tEXt, iTXt, zTXt)
