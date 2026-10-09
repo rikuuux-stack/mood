@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co">
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=c87dd264cf" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css?v=4a16f2367f">
-<link rel="stylesheet" href="css/site.css?v=a00ebdc2db">
+<link rel="stylesheet" href="css/site.css?v=305ec0a107">
 </head>
 <body>
 <!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
@@ -114,6 +114,21 @@
     <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
   <div class="viewer-body" id="viewerBody"></div>
+  <!-- Keep : un fragment du mur autour de ce dépôt, fabriqué sur l'appareil (js/fragment.js), à partager ou garder -->
+  <div class="keep" id="keep" hidden>
+    <button type="button" class="link" id="keepBtn" aria-expanded="false" data-i18n="keep"></button>
+    <div class="keep-panel" id="keepPanel" hidden>
+      <span class="keep-formats" role="group" data-i18n-label="keepFormat">
+        <button type="button" class="link" data-format="4:5" aria-pressed="true">4:5</button>
+        <button type="button" class="link" data-format="9:16" aria-pressed="false">9:16</button>
+      </span>
+      <img class="keep-preview" id="keepPreview" alt="" hidden>
+      <span class="keep-actions">
+        <button type="button" class="btn" id="keepGo" disabled></button>
+        <span class="keep-msg" id="keepMsg" role="status" aria-live="polite"></span>
+      </span>
+    </div>
+  </div>
   <details class="report" id="report">
     <summary data-i18n="report">Signaler</summary>
     <form class="report-form" id="reportForm">
@@ -188,8 +203,9 @@
   </div>
   <p class="hint small"><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
   <p class="hint small" data-i18n="mentions"></p>
+  <p class="hint small" data-i18n="mentionsKeep"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=aeb033f2b6"></script>
+<script type="module" src="js/main.js?v=7583975fe3"></script>
 </body>
 </html>

@@ -90,6 +90,16 @@ for (const bucket of ['pending', 'published']) {
   });
 }
 
+// --- images publiées : en-têtes CORS (sinon « Keep » ne pourrait pas les dessiner dans un canvas,
+//     et le mur, qui les charge avec crossOrigin, ne les afficherait pas)
+await t('images publiées servies avec CORS (Access-Control-Allow-Origin), pour le canvas de « Keep »', async () => {
+  const w = await req('/rest/v1/wall?select=thumb_path&thumb_path=not.is.null&limit=1');
+  const path = w.body_?.[0]?.thumb_path || 'absent-cors-check.jpg';   // mur sans image : l'en-tête est aussi sur une réponse 404
+  const r = await fetch(`${URL_}/storage/v1/object/public/published/${encodeURIComponent(path)}`, { headers: { Origin: ORIGIN } });
+  const got = r.headers.get('access-control-allow-origin');
+  return (got === '*' || got === ORIGIN) || `HTTP ${r.status}, allow-origin = ${got} (${w.body_?.[0] ? 'image réelle' : 'aucune image sur le mur'})`;
+});
+
 // --- fonction submit : refus avant tout enregistrement
 const preflight = origin => fetch(`${URL_}/functions/v1/submit`, { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } })
   .then(r => r.headers.get('access-control-allow-origin'));

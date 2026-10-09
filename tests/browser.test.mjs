@@ -14,6 +14,10 @@
  *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les clairs deviennent
  *     transparents), aucune opacité, rien ne change au survol, l'agrandissement montre l'image neuve ;
  *     textes lisibles à tout âge (≥ 7:1) ;
+ *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
+ *     sans métadonnées, ligne du bas présente ; partage natif sur iPhone, téléchargement sur ordinateur ;
+ *   - fuseaux : le mur (strates) est le même pour tous, à l'heure de Tokyo (visiteurs à Tokyo, Paris,
+ *     Los Angeles) ; la date du fragment suit le téléphone (Paris, 30.09 à 17 h 30 → « 30.09.2026 ») ;
  *   - tout le mur sans « More » : paquets lus en arrière-plan, images chargées à l'approche de l'écran,
  *     libérées au-delà de 3 écrans puis rechargées au retour, sans que la composition bouge.
  */
@@ -62,17 +66,18 @@ const rows = Array.from({ length: 520 }, (_, i) => {
 const JPG = fs.readFileSync(path.join(ROOT, 'tests/fixtures-img/clean.jpg'));
 
 const offsets = [], thumbs = new Set();
-async function fakeServer(ctx) {
+async function fakeServer(ctx, data = rows, current = 'trace') {
   await ctx.route(/supabase\.co\//, route => {
     const u = new URL(route.request().url());
     if (u.pathname.endsWith('/rest/v1/wall')) {
       offsets.push(+u.searchParams.get('offset') || 0);
       const off = +u.searchParams.get('offset') || 0, lim = +u.searchParams.get('limit') || 30;
-      return route.fulfill({ json: rows.slice(off, off + lim) });
+      return route.fulfill({ json: data.slice(off, off + lim) });
     }
-    if (u.pathname.endsWith('/rest/v1/current_prompt')) return route.fulfill({ json: [{ text: 'trace' }] });
+    if (u.pathname.endsWith('/rest/v1/current_prompt')) return route.fulfill({ json: current ? [{ text: current }] : [] });
     if (u.pathname.includes('/storage/v1/object/public/')) thumbs.add(u.pathname.split('/').pop());
-    if (u.pathname.includes('/storage/v1/object/public/')) return route.fulfill({ body: JPG, contentType: 'image/jpeg' });
+    // comme Supabase Storage : en-tête CORS, sans quoi un canvas qui dessine l'image serait « tainted »
+    if (u.pathname.includes('/storage/v1/object/public/')) return route.fulfill({ body: JPG, contentType: 'image/jpeg', headers: { 'Access-Control-Allow-Origin': '*' } });
     return route.fulfill({ status: 404, json: {} });
   });
   await ctx.route(/challenges\.cloudflare\.com/, r => r.fulfill({ body: '' }));
@@ -191,9 +196,10 @@ const filters = await pg.evaluate(() => [1, 2, 3, 4].every(i => document.getElem
 ok(filters, 'quatre filtres partagés #erode1 … #erode4 dans la page');
 
 /* ordinateur : le survol ne rend pas l'image neuve ; l'agrandissement, si */
-const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+const desk = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
 await fakeServer(desk);
 const dp = await desk.newPage();
+dp.on('pageerror', e => errors.push(e.message));
 await dp.goto(BASE); await dp.waitForSelector('#wall .item');
 await dp.waitForFunction(() => document.querySelector('#wall .age-4 .photo'), null, { timeout: 20000 });
 const target = dp.locator('#wall .item.age-4').filter({ has: dp.locator('.photo') }).first();
@@ -203,6 +209,118 @@ ok(hov.includes('#erode4'), 'survol : l\'image garde son âge (pas de retour à 
 await target.click(); await dp.waitForSelector('#viewer[open] .photo img');
 const big = await dp.evaluate(() => getComputedStyle(document.querySelector('#viewer .photo img')).filter);
 ok(big.includes('#tone') && !big.includes('erode'), 'agrandissement : l\'image est neuve', big);
+
+/* Keep : fragment du mur (ordinateur : téléchargement) */
+const imageInfo = (page, bytes) => page.evaluate(async arr => {
+  const blob = new Blob([new Uint8Array(arr)], { type: 'image/jpeg' });
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext('2d'); ctx.drawImage(bmp, 0, 0);
+  // ligne du bas : des pixels clairs (texte) dans la bande du bas, à gauche ; le fond seul reste très sombre
+  const band = ctx.getImageData(40, c.height - 70, 700, 50).data;
+  let bright = 0; for (let i = 0; i < band.length; i += 4) if (band[i] > 120) bright++;
+  const { hasMetadata } = await import('/js/image.js');
+  return { w: bmp.width, h: bmp.height, bright, meta: await hasMetadata(blob), jpeg: arr[0] === 0xff && arr[1] === 0xd8 };
+}, [...bytes]);
+
+await dp.keyboard.press('Escape'); await dp.waitForSelector('#viewer:not([open])', { state: 'attached' });
+const center = dp.locator('#wall .item.item--image:not(.is-pending)').first();
+await center.scrollIntoViewIfNeeded(); await center.click();
+await dp.waitForSelector('#viewer[open]');
+ok(await dp.isVisible('#keepBtn'), 'Keep : bouton présent dans l\'agrandissement d\'un dépôt du mur');
+await dp.click('#keepBtn');
+await dp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
+for (const [format, H] of [['4:5', 1350], ['9:16', 1920]]) {
+  if (format !== '4:5') { await dp.click(`[data-format="${format}"]`); await dp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 }); }
+  const t0 = Date.now();
+  const [dl] = await Promise.all([dp.waitForEvent('download'), dp.click('#keepGo')]);
+  const bytes = fs.readFileSync(await dl.path());
+  const info = await imageInfo(dp, bytes);
+  ok(info.jpeg && info.w === 1080 && info.h === H, `Keep ${format} : fichier JPEG ${info.w} × ${info.h} (téléchargé : ${dl.suggestedFilename()})`, JSON.stringify(info));
+  ok(!info.meta, `Keep ${format} : aucune métadonnée (EXIF…)`);
+  ok(info.bright > 150, `Keep ${format} : ligne du bas présente (${info.bright} pixels de texte)`);
+  void t0;
+}
+const footer = await dp.evaluate(async () => {
+  const { today } = await import('/js/fragment.js');
+  return today(new Date(2026, 9, 10));
+});
+ok(footer === '10.10.2026', 'date de la ligne du bas au format JJ.MM.AAAA', footer);
+const tainted = await dp.evaluate(async () => {
+  // le fragment se fabrique avec toBlob : un canvas « tainted » lèverait une SecurityError
+  const { makeFragment } = await import('/js/fragment.js');
+  const li = document.querySelector('#wall .item.item--image:not(.is-pending)');
+  try { const out = await makeFragment({ li, wallEl: document.querySelector('#wall'), format: '4:5', prompt: 'trace' }); return out; }
+  catch (e) { return { footer: `ERREUR ${e.name}: ${e.message}`, photos: {} }; }
+});
+ok(/^moodwall\.pages\.dev — \d\d\.\d\d\.\d{4} — trace$/.test(tainted.footer), 'canvas lisible (pas « tainted ») ; ligne du bas : adresse — date — consigne', tainted.footer);
+ok(tainted.photos.drawn > 0 && tainted.photos.missing === 0, `toutes les photos du fragment sont dessinées (${tainted.photos.drawn}, aucune manquante : images chargées avec CORS)`, JSON.stringify(tainted.photos));
+await dp.keyboard.press('Escape');
+
+/* Keep sur iPhone : menu de partage natif avec le fichier */
+const phone = await browser.newContext({ ...devices['iPhone 12'] });
+await fakeServer(phone);
+await phone.addInitScript(() => {
+  navigator.canShare = d => !!d?.files?.length;
+  navigator.share = async d => { window.__shared = d.files.map(f => ({ name: f.name, type: f.type, size: f.size })); };
+});
+const pp = await phone.newPage();
+pp.on('pageerror', e => errors.push(e.message));
+await pp.goto(BASE); await pp.waitForSelector('#wall .item.item--text');
+await pp.waitForTimeout(500);
+const txt = pp.locator('#wall .item.item--text').first();
+await txt.scrollIntoViewIfNeeded(); await txt.tap(); await pp.waitForSelector('#viewer[open]');
+await pp.tap('#keepBtn');
+await pp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
+ok(await pp.textContent('#keepGo') === 'Share', 'iPhone : le bouton propose « Share »');
+await pp.tap('#keepGo'); await pp.waitForTimeout(300);
+const shared = await pp.evaluate(() => window.__shared);
+ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 10000, 'iPhone : menu de partage natif ouvert avec le fichier', JSON.stringify(shared));
+
+/* Fuseaux : le MUR suit le fuseau de référence Asia/Tokyo pour tout le monde ; la DATE du fragment suit le téléphone */
+{
+  const row = (id, created, prompt, kind = 'image') => ({
+    id, kind, text: kind === 'text' ? 'mot' : '', name: '', size: 'm', prompt,
+    image_path: kind === 'image' ? `${id}.jpg` : null, thumb_path: kind === 'image' ? `${id}-t.jpg` : null,
+    width: kind === 'image' ? 37 : null, height: kind === 'image' ? 23 : null, created_at: created, approved_at: created,
+  });
+  // heure de Tokyo — a : 10 oct. 0 h 10 ; c : 1er oct. 0 h 20 (encore le 30 sept. à Paris, LA et en UTC) ; b : 30 sept. 23 h 50
+  // (dans l'ordre du serveur : du plus récent au plus ancien)
+  const tz = [row('tz-a', '2026-10-09T15:10:00Z', 'light'), row('tz-c', '2026-09-30T15:20:00Z', 'light', 'text'), row('tz-b', '2026-09-30T14:50:00Z', 'light')];
+  const cases = [
+    { zone: 'Asia/Tokyo', now: '2026-10-09T15:30:00Z', footer: '10.10.2026' },           // 10 oct. 0 h 30 à Tokyo
+    { zone: 'Europe/Paris', now: '2026-09-30T15:30:00Z', footer: '30.09.2026' },         // 30 sept. 17 h 30 à Paris (= 1er oct. 0 h 30 à Tokyo)
+    { zone: 'America/Los_Angeles', now: '2026-10-09T15:30:00Z', footer: '09.10.2026' },  // 9 oct. 8 h 30 à Los Angeles
+  ];
+  for (const { zone, now: at, footer } of cases) {
+    const tk = await browser.newContext({ viewport: { width: 1280, height: 800 }, timezoneId: zone, acceptDownloads: true });
+    await fakeServer(tk, tz, 'light');
+    const tp = await tk.newPage();
+    tp.on('pageerror', e => errors.push(e.message));
+    await tp.clock.setFixedTime(Date.parse(at));       // l'heure du téléphone (les minuteries restent réelles)
+    await tp.goto(BASE);
+    await tp.waitForFunction(() => document.querySelectorAll('#wall .item').length === 3 && [...document.querySelectorAll('#wall .item')].every(li => li.style.top));
+    const real = await tp.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    // a et c en octobre (heure de Tokyo, strate en cours : pas de filet au-dessus), b en septembre → un seul filet, entre c et b
+    const st = await tp.evaluate(() => {
+      const items = [...document.querySelectorAll('#wall .item')];
+      const img = id => items.find(li => (li.querySelector('img')?.dataset.src || li.querySelector('img')?.src || '').includes(id))?.offsetTop;
+      return { rules: [...document.querySelectorAll('#wall .stratum')].map(s => s.offsetTop), a: img('tz-a'), b: img('tz-b'), c: items.find(li => li.classList.contains('item--text'))?.offsetTop };
+    });
+    ok(real === zone && st.rules.length === 1 && st.rules[0] > Math.max(st.a, st.c) && st.rules[0] < st.b,
+      `${zone} : le mur est le même partout (mois à l'heure de Tokyo : 1er oct. 0 h 20 en octobre, un seul filet)`, JSON.stringify({ real, ...st }));
+    await tp.locator('#wall .item.item--image').first().click(); await tp.waitForSelector('#viewer[open]');
+    await tp.click('#keepBtn'); await tp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
+    const foot = await tp.evaluate(async () => {
+      const { makeFragment } = await import('/js/fragment.js');
+      return (await makeFragment({ li: document.querySelector('#wall .item.item--image'), wallEl: document.querySelector('#wall'), prompt: 'light' })).footer;
+    });
+    ok(foot === `moodwall.pages.dev — ${footer} — light`, `${zone} : la ligne du bas suit la date du téléphone (${at}) : « ${foot} »`);
+    const [dl] = await Promise.all([tp.waitForEvent('download'), tp.click('#keepGo')]);
+    ok(dl.suggestedFilename().includes(footer.replaceAll('.', '-')), `${zone} : nom du fichier à la date du téléphone : ${dl.suggestedFilename()}`);
+    await tk.close();
+  }
+}
 
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
 await browser.close(); server.close();

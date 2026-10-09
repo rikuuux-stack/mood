@@ -1,6 +1,7 @@
 // Règles du mur : node tests/wall.test.mjs  → code de sortie 0 si tout est respecté.
 // Le mur est immobile ; c'est le temps qui le transforme (érosion, strates).
-import { layout, createLayout, coverage, sizeFor, SIZES, visibility, stageOf, onWall, strataKey, TIME } from '../js/wall.js';
+import { layout, createLayout, coverage, sizeFor, SIZES, visibility, stageOf, onWall, strataKey, TIME, TONE, ERODE } from '../js/wall.js';
+import { readFileSync } from 'node:fs';
 import { CONFIG } from '../js/config.js';
 import { SAMPLE_POSTS } from './fixtures.mjs';
 const inter = (a, b) => { const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y); return x > 0 && y > 0 ? x * y : 0; };
@@ -61,5 +62,30 @@ check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
     st(0) === 0 && st(10) === 0 && st(11) === 1 && st(23) === 2 && st(41) === 3 && st(74) === 4 && st(179) === 4);
   check('paliers : jamais de retour en arrière avec l’âge', days.every((s, i) => i === 0 || s >= days[i - 1]));
   check('paliers : seulement 0 à 4 (cinq classes CSS, quatre filtres)', new Set(days).size === 5 && Math.max(...days) === 4);
+}
+{
+  // l'écran (filtres SVG de index.html) et l'export « Keep » (js/fragment.js, en pixels) utilisent les mêmes valeurs
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const filter = id => html.match(new RegExp(`<filter id="${id}"[\\s\\S]*?</filter>`))?.[0] || '';
+  const tone = TONE.join(' ');
+  check('courbe de tons identique : écran (#tone, #erode1…4) et export', ['tone', 'erode1', 'erode2', 'erode3', 'erode4']
+    .every(id => (filter(id).match(/tableValues="([^"]+)"/g) || []).length === 3 && filter(id).includes(`tableValues="${tone}"`)));
+  check('paliers d’érosion identiques : écran (#erode1…4) et export (ERODE)', ERODE.every((e, i) => {
+    const f = filter(`erode${i + 1}`), off = +(0.5 - e.g * 0.5).toFixed(4), c = +(1 + e.k * e.t).toFixed(4);
+    return f.includes(`values="${e.g} 0 0 0 ${off}`) && f.includes(`-${e.k} 0 0 0 ${c}"`);
+  }));
+}
+{
+  // strates : fuseau de référence du mur = Asia/Tokyo, quel que soit le fuseau du visiteur.
+  // 2026-09-30T15:30Z = 1er octobre 0 h 30 à Tokyo (30 septembre à Paris, à Los Angeles et en UTC).
+  const was = process.env.TZ, iso = '2026-09-30T15:30:00Z', before = '2026-09-30T14:50:00Z';   // before : 30 sept. 23 h 50 à Tokyo
+  const seen = {};
+  for (const tz of ['Asia/Tokyo', 'Europe/Paris', 'America/Los_Angeles', 'UTC']) {
+    process.env.TZ = tz;
+    seen[tz] = [strataKey({ createdAt: iso, prompt: 'x' }), strataKey({ createdAt: before, prompt: 'x' })].join(' / ');
+  }
+  if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+  check('strates : 1er oct. 0 h 30 (Tokyo) en octobre, 30 sept. 23 h 50 (Tokyo) en septembre, pour un visiteur à Tokyo, Paris, Los Angeles ou en UTC',
+    Object.values(seen).every(v => v === '2026-10|x / 2026-09|x'), JSON.stringify(seen));
 }
 process.exit(fail ? 1 : 0);

@@ -82,6 +82,21 @@ export function visibility(days) {
  * Usure w = (1 − v) / 0,7 : palier 1 dès w ≥ 0,08 (≈ 10 j), 2 dès 0,3 (≈ 22 j), 3 dès 0,55 (≈ 40 j), 4 dès 0,8 (≈ 73 j).
  */
 export const STAGES = [0.08, 0.3, 0.55, 0.8];
+/*
+ * Traitement des images, partagé par l'écran (filtres SVG de index.html : #tone, #erode1 … #erode4) et
+ * par l'export d'un fragment (js/fragment.js, en pixels). tests/wall.test.mjs vérifie que index.html
+ * porte exactement ces valeurs.
+ *   TONE  : courbe de tons après passage en gris (0 → 0 · 25 % → 24 % · … · 100 % → 76 %) ;
+ *   ERODE : par palier, seuil t et pente k de la transparence (alpha = 1 − k × (gris − t)),
+ *           force g du grain (bruit gris en « overlay »).
+ */
+export const TONE = [0, 0.24, 0.47, 0.64, 0.76];
+export const ERODE = [
+  { t: 0.6, k: 1.6, g: 0.30 },
+  { t: 0.5, k: 2.2, g: 0.36 },
+  { t: 0.4, k: 2.8, g: 0.42 },
+  { t: 0.3, k: 3.4, g: 0.48 },
+];
 export function stageOf(v) {
   const w = (1 - v) / (1 - TIME.floor);
   return STAGES.filter(s => w >= s - 1e-9).length;
@@ -93,7 +108,18 @@ export const onWall = days => days < TIME.wallDays;
  * Strates : le mur se lit de haut en bas comme des couches de temps. Une strate = les dépôts d'un même
  * mois ET d'une même consigne (gardée sur chaque dépôt). Un mois sans consigne forme une strate sans mot.
  */
-export const strataKey = p => `${(p.createdAt || '').slice(0, 7)}|${p.prompt || ''}`;
+// Fuseau de référence du mur : Asia/Tokyo, le MÊME pour tous les visiteurs (le mur est identique partout).
+// Le mois d'un dépôt (strates, filets, strate en cours) se calcule à l'heure de Tokyo, jamais à celle du
+// téléphone ni en UTC : un dépôt du 1er octobre à 0 h 30 (Tokyo) est en octobre à Tokyo, Paris et Los Angeles.
+// Le Japon n'a pas d'heure d'été : Tokyo = UTC + 9 h toute l'année.
+const TOKYO = 9 * 3600e3;
+export const wallMonth = iso => {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const d = new Date(t + TOKYO);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+};
+export const strataKey = p => `${wallMonth(p.createdAt)}|${p.prompt || ''}`;
 
 /** Bande du commentaire, en bas d'une boîte. */
 const strip = (r, capH) => ({ x: r.x, y: r.y + r.h - (capH || 0), w: r.w, h: capH || 0 });

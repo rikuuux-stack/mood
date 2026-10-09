@@ -212,6 +212,16 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .mail { font-size: 1rem; }
 
 /* signalement : discret */
+/* Keep : fragment du mur à garder / partager (même style discret que les autres libellés courts) */
+.keep { margin-top: 10px; }
+#keepBtn { font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
+.keep-panel { display: grid; gap: 10px; justify-items: start; margin-top: 6px; }
+.keep-formats { display: flex; gap: 18px; }
+.keep-formats .link { font: var(--light) 12px/1 var(--mono); color: var(--muted); }
+.keep-formats .link[aria-pressed="true"] { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
+.keep-preview { display: block; max-height: 34dvh; max-width: 100%; width: auto; border: var(--line) solid var(--rule); }
+.keep-actions { display: flex; align-items: center; gap: 14px; }
+.keep-msg { font: var(--light) 12px/1.4 var(--mono); color: var(--muted); }
 .report { margin-top: 12px; }
 .report summary { display: inline-block; cursor: pointer; font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
 .report fieldset { border: 0; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
