@@ -8,8 +8,12 @@
   --muted-dark: #c9c8c3;    /* texte secondaire sur fond noir */
   --muted-light: #3d3c3a;   /* texte secondaire sur fond papier */
   --verm: #d33a1d;          /* 朱 — tampon RIKU + bouton Déposer uniquement ; blanc dessus ≈ 4,7:1 */
-  --font: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+  /* traits très fins partout : IBM Plex Sans JP ExtraLight (200), Thin (100) pour « RIKU ».
+     Repli : Hiragino Sans (iPhone/Mac) existe aussi en graisses fines. */
+  --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --light: 200;
+  --line: 1px;              /* filets et bordures : aussi fins que les lettres */
   --gutter: 24px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -27,7 +31,7 @@ body {
   /* grain très léger : le béton reste « plat » */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   color: var(--ink);
-  font: 400 16px/1.6 var(--font);
+  font: var(--light) 16px/1.65 var(--font);
   line-break: strict;
   overflow-wrap: anywhere;
 }
@@ -52,17 +56,17 @@ a { color: inherit; }
   background: inherit;                 /* même béton que la page : pas de barre visible */
 }
 .bar { justify-content: space-between; }
-.id { all: unset; cursor: pointer; font-weight: 900; font-size: 1.6rem; letter-spacing: .14em; line-height: 1; padding: 6px 0; }
+.id { all: unset; cursor: pointer; font-weight: 100; font-size: 1.9rem; letter-spacing: .32em; line-height: 1; padding: 6px 0; }
 .prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 18px 0; padding-block: 10px; border-block: 1px solid rgba(17,17,17,.15); }
 .langs { display: flex; gap: 14px; }
 .link { all: unset; cursor: pointer; font-size: .9rem; padding: 10px 0; line-height: 1; }
 .link:hover { text-decoration: underline; text-underline-offset: 4px; }
 .langs .link { opacity: .55; }
-.langs .link[aria-pressed="true"] { opacity: 1; font-weight: 700; }
+.langs .link[aria-pressed="true"] { opacity: 1; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .link:focus-visible, .id:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; box-shadow: none; }
 
 .btn-drop {
-  border: 0; background: var(--verm); color: #fff; font-weight: 700; font-size: .95rem; letter-spacing: .04em;
+  border: 0; background: var(--verm); color: #fff; font-weight: var(--light); font-size: 1rem; letter-spacing: .08em;
   padding: 10px 16px; min-height: 44px;
 }
 .btn-drop:hover { filter: brightness(1.08); }
@@ -71,7 +75,7 @@ a { color: inherit; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  border: 2px solid currentColor; background: transparent; padding: 8px 14px; min-height: 44px; font-weight: 700;
+  border: var(--line) solid currentColor; background: transparent; padding: 8px 14px; min-height: 44px; font-weight: var(--light);
 }
 .btn:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .x { all: unset; cursor: pointer; width: 44px; height: 44px; display: grid; place-items: center; font-size: 1.9rem; line-height: 1; margin-right: -10px; }
@@ -102,12 +106,12 @@ a { color: inherit; }
   display: block; height: 100%;
   padding: 14px 16px 16px;
   background: var(--paper); color: var(--ink);
-  font-weight: 700; font-size: max(16px, var(--fs, 18px)); line-height: 1.45;
+  font-weight: var(--light); font-size: max(16px, var(--fs, 18px)); line-height: 1.5;
   text-align: start;
 }
 .sticker--dark { background: var(--ink); color: var(--paper); }
 .sticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 9; overflow: hidden; white-space: pre-line; }
-.sticker-by { display: block; margin-top: .55em; font: 400 max(14px, .78em)/1.4 var(--mono); opacity: .85; }
+.sticker-by { display: block; margin-top: .55em; font: var(--light) max(14px, .78em)/1.4 var(--mono); opacity: .85; }
 
 /* tampon RIKU : petit carré vermillon, sans texte */
 .stamp {
@@ -127,9 +131,9 @@ a { color: inherit; }
 .row img { display: block; width: 100%; height: auto; }
 .row .sticker { height: auto; font-size: max(16px, 1.15rem); }
 .row .sticker-text { -webkit-line-clamp: unset; display: block; }
-.row-meta { margin: 8px 0 0; font: 400 .85rem/1.5 var(--mono); }
+.row-meta { margin: 8px 0 0; font: var(--light) .85rem/1.5 var(--mono); }
 
-.empty { margin: 48px var(--gutter); font-weight: 700; }
+.empty { margin: 48px var(--gutter); }
 .more-wrap { text-align: center; margin: 24px 0; }
 
 /* ------------------------------------------------------------------ fenêtres */
@@ -140,9 +144,10 @@ a { color: inherit; }
 }
 .dlg::backdrop { background: rgba(17,17,17,.84); }
 .dlg--drop, .dlg--about { width: min(560px, calc(100vw - 24px)); }
-.dlg h2 { margin: 0; font-size: 1.3rem; font-weight: 900; }
+.dlg h2 { margin: 0; font-size: 1.5rem; font-weight: var(--light); letter-spacing: .04em; }
+#aboutTitle { font-weight: 100; letter-spacing: .32em; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.viewer-meta { margin: 0; font: 400 .9rem/1.5 var(--mono); }
+.viewer-meta { margin: 0; font: var(--light) .9rem/1.5 var(--mono); }
 .viewer-body img { display: block; max-width: 100%; max-height: 72dvh; width: auto; height: auto; margin: 0 auto; }
 .viewer-body .sticker { font-size: clamp(18px, 2.6vw, 26px); }
 .viewer-body .sticker-text { -webkit-line-clamp: unset; display: block; }
@@ -156,17 +161,17 @@ a { color: inherit; }
 .report { margin-top: 14px; }
 .report summary { display: inline-block; cursor: pointer; font-size: .85rem; color: var(--muted-light); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
 .report fieldset { border: 0; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
-.report legend { font-weight: 700; margin-bottom: 6px; }
+.report legend { margin-bottom: 6px; }
 
 /* formulaires : 16 px minimum (sinon iOS zoome) */
 .drop-form { display: grid; gap: 12px; }
-.tabs { display: inline-flex; justify-self: start; border: 2px solid var(--ink); }
+.tabs { display: inline-flex; justify-self: start; border: var(--line) solid var(--ink); }
 .tabs label { cursor: pointer; padding: 8px 16px; font-size: 1rem; display: inline-flex; align-items: center; }
-.tabs label:has(input:checked) { background: var(--ink); color: var(--paper); font-weight: 700; }
+.tabs label:has(input:checked) { background: var(--ink); color: var(--paper); }
 .tabs input { position: absolute; opacity: 0; pointer-events: none; }
 .tabs label:has(input:focus-visible) { outline: 3px solid var(--ink); outline-offset: 2px; }
-.field { display: grid; gap: 4px; font-weight: 700; }
-.drop-form input[type="text"], .drop-form textarea { font-weight: 400; font-size: 16px; padding: 10px 12px; border: 2px solid var(--ink); background: #fff; border-radius: 0; width: 100%; }
+.field { display: grid; gap: 4px; }
+.drop-form input[type="text"], .drop-form textarea { font-weight: var(--light); font-size: 16px; padding: 10px 12px; border: var(--line) solid var(--ink); background: #fff; border-radius: 0; width: 100%; }
 .field textarea { resize: vertical; min-height: 8em; }
 .check { display: flex; gap: 10px; align-items: flex-start; }
 .check input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--ink); }
@@ -176,10 +181,10 @@ a { color: inherit; }
 .count { text-align: end; font-family: var(--mono); }
 .preview { margin: 0; }
 .preview img { display: block; max-width: 100%; max-height: 40dvh; width: auto; }
-.preview figcaption { font: 400 .85rem/1.5 var(--mono); margin-top: 6px; }
+.preview figcaption { font: var(--light) .85rem/1.5 var(--mono); margin-top: 6px; }
 .captcha-mock { font-size: .9rem; }
-.about-role { font-weight: 700; margin-top: 0; }
-.form-msg { margin: 0; font-weight: 700; min-height: 1.5em; }
-.mail { font-weight: 700; font-size: 1.1rem; }
+.about-role { font-size: 1.05rem; margin-top: 0; }
+.form-msg { margin: 0; min-height: 1.5em; }
+.mail { font-size: 1.15rem; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 
 @media (prefers-reduced-motion: reduce) { .item { transition: none; } .item:hover, .item:focus-within { transform: rotate(var(--rot, 0deg)); } }

@@ -20,7 +20,7 @@ Les modules JavaScript ne fonctionnent pas en `file://` : il faut un petit serve
 | changer une limite (poids, taille, nombre de caractères, densité du mur) | `js/config.js` |
 | changer les couleurs ou la typographie | `css/site.css` (variables en haut du fichier) |
 | comprendre le placement du mur | `js/wall.js` |
-| régénérer les polices après un nouveau texte japonais | `python3 tools/fonts/subset.py` |
+| régénérer les polices après avoir changé un texte du site | `python3 tools/fonts/subset.py` |
 
 ## Tests
 

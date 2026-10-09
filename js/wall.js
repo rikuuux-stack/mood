@@ -28,7 +28,7 @@ export function sizeFor(post, W, mobile) {
   const r = rng(post.id + ':size');
   if (post.kind === 'text') {
     const n = [...post.text].length;
-    const font = mobile ? (n <= 60 ? 22 : n <= 200 ? 18 : 16) : (n <= 60 ? 26 : n <= 200 ? 20 : 17);
+    const font = mobile ? (n <= 60 ? 23 : n <= 200 ? 19 : 17) : (n <= 60 ? 27 : n <= 200 ? 21 : 18);   // traits fins : un cran au-dessus du minimum de 16 px
     const base = mobile ? W * (n <= 60 ? 0.62 : 0.8) : (n <= 60 ? 260 : n <= 200 ? 320 : 360);
     return { w: Math.round(clamp(base * (0.92 + r() * 0.16), 200, W)), font };
   }
