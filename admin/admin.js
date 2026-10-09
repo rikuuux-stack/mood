@@ -38,9 +38,12 @@ async function moderate(method, body) {
     method, headers: { apikey: KEY, Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (r.status === 401) { save(null); show(); throw new Error('auth'); }
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'server');
-  return r.json();
+  const out = await r.json().catch(() => ({}));
+  // 401 « auth » : session expirée ou invalide → retour à l'écran de connexion.
+  // 403 « admin » (compte non administrateur) ou 500 : on reste connecté et on affiche le message.
+  if (r.status === 401 && out.error === 'auth') { save(null); show(); $('#loginMsg').textContent = 'Session expirée ou refusée : reconnecte-toi.'; throw new Error('auth'); }
+  if (!r.ok) throw new Error(out.error || 'server');
+  return out;
 }
 
 /* ------------------------------------------------------------------ écrans */
@@ -69,7 +72,9 @@ async function refresh() {
     data = await moderate('GET');
     $('#dashMsg').textContent = '';
   } catch (e) {
-    $('#dashMsg').textContent = e.message === 'admin' ? 'Ce compte n’est pas administrateur.' : 'Impossible de charger les dépôts.';
+    if (e.message === 'auth') return;                       // déjà renvoyé à l'écran de connexion
+    $('#dashMsg').textContent = e.message === 'admin' ? 'Ce compte n’est pas administrateur.'
+      : 'Impossible de charger les dépôts (erreur du serveur). Réessaie dans un instant.';
   }
   for (const k of ['pending', 'hidden', 'published']) $(`[data-n="${k}"]`).textContent = `(${data[k].length})`;
   render();

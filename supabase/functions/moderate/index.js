@@ -6,8 +6,10 @@
  *   POST { action: 'reject',  id }       → dépôt en attente supprimé (fichiers + ligne)
  *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
+ *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
+ *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
-import { cors, json, fail, service, adminId } from '../_shared/http.js';
+import { cors, json, fail, service, caller } from '../_shared/http.js';
 
 const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, is_riku, status, report_count, created_at, approved_at';
 
@@ -39,7 +41,20 @@ async function moveFiles(db, row, from, to) {
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) });
   const db = service();
-  if (!(await adminId(req, db))) return fail(req, 401, 'admin');
+  if (req.method === 'GET' && new URL(req.url).searchParams.has('health')) {
+    const checks = await Promise.all(['posts', 'reports', 'admins'].map(async t => {
+      const { error } = await db.from(t).select('*', { count: 'exact', head: true });
+      if (error) console.error(`[health] « ${t} » illisible :`, error.code, error.message);
+      return [t, !error];
+    }));
+    const tables = Object.fromEntries(checks);
+    const ok = Object.values(tables).every(Boolean);
+    return json(req, ok ? 200 : 500, { ok, tables });
+  }
+  const who = await caller(req, db);
+  if (who.status === 'none' || who.status === 'auth') return fail(req, 401, 'auth');   // se (re)connecter
+  if (who.status === 'notAdmin') return fail(req, 403, 'admin');                      // connecté, pas admin
+  if (who.status !== 'admin') return fail(req, 500, 'server');                         // panne : voir les journaux
 
   if (req.method === 'GET') {
     const q = s => db.from('posts').select(COLS).eq('status', s);
@@ -78,7 +93,8 @@ Deno.serve(async req => {
     } else {
       return fail(req, 400, 'action');
     }
-  } catch {
+  } catch (e) {
+    console.error(`[moderate] action « ${action} » impossible :`, e?.message || e);
     return fail(req, 500, 'storage');
   }
   return json(req, 200, { ok: true });

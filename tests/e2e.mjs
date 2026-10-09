@@ -55,6 +55,12 @@ await t('la vue « wall » ne montre aucune donnée privée', async () => {
   return r.status >= 400 || 'colonnes privées accessibles';
 });
 
+// --- les fonctions serveur, elles, ont bien accès à la base (sinon : aucun dépôt ni connexion admin possible)
+await t('les fonctions serveur peuvent lire posts / reports / admins', async () => {
+  const r = await req('/functions/v1/moderate?health');
+  return (r.status === 200 && r.body_?.ok === true) || `HTTP ${r.status} ${r.bodyText.slice(0, 160)}`;
+});
+
 // --- fichiers : le bucket des dépôts en attente est privé
 await t('le bucket « pending » ne se liste pas', async () => {
   const r = await req('/storage/v1/object/list/pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix: '', limit: 10 }) });
@@ -94,7 +100,7 @@ await t('image valide avec un faux captcha refusée', async () =>
 // --- signalement et modération
 await t('signalement sans captcha refusé', async () => code(await req('/functions/v1/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ post_id: '00000000-0000-4000-8000-000000000000', reason: 'spam', captcha: '' }) }), 'captcha'));
-await t('modération refusée sans compte administrateur', async () => code(await req('/functions/v1/moderate'), 'admin'));
+await t('modération refusée sans être connecté (401 « auth »)', async () => code(await req('/functions/v1/moderate'), 'auth'));
 
 console.log(failed ? `\n${failed} test(s) en échec.` : '\nTous les tests passent.');
 process.exit(failed ? 1 : 0);
