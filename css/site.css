@@ -192,7 +192,26 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .count.over { color: var(--fg); text-decoration: underline; }
 .preview { margin: 0; }
 .preview .photo { display: inline-block; }
-.preview img { max-width: 100%; max-height: 36dvh; width: auto; }
+.preview img, .preview canvas { display: block; max-width: 100%; max-height: 36dvh; width: auto; height: auto; }
+.photo canvas { filter: url(#tone); }   /* aperçu du grain : même traitement N&B que les photos */
+/* taille d'affichage S / M / L : trois cases à filet fin, la case choisie est pleine */
+.sizes { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.sizes legend { float: left; margin-right: 8px; font-size: 12px; color: var(--muted); padding: 0; }
+.sizes label { position: relative; }
+.sizes input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sizes span { display: grid; place-items: center; width: 40px; height: 40px; border: var(--line) solid var(--rule); font: var(--light) 13px var(--mono); cursor: pointer; }
+.sizes input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.sizes input:focus-visible + span { outline: 2px solid var(--fg); outline-offset: 2px; }
+/* grain : curseur à filet fin, gris uniquement */
+.grain { display: grid; grid-template-columns: auto 1fr 2.5em; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
+.grain[hidden] { display: none; }
+.grain output { font-family: var(--mono); text-align: right; color: var(--fg); }
+.grain input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; background: transparent; margin: 0; }
+.grain input::-webkit-slider-runnable-track { height: 1px; background: var(--muted); }
+.grain input::-moz-range-track { height: 1px; background: var(--muted); }
+.grain input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -9px; border-radius: 0; background: var(--fg); border: 0; }
+.grain input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 0; background: var(--fg); border: 0; }
+.grain input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .preview figcaption { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin-top: 6px; }
 .captcha-mock { font-size: 13px; }
 .form-msg { margin: 0; min-height: 1.5em; font-size: 13px; }

@@ -6,12 +6,14 @@
  *   POST { action: 'reject',  id }       → dépôt en attente supprimé (fichiers + ligne)
  *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
+ *   POST { action: 'resize', id, size }  → taille d'affichage changée (s / m / l), quel que soit le statut
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
 import { cors, json, fail, service, caller } from '../_shared/http.js';
 
-const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, is_riku, status, report_count, created_at, approved_at';
+const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_riku, status, report_count, created_at, approved_at';
+const SIZES = ['s', 'm', 'l'];
 
 async function withUrls(db, rows, bucket) {
   const paths = rows.flatMap(r => (r.image_path ? [r.image_path, r.thumb_path] : []));
@@ -73,7 +75,7 @@ Deno.serve(async req => {
 
   let body;
   try { body = await req.json(); } catch { return fail(req, 400, 'bad'); }
-  const { action, id } = body || {};
+  const { action, id, size } = body || {};
   const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
   if (!row) return fail(req, 404, 'gone');
 
@@ -87,6 +89,9 @@ Deno.serve(async req => {
     } else if (action === 'remove' && row.status !== 'pending') {
       if (row.image_path) await db.storage.from('published').remove([row.image_path, row.thumb_path]);
       await db.from('posts').delete().eq('id', id);
+    } else if (action === 'resize' && SIZES.includes(size)) {
+      const { error } = await db.from('posts').update({ size }).eq('id', id);
+      if (error) throw error;
     } else if (action === 'restore' && row.status === 'hidden') {
       await db.from('reports').delete().eq('post_id', id);
       await db.from('posts').update({ status: 'approved', report_count: 0 }).eq('id', id);

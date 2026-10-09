@@ -2,23 +2,28 @@
  * Mood — moodboard ouvert. Point d'entrée.
  *   - charge les dépôts validés (js/data.js : Supabase, ou maquette avec ?mock) ;
  *   - deux vues : MUR (composition libre, js/wall.js) et LISTE (colonne simple) ;
- *   - toucher / survol : l'élément passe au premier plan ; second toucher : agrandissement ;
+ *   - le plus récent est au-dessus ; toucher / survol : l'élément passe au premier plan jusqu'au toucher
+ *     suivant ; second toucher : agrandissement ;
+ *   - les éléments du mur dérivent lentement (js/motion.js), immobiles si « Réduire les animations » ;
  *   - fenêtres natives <dialog> : agrandissement + signalement, dépôt, à propos ;
  *   - un dépôt = une image, des mots, ou les deux ; plus l'image a de pixels, moins de mots (js/budget.js).
  *
  * Les textes des visiteurs ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=1f46695844';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate, formatBytes } from './i18n.js?v=9a0ab09e4a';
-import { layout, sizeFor } from './wall.js?v=37bc413c94';
-import { prepareImage, ImageError } from './image.js?v=73ede16b64';
-import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=93840c5394';
-import * as captcha from './captcha.js?v=873a411edc';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=81b3c75cac';
+import { layout, sizeFor, DRIFT } from './wall.js?v=adc98a8050';
+import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=6375903f29';
+import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=6967e50ef7';
+import * as captcha from './captcha.js?v=e2511343c5';
+import { createMotion } from './motion.js?v=0d30068fc4';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
 let posts = [], hasMore = false, view = 'wall';
+// le mur ne bouge que s'il est affiché et qu'aucune fenêtre n'est ouverte
+const motion = createMotion(() => view === 'wall' && !document.querySelector('dialog[open]'));
 
 applyI18n();
 
@@ -34,6 +39,7 @@ function setView(v) {
   viewLabel();
   wallEl.hidden = v !== 'wall'; listEl.hidden = v !== 'list';
   render();
+  motion.update();
 }
 
 document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
@@ -86,11 +92,13 @@ function renderWall(items) {
   lastW = W;
   const mobile = W < CONFIG.wall.mobileBelow;
   const pad = mobile ? 16 : 24;
+  const A = mobile ? DRIFT.mobile : DRIFT.desktop;       // amplitude du mouvement : réservée autour de chaque élément
+  raised = null;                                          // l'élément touché est retrouvé par son identifiant (raisedId)
   wallEl.replaceChildren();
   wallEl.style.height = '';
   // 1. créer chaque élément à sa largeur, pour mesurer la hauteur des stickers
   const nodes = items.map((p, i) => {
-    const { w, font } = sizeFor(p, W - 2 * pad, mobile);
+    const { w, font } = sizeFor(p, W - 2 * pad - 2 * A, mobile);
     const li = document.createElement('li');
     li.className = `item item--${p.kind}${p.isAuthor ? ' is-author' : ''}`;
     li.style.width = `${w}px`;
@@ -112,15 +120,20 @@ function renderWall(items) {
     return { id: n.p.id, kind: n.p.kind, w: n.w, h, capH: n.photoH ? h - n.photoH : 0 };
   });
   // 2. placer
-  const L = layout(boxes, W, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile });
+  const L = layout(boxes, W, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile, drift: A });
   nodes.forEach((n, i) => {
     const r = L.rects[i];
+    n.li.dataset.z = r.z;                                // le plus récent au-dessus
     Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });
   });
+  motion.set(nodes.map(n => ({ el: n.li, id: n.p.id })), A);
   wallEl.style.height = `${L.height}px`;
   neighbours = Array.from(nodes, () => []);
   for (const [a, b] of L.overlaps) { neighbours[a].push(b); neighbours[b].push(a); }
   top = 2 * nodes.length;
+  // le mur peut être recomposé (police chargée, largeur changée) : l'élément touché reste au premier plan
+  const k = raisedId ? items.findIndex(p => p.id === raisedId) : -1;
+  if (k >= 0) { raised = nodes[k].li; raised.style.zIndex = String(++top); } else raisedId = null;
 }
 
 function renderList(items) {
@@ -141,11 +154,18 @@ function renderList(items) {
   }));
 }
 
-/* ------------------------------------------------------------------ premier plan au toucher */
-let neighbours = [], top = 0, lastPointer = 'mouse';
-addEventListener('pointerdown', e => { lastPointer = e.pointerType; }, { capture: true, passive: true });
+/* ------------------------------------------------------------------ premier plan au toucher
+ * Ordre normal : le plus récent au-dessus. Un élément touché (ou survolé à la souris) passe au premier
+ * plan et y reste jusqu'au toucher suivant (sur un autre élément ou sur le fond) : il reprend alors sa place.
+ */
+let neighbours = [], top = 0, lastPointer = 'mouse', raised = null, raisedId = null;
+const lower = () => { if (raised) { raised.style.zIndex = raised.dataset.z; raised = null; } raisedId = null; };
+addEventListener('pointerdown', e => {
+  lastPointer = e.pointerType;
+  if (raised && e.target.closest?.('.item') !== raised && !e.target.closest?.('dialog')) lower();
+}, { capture: true, passive: true });
 const isOnTop = li => neighbours[+li.dataset.i]?.every(j => +wallEl.children[j].style.zIndex < +li.style.zIndex) ?? true;
-const raise = li => { if (!isOnTop(li)) li.style.zIndex = String(++top); };
+const raise = li => { if (raised !== li) lower(); if (!isOnTop(li)) { li.style.zIndex = String(++top); raised = li; raisedId = posts[+li.dataset.i]?.id ?? null; } };
 
 wallEl.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const li = e.target.closest('.item'); if (li) raise(li); } });
 // clavier seulement : au toucher, le focus arrive avant le clic et l'élément s'ouvrirait aussitôt
@@ -184,8 +204,9 @@ document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click'
 }));
 document.querySelectorAll('dialog').forEach(d => {
   d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });   // clic sur le fond
-  d.addEventListener('close', () => document.documentElement.classList.toggle('modal', !!$('dialog[open]')));
-  new MutationObserver(() => document.documentElement.classList.toggle('modal', !!$('dialog[open]'))).observe(d, { attributes: true, attributeFilter: ['open'] });
+  const sync = () => { document.documentElement.classList.toggle('modal', !!$('dialog[open]')); motion.update(); };
+  d.addEventListener('close', sync);
+  new MutationObserver(sync).observe(d, { attributes: true, attributeFilter: ['open'] });
 });
 
 let current = null;
@@ -225,58 +246,69 @@ function errorText(err) {
   if (!(err instanceof ServerError)) return t('eServer');
   const map = { captcha: 'eCaptcha', rate: 'eRate', tooBig: 'eTooBigSrv', type: 'eType', thumb: 'eType', size: 'eType',
     meta: 'eMeta', tooLong: 'eTooLong', empty: 'eEmpty', rights: 'eRights', name: 'eName', gone: 'eGone', network: 'eNetwork' };
-  return t(map[err.code] || 'eServer', { max: budget(), size: '' });
+  return t(map[err.code] || 'eServer', { max: budget() });
 }
 
 /* ------------------------------------------------------------------ dépôt */
 // Un seul formulaire : une image, des mots, ou les deux. Le nombre de caractères autorisés
 // dépend des pixels de l'image (js/budget.js) : sans image 500, avec une grande image 40.
+// Le visiteur choisit la taille d'affichage (S / M / L) et le grain (0 à 100) : le grain est ajouté
+// à l'image dans le navigateur, au moment de l'envoi ; l'aperçu le montre en direct.
 const form = $('#dropForm'), fileIn = $('#file'), textIn = $('#text'), msgEl = $('#dropMsg');
-let prepared = null, preparing = null, imageError = '';   // imageError : image refusée, bloque l'envoi tant qu'elle n'est pas retirée
-const budget = () => prepared ? textBudget(prepared.width, prepared.height) : textBudget();
+const grainIn = $('#grain'), canvas = $('#preview canvas');
+let src = null, preparing = null, imageError = '';   // src : image lue ; imageError : image refusée, bloque l'envoi
+const budget = () => src ? textBudget(src.width, src.height) : textBudget();
+const chosenSize = () => new FormData(form).get('size') || 'm';
 
 textIn.addEventListener('input', refreshDropTexts);
 function refreshDropTexts() {
   const max = budget(), n = textLength(textIn.value);
-  $('#budgetNote').textContent = t(prepared ? 'budgetImage' : 'budgetNone', { max });
   $('#countN').textContent = `${n} / ${max}`;
   $('#count').classList.toggle('over', n > max);
-  $('#fileLabel').textContent = t(prepared ? 'changeImage' : 'chooseImage');
-  $('#removeImage').hidden = !prepared && !imageError;
-  if (prepared) $('#previewInfo').textContent = t('processed', { w: prepared.width, h: prepared.height, size: formatBytes(prepared.full.size) });
+  $('#fileLabel').textContent = t(src ? 'changeImage' : 'chooseImage');
+  $('#removeImage').hidden = !src && !imageError;
+  $('#grainRow').hidden = !src;
+  if (src) $('#previewInfo').textContent = t('processed', { w: src.width, h: src.height });
 }
+
+// aperçu du grain en direct (une fois par image affichée, pas à chaque mouvement du doigt)
+let drawing = 0;
+grainIn.addEventListener('input', () => {
+  $('#grainOut').textContent = grainIn.value;
+  if (!src || drawing) return;
+  drawing = requestAnimationFrame(() => { drawing = 0; if (src) drawPreview(canvas, src, +grainIn.value); });
+});
 
 fileIn.addEventListener('change', async () => {
   const file = fileIn.files[0];
-  prepared = null; imageError = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  src = null; imageError = ''; $('#preview').hidden = true; msgEl.textContent = '';
   if (!file) { preparing = null; $('#send').disabled = false; return refreshDropTexts(); }
   msgEl.textContent = t('processing');
-  const job = preparing = prepareImage(file);
-  $('#send').disabled = true;                          // pas d'envoi tant que l'image n'est pas prête
+  const job = preparing = decodeImage(file);
+  $('#send').disabled = true;                          // pas d'envoi tant que l'image n'est pas lue
   try {
-    const p = await job;
+    const d = await job;
     if (job !== preparing) return;                     // une autre image a été choisie entre-temps
-    prepared = p;
-    const img = $('#preview img');
-    if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
-    img.src = img.dataset.url = URL.createObjectURL(prepared.full);
+    src = d;
+    drawPreview(canvas, src, +grainIn.value);
     $('#preview').hidden = false;
     msgEl.textContent = '';
   } catch (err) {
     if (job !== preparing) return;
     fileIn.value = '';                                 // image refusée : retirée, avec un message clair
-    msgEl.textContent = imageError = err instanceof ImageError ? t(err.code, { size: formatBytes(err.detail || 0) }) : t('eDecode');
+    msgEl.textContent = imageError = err instanceof ImageError ? t(err.code) : t('eDecode');
   }
   preparing = null; $('#send').disabled = false;
   refreshDropTexts();
 });
 $('#removeImage').addEventListener('click', () => {
-  prepared = null; preparing = null; imageError = ''; $('#send').disabled = false; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  src = null; preparing = null; imageError = ''; $('#send').disabled = false; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
   refreshDropTexts();
 });
 
 function resetDrop() {
-  form.reset(); prepared = null; preparing = null; imageError = '';
+  form.reset(); src = null; preparing = null; imageError = '';
+  $('#grainOut').textContent = grainIn.value;
   $('#preview').hidden = true; msgEl.textContent = '';
   $('#send').disabled = false;
   refreshDropTexts();
@@ -286,18 +318,23 @@ form.addEventListener('submit', async e => {
   e.preventDefault();
   if (preparing || $('#send').disabled) return;        // image en préparation ou envoi en cours : pas de double dépôt
   if (imageError) { msgEl.textContent = imageError; return; }                        // jamais de texte seul « à la place » de l'image
-  if (fileIn.files.length && !prepared) { msgEl.textContent = t('eDecode'); return; }
+  if (fileIn.files.length && !src) { msgEl.textContent = t('eDecode'); return; }
   const text = textIn.value.trim(), max = budget();
-  if (!prepared && !text) { msgEl.textContent = t('eEmpty'); return; }
+  if (!src && !text) { msgEl.textContent = t('eEmpty'); return; }
   if (textLength(text) > max) { msgEl.textContent = t('eTooLong', { max }); return; }
   if (!$('#rights').checked) { msgEl.textContent = t('eRights'); return; }
   const tok = captcha.token($('[data-captcha]', form));
   if (!tok) { msgEl.textContent = t('eCaptcha'); return; }
   const send = $('#send');
   send.disabled = true; msgEl.textContent = t('sending');
+  let image = null;
+  if (src) {
+    try { image = await renderImage(src, { grain: +grainIn.value }); }      // image finale : grain + métadonnées retirées
+    catch (err) { msgEl.textContent = err instanceof ImageError ? t(err.code) : t('eDecode'); send.disabled = false; return; }
+  }
   try {
-    const out = await submitPost({ text, lang, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), image: prepared, captcha: tok });
-    if (prepared && out.kind === 'text') console.error('[submit] image non reçue par le serveur');
+    const out = await submitPost({ text, lang, name: $('#name').value.trim().slice(0, CONFIG.upload.maxName), size: chosenSize(), image, captcha: tok });
+    if (image && out.kind === 'text') console.error('[submit] image non reçue par le serveur');
     msgEl.textContent = t(mode === 'mock' ? 'thanksMock' : 'thanks');
   } catch (err) {
     msgEl.textContent = errorText(err); send.disabled = false;

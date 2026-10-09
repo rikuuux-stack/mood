@@ -50,6 +50,10 @@ await t('impossible d’écrire directement dans « posts »', async () => {
     body: JSON.stringify({ kind: 'text', text: 'intrus', status: 'approved' }) });
   return r.status >= 400 || `écriture acceptée (${r.status})`;
 });
+await t('la vue « wall » donne la taille d’affichage (s / m / l)', async () => {
+  const r = await req('/rest/v1/wall?select=id,size&limit=5');
+  return (r.status === 200 && (r.body_ || []).every(p => ['s', 'm', 'l'].includes(p.size))) || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
+});
 await t('la vue « wall » ne montre aucune donnée privée', async () => {
   const r = await req('/rest/v1/wall?select=ip_hash,status,report_count&limit=1');
   return r.status >= 400 || 'colonnes privées accessibles';
@@ -88,6 +92,7 @@ for (const other of ['https://rikuuux-stack.github.io', 'https://moodwall.pages.
 }
 await t('dépôt sans case « droits » refusé', async () => code(await submitForm({ text: 'test', consent: '0' }), 'rights'));
 await t('dépôt vide refusé', async () => code(await submitForm({}), 'empty'));
+await t('taille d’affichage inconnue refusée (s / m / l seulement)', async () => code(await submitForm({ text: 'test', size: 'xl' }), 'display'));
 await t('pseudo avec lien refusé', async () => code(await submitForm({ text: 'test', name: 'www.spam.com' }), 'name'));
 await t('texte au-delà de 500 caractères refusé', async () => code(await submitForm({ text: 'x'.repeat(501) }), 'tooLong'));
 await t('image > 5 Mo refusée', async () => {

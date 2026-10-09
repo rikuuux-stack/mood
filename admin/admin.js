@@ -6,7 +6,7 @@
  * connecté est bien administrateur. Les textes des dépôts sont insérés via textContent uniquement.
  */
 import { CONFIG } from '../js/config.js?v=1f46695844';
-import { prepareImage, ImageError } from '../js/image.js?v=73ede16b64';
+import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=6375903f29';
 import { textBudget, textLength } from '../js/budget.js?v=0d99de1d5b';
 
 const $ = s => document.querySelector(s);
@@ -41,7 +41,7 @@ async function moderate(method, body) {
   const out = await r.json().catch(() => ({}));
   // 401 « auth » : session expirée ou invalide → retour à l'écran de connexion.
   // 403 « admin » (compte non administrateur) ou 500 : on reste connecté et on affiche le message.
-  if (r.status === 401 && out.error === 'auth') { save(null); show(); $('#loginMsg').textContent = 'Session expirée ou refusée : reconnecte-toi.'; throw new Error('auth'); }
+  if (r.status === 401 && out.error === 'auth') { save(null); show(); $('#loginMsg').textContent = 'Log in again'; throw new Error('auth'); }
   if (!r.ok) throw new Error(out.error || 'server');
   return out;
 }
@@ -55,26 +55,25 @@ function show() {
 }
 $('#login').addEventListener('submit', async e => {
   e.preventDefault();
-  $('#loginMsg').textContent = 'Connexion…';
+  $('#loginMsg').textContent = '…';
   try {
     await auth('password', { email: $('#email').value.trim(), password: $('#password').value });
     $('#password').value = ''; $('#loginMsg').textContent = '';
     show();
   } catch {
-    $('#loginMsg').textContent = 'E-mail ou mot de passe incorrect.';
+    $('#loginMsg').textContent = 'Wrong login';
   }
 });
 $('#logout').addEventListener('click', () => { save(null); show(); });
 
 async function refresh() {
-  $('#dashMsg').textContent = 'Chargement…';
+  $('#dashMsg').textContent = '…';
   try {
     data = await moderate('GET');
     $('#dashMsg').textContent = '';
   } catch (e) {
     if (e.message === 'auth') return;                       // déjà renvoyé à l'écran de connexion
-    $('#dashMsg').textContent = e.message === 'admin' ? 'Ce compte n’est pas administrateur.'
-      : 'Impossible de charger les dépôts (erreur du serveur). Réessaie dans un instant.';
+    $('#dashMsg').textContent = e.message === 'admin' ? 'Not admin' : 'Server error — retry';
   }
   for (const k of ['pending', 'hidden', 'published']) $(`[data-n="${k}"]`).textContent = `(${data[k].length})`;
   render();
@@ -86,13 +85,33 @@ document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click',
   render();
 }));
 
-const fmt = iso => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
+const fmt = iso => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 const ACTIONS = {
-  pending: [['approve', 'Valider', false], ['reject', 'Refuser', true]],
-  hidden: [['restore', 'Remettre en ligne', false], ['remove', 'Supprimer', true]],
-  published: [['remove', 'Retirer du mur', true]],
+  pending: [['approve', 'Approve', false], ['reject', 'Reject', true]],
+  hidden: [['restore', 'Restore', false], ['remove', 'Delete', true]],
+  published: [['remove', 'Remove', true]],
 };
-const DONE = { approve: 'Validé : il est sur le mur.', reject: 'Refusé et supprimé.', remove: 'Supprimé.', restore: 'Remis en ligne.' };
+const SIZES = ['s', 'm', 'l'];
+
+/** Taille d'affichage S / M / L d'un dépôt : un toucher la change (en attente comme publié). */
+function sizePicker(r) {
+  const box = document.createElement('div'); box.className = 'adm-sizes'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', 'Size');
+  const paint = () => box.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.size === (r.size || 'm'))));
+  for (const k of SIZES) {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.size = k; b.textContent = k.toUpperCase();
+    b.addEventListener('click', async () => {
+      if ((r.size || 'm') === k) return;
+      box.querySelectorAll('button').forEach(x => { x.disabled = true; });
+      try { await moderate('POST', { action: 'resize', id: r.id, size: k }); r.size = k; $('#dashMsg').textContent = 'Done'; }
+      catch (e) { if (e.message !== 'auth') $('#dashMsg').textContent = 'Failed — retry'; }
+      box.querySelectorAll('button').forEach(x => { x.disabled = false; });
+      paint();
+    });
+    box.append(b);
+  }
+  paint();
+  return box;
+}
 
 function render() {
   $('#mine').hidden = tab !== 'mine';
@@ -102,7 +121,7 @@ function render() {
   const rows = data[tab] || [];
   if (!rows.length) {
     const p = document.createElement('li'); p.className = 'adm-empty';
-    p.textContent = { pending: 'Rien en attente.', hidden: 'Aucun dépôt masqué par des signalements.', published: 'Le mur est vide.' }[tab];
+    p.textContent = 'Empty';
     list.replaceChildren(p);
     return;
   }
@@ -111,18 +130,18 @@ function render() {
     if (r.image_url) { const img = document.createElement('img'); img.src = r.image_url; img.alt = ''; img.loading = 'lazy'; li.append(img); }
     if (r.text) { const t = document.createElement('p'); t.className = 'adm-text'; t.textContent = r.text; li.append(t); }
     const meta = document.createElement('p'); meta.className = 'adm-meta';
-    meta.textContent = [r.is_riku ? 'moi' : (r.name || 'anonyme'), fmt(r.created_at),
-      r.width ? `${r.width} × ${r.height} px` : null, r.report_count ? `${r.report_count} signalement(s)` : null].filter(Boolean).join(' · ');
-    li.append(meta);
+    meta.textContent = [r.is_riku ? 'me' : (r.name || 'anon'), fmt(r.created_at),
+      r.width ? `${r.width}×${r.height}` : null, r.report_count ? `${r.report_count} reports` : null].filter(Boolean).join(' · ');
+    li.append(meta, sizePicker(r));
     const bar = document.createElement('div'); bar.className = 'adm-actions';
     for (const [action, label, risky] of ACTIONS[tab]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label;
       b.addEventListener('click', async () => {
         // action irréversible : un second toucher pour confirmer
-        if (risky && !b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = `${label} — confirmer`; return; }
+        if (risky && !b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Sure?'; return; }
         bar.querySelectorAll('button').forEach(x => { x.disabled = true; });
-        try { await moderate('POST', { action, id: r.id }); $('#dashMsg').textContent = DONE[action]; await refresh(); }
-        catch { $('#dashMsg').textContent = 'L’action a échoué. Réessaie.'; bar.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+        try { await moderate('POST', { action, id: r.id }); $('#dashMsg').textContent = 'Done'; await refresh(); }
+        catch { $('#dashMsg').textContent = 'Failed — retry'; bar.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
       });
       bar.append(b);
     }
@@ -132,89 +151,90 @@ function render() {
 }
 
 /* ------------------------------------------------------------------ dépôt de l'auteur du site (publié directement, avec la marque) */
-let prepared = null, preparing = null, imageError = '', sending = false;
-const budget = () => prepared ? textBudget(prepared.width, prepared.height) : textBudget();
-const IMAGE_ERRORS = {
-  eType: 'Image refusée : format non accepté (JPEG, PNG ou WebP).',
-  eTooBig: 'Image refusée : fichier trop lourd (5 Mo max).',
-  eMeta: 'Image refusée : les métadonnées n’ont pas pu être retirées.',
-  eDecode: 'Image refusée : impossible de la lire sur cet appareil.',
-};
+// Même formulaire que le site : taille S / M / L et grain (ajouté à l'image avant l'envoi, aperçu en direct).
+let src = null, preparing = null, imageError = '', sending = false;
+const budget = () => src ? textBudget(src.width, src.height) : textBudget();
+const IMAGE_ERRORS = { eType: 'Image refused: format', eTooBig: 'Image refused: too heavy', eMeta: 'Image refused: metadata', eDecode: 'Image refused: unreadable' };
 const SERVER_ERRORS = {
-  type: 'Image refusée par le serveur (format ou fichier vide).', size: 'Image refusée par le serveur (plus de 2000 px).',
-  thumb: 'Miniature refusée par le serveur.', meta: 'Image refusée par le serveur (métadonnées).',
-  tooBig: 'Image refusée par le serveur (5 Mo max).', tooLong: 'Texte trop long pour cette image.',
-  empty: 'Ajoute une image, des mots, ou les deux.', storage: 'Stockage de l’image impossible (erreur du serveur).',
+  type: 'Image refused by the server: format', size: 'Image refused by the server: over 2000 px', thumb: 'Thumbnail refused',
+  meta: 'Image refused by the server: metadata', tooBig: 'Image refused by the server: too heavy', tooLong: 'Too long for this image',
+  empty: 'Add an image or words', storage: 'Storage error', display: 'Unknown size',
 };
-const submitBtn = $('#mine button[type=submit]');
+const imageErrorText = e => IMAGE_ERRORS[e instanceof ImageError ? e.code : 'eDecode'] || IMAGE_ERRORS.eDecode;
+const submitBtn = $('#mine button[type=submit]'), mineGrain = $('#mineGrain'), mineCanvas = $('#minePreview canvas');
 function refreshMine() {
   const n = textLength($('#mineText').value), max = budget();
-  $('#mineBudget').textContent = prepared ? `Cette image laisse ${max} caractères` : `Sans image : ${max} caractères`;
   $('#mineCount').textContent = `${n} / ${max}`;
-  $('#mineFileLabel').textContent = prepared ? 'Changer d’image' : 'Choisir une image';
-  $('#mineRemove').hidden = !prepared && !imageError;
+  $('#mineFileLabel').textContent = src ? 'Change' : 'Image';
+  $('#mineRemove').hidden = !src && !imageError;
+  $('#mineGrainRow').hidden = !src;
   submitBtn.disabled = sending || !!preparing;
-  submitBtn.textContent = sending ? 'Publication…' : preparing ? 'Préparation de l’image…' : 'Publier sur le mur';
+  submitBtn.textContent = sending || preparing ? '…' : 'Drop';
 }
 $('#mineText').addEventListener('input', refreshMine);
+let drawing = 0;
+mineGrain.addEventListener('input', () => {
+  $('#mineGrainOut').textContent = mineGrain.value;
+  if (!src || drawing) return;
+  drawing = requestAnimationFrame(() => { drawing = 0; if (src) drawPreview(mineCanvas, src, +mineGrain.value); });
+});
 $('#mineFile').addEventListener('change', async () => {
   const f = $('#mineFile').files[0];
-  prepared = null; imageError = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
+  src = null; imageError = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
   if (!f) { preparing = null; return refreshMine(); }
-  const job = preparing = prepareImage(f);
+  const job = preparing = decodeImage(f);
   refreshMine();
   try {
-    const p = await job;
+    const d = await job;
     if (job !== preparing) return;                      // une autre image a été choisie entre-temps
-    prepared = p;
-    $('#minePreview img').src = URL.createObjectURL(p.full);
-    $('#mineInfo').textContent = `${p.width} × ${p.height} px · métadonnées retirées`;
+    src = d;
+    drawPreview(mineCanvas, src, +mineGrain.value);
+    $('#mineInfo').textContent = `${d.width} × ${d.height}`;
     $('#minePreview').hidden = false;
   } catch (e) {
     if (job !== preparing) return;
-    console.error('[admin] préparation de l’image impossible :', e);
-    imageError = IMAGE_ERRORS[e instanceof ImageError ? e.code : 'eDecode'] || IMAGE_ERRORS.eDecode;
-    $('#mineMsg').textContent = imageError;
+    console.error('[admin] lecture de l’image impossible :', e);
+    $('#mineMsg').textContent = imageError = imageErrorText(e);
   }
   preparing = null;
   refreshMine();
 });
 $('#mineRemove').addEventListener('click', () => {
-  prepared = null; imageError = ''; preparing = null; $('#mineFile').value = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
+  src = null; imageError = ''; preparing = null; $('#mineFile').value = ''; $('#minePreview').hidden = true; $('#mineMsg').textContent = '';
   refreshMine();
 });
 $('#mine').addEventListener('submit', async e => {
   e.preventDefault();
-  if (sending || preparing) return;                     // pas de double dépôt, pas d'envoi sans l'image en cours de préparation
+  if (sending || preparing) return;                     // pas de double dépôt, pas d'envoi sans l'image en cours de lecture
   const text = $('#mineText').value.trim();
   // une image choisie mais refusée : on n'envoie PAS le texte seul en silence
-  if (imageError || ($('#mineFile').files.length && !prepared)) {
-    $('#mineMsg').textContent = `${imageError || 'L’image n’est pas prête.'} Retire-la ou choisis-en une autre.`;
-    return;
-  }
-  if (!prepared && !text) { $('#mineMsg').textContent = 'Ajoute une image, des mots, ou les deux.'; return; }
-  if (textLength(text) > budget()) { $('#mineMsg').textContent = `Trop long : ${budget()} caractères au maximum.`; return; }
-  const form = new FormData();
-  form.append('text', text); form.append('name', ''); form.append('lang', 'fr'); form.append('consent', '1');
-  if (prepared) {
-    const ext = t => (t === 'image/webp' ? 'webp' : t === 'image/png' ? 'png' : 'jpg');
-    form.append('image', prepared.full, `image.${ext(prepared.full.type)}`);
-    form.append('thumb', prepared.thumb, `thumb.${ext(prepared.thumb.type)}`);
-  }
-  sending = true; refreshMine(); $('#mineMsg').textContent = 'Publication…';
+  if (imageError || ($('#mineFile').files.length && !src)) { $('#mineMsg').textContent = imageError || 'Image not ready'; return; }
+  if (!src && !text) { $('#mineMsg').textContent = 'Add an image or words'; return; }
+  if (textLength(text) > budget()) { $('#mineMsg').textContent = `${budget()} max`; return; }
+  sending = true; refreshMine(); $('#mineMsg').textContent = '…';
   try {
+    const form = new FormData();
+    form.append('text', text); form.append('name', ''); form.append('lang', 'fr'); form.append('consent', '1');
+    form.append('size', new FormData($('#mine')).get('size') || 'm');
+    let sentImage = false;
+    if (src) {
+      let img;
+      try { img = await renderImage(src, { grain: +mineGrain.value }); }
+      catch (err) { throw new Error(`image:${imageErrorText(err)}`); }
+      const ext = t => (t === 'image/webp' ? 'webp' : t === 'image/png' ? 'png' : 'jpg');
+      form.append('image', img.full, `image.${ext(img.full.type)}`);
+      form.append('thumb', img.thumb, `thumb.${ext(img.thumb.type)}`);
+      sentImage = true;
+    }
     const r = await fetch(`${API}/functions/v1/submit`, { method: 'POST', headers: { apikey: KEY, Authorization: `Bearer ${await token()}` }, body: form });
     const out = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(out.error || 'server');
-    const sentImage = !!prepared;
-    $('#mine').reset(); prepared = null; $('#minePreview').hidden = true;
-    $('#mineMsg').textContent = sentImage && out.kind === 'text'
-      ? 'Attention : le texte est publié mais l’image n’a pas été reçue. Supprime ce dépôt (onglet Publiés) et réessaie.'
-      : out.status === 'approved' ? 'Publié sur le mur, avec ta marque.' : 'Envoyé.';
+    $('#mine').reset(); src = null; $('#minePreview').hidden = true; $('#mineGrainOut').textContent = '0';
+    $('#mineMsg').textContent = sentImage && out.kind === 'text' ? 'Text live, image NOT received — delete it (Live) and retry' : 'Live';
     refresh();
   } catch (err) {
     console.error('[admin] publication refusée :', err.message);
-    $('#mineMsg').textContent = `Échec de la publication : ${SERVER_ERRORS[err.message] || `erreur « ${err.message} »`}.`;
+    $('#mineMsg').textContent = err.message.startsWith('image:') ? err.message.slice(6) : (SERVER_ERRORS[err.message] || `Error: ${err.message}`);
   } finally {
     sending = false; refreshMine();
   }

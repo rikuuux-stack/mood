@@ -1,7 +1,8 @@
 /**
  * POST /functions/v1/submit — reçoit un dépôt (multipart/form-data).
  *
- * Champs : text, name, lang, consent=1, captcha (jeton Turnstile), image (grande), thumb (miniature).
+ * Champs : text, name, lang, size (s / m / l), consent=1, captcha (jeton Turnstile), image (grande, grain
+ * déjà appliqué par le navigateur), thumb (miniature).
  * Ordre des contrôles : d'abord ce qui ne coûte rien (formats, tailles, budget), puis le captcha,
  * puis la limite de fréquence. Rien n'est visible publiquement : le dépôt part en « pending »,
  * fichiers dans le bucket privé. Exception : si l'appelant est l'administrateur (connecté), son dépôt est publié
@@ -13,6 +14,7 @@ import { textBudget, textLength } from '../_shared/budget.js';
 
 const MAX_BYTES = 5 * 1024 * 1024, MAX_THUMB = 1024 * 1024, MAX_SIDE = 2000, THUMB_SIDE = 800;
 const PER_HOUR = 3, PER_DAY = 10;
+const SIZES = ['s', 'm', 'l'];
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 // Un fichier reçu : File ou Blob selon l'environnement (on ne se fie pas à instanceof File).
@@ -39,6 +41,7 @@ Deno.serve(async req => {
   const text = String(form.get('text') || '').trim();
   const name = String(form.get('name') || '').trim();
   const lang = ['fr', 'ja', 'en'].includes(form.get('lang')) ? form.get('lang') : null;
+  const size = form.get('size') ?? 'm';                  // taille d'affichage S / M / L (M si absente)
   const imageFile = form.get('image'), thumbFile = form.get('thumb');
   const hasImage = form.has('image');
   // Une image annoncée mais illisible ou vide est REFUSÉE (jamais ignorée en silence : ce serait
@@ -51,6 +54,7 @@ Deno.serve(async req => {
   // 1. contrôles gratuits
   if (form.get('consent') !== '1') return fail(req, 400, 'rights');
   if (textLength(name) > 40 || looksLikeLink(name)) return fail(req, 400, 'name');
+  if (!SIZES.includes(size)) return fail(req, 400, 'display');
   let full = null, thumb = null;
   if (hasImage) {
     full = await readImage(imageFile, MAX_BYTES, MAX_SIDE);
@@ -94,7 +98,7 @@ Deno.serve(async req => {
 
   // 5. enregistrement
   const { error } = await db.from('posts').insert({
-    id, kind: hasImage ? 'image' : 'text', text, name: isRiku ? '' : name, lang,
+    id, kind: hasImage ? 'image' : 'text', text, name: isRiku ? '' : name, lang, size,
     image_path, thumb_path, width: full?.width ?? null, height: full?.height ?? null,
     is_riku: isRiku, status: isRiku ? 'approved' : 'pending', approved_at: isRiku ? new Date().toISOString() : null,
     ip_hash: hash,
