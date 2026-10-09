@@ -4,12 +4,13 @@
  * clé publique (site key) de Turnstile ont le droit d'y figurer.
  */
 export const CONFIG = {
-  // 'mock' : maquette, faux contenus, aucun envoi. 'live' : branché sur Supabase.
-  mode: 'mock',
+  // 'live' : branché sur Supabase. 'mock' : maquette (mur vide, aucun envoi) — aussi avec ?mock dans l'URL.
+  mode: 'live',
 
-  supabaseUrl: '',          // ex. https://xxxx.supabase.co
-  supabaseAnonKey: '',      // clé « anon » (publique)
-  turnstileSiteKey: '',     // clé publique Turnstile
+  supabaseUrl: 'https://ovvdtthnykqvgarrjina.supabase.co',
+  // clé « anon » : PUBLIQUE par nature, protégée par les règles RLS (seule la vue « wall » est lisible)
+  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92dmR0dGhueWtxdmdhcnJqaW5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MzI4MTYsImV4cCI6MjEwNzEwODgxNn0.OV-yWqBOF0vs47Mm6994ExYS--XvitjiyNEJ9tzr1pM',
+  turnstileSiteKey: '0x4AAAAAAFSIN7Gn9I0x45WP',   // clé publique (site key) Turnstile
 
   contactEmail: 'rikuuux@gmail.com',
 

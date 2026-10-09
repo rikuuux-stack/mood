@@ -1,0 +1,23 @@
+/* Page de modération (RIKU seulement). Reprend css/site.css ; ici, seulement la mise en page propre à /admin/. */
+.adm { max-width: 720px; margin: 0 auto; padding: 8px var(--gutter) calc(48px + var(--safe-b)); }
+.adm h1 { font-weight: var(--light); font-size: 1.1rem; letter-spacing: .06em; margin: 24px 0 8px; }
+.adm-login { display: grid; gap: 12px; max-width: 360px; }
+.adm-login input { font: inherit; font-size: 16px; padding: 10px 12px; border: var(--line) solid var(--rule); background: var(--bg); color: var(--fg); border-radius: 0; }
+.adm-login input:focus { border-color: var(--fg); }
+
+.adm-tabs { display: flex; flex-wrap: wrap; gap: 4px 18px; border-bottom: var(--line) solid var(--rule); margin: 8px 0 16px; }
+.adm-tabs button { all: unset; cursor: pointer; padding: 12px 0; font-size: .9rem; color: var(--muted); }
+.adm-tabs button[aria-selected="true"] { color: var(--fg); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+.adm-tabs button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.adm-tabs span { font-family: var(--mono); font-size: .8rem; }
+
+.adm-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
+.adm-card { display: grid; gap: 8px; padding-bottom: 24px; border-bottom: var(--line) solid var(--rule); }
+.adm-card img { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; }
+.adm-card .adm-text { white-space: pre-line; font-size: 15px; }
+.adm-card .adm-meta { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
+.adm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.adm-actions .btn { min-width: 120px; }
+.adm-actions .btn.confirm { background: var(--fg); color: var(--bg); }
+.adm-empty { color: var(--muted); font-size: 13px; }
+.adm-mine { margin-top: 8px; }

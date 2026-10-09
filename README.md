@@ -2,7 +2,11 @@
 
 Site de RIKU (Félix Cardonnel) : un mur de moodboard où chacun peut déposer une image ou un court texte. Rien n'est publié sans validation de RIKU.
 
-**État actuel : maquette statique.** Le mur est vide (`js/mock.js`) et aucun envoi n'a lieu. Le branchement à Supabase (dépôts réels, modération, captcha, alerte e-mail) est l'étape suivante.
+**État : en ligne, branché sur Supabase.** Dépôts réels, modération par RIKU sur `/admin/`, captcha Turnstile, alerte e-mail (Resend, facultative).
+
+- Installation (une fois) : `docs/INSTALLATION.md`
+- Modération au quotidien : `docs/MODERATION.md`
+- Maquette sans serveur : ajouter `?mock` à l'adresse.
 
 ## Voir le site en local
 
@@ -27,6 +31,8 @@ Les modules JavaScript ne fonctionnent pas en `file://` : il faut un petit serve
 
 ```bash
 node tests/wall.test.mjs          # règles de lisibilité du mur
+node tests/server.test.mjs        # contrôles serveur (formats, métadonnées, budget)
+node tests/e2e.mjs                # contre le vrai Supabase (lancé par GitHub Actions)
 python3 tools/stamp.py --check    # empreintes de cache à jour
 ```
 

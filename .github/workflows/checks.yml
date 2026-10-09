@@ -17,3 +17,5 @@ jobs:
         run: python3 tools/stamp.py --check
       - name: Règles du mur
         run: node tests/wall.test.mjs
+      - name: Contrôles serveur (formats, métadonnées, budget)
+        run: node tests/server.test.mjs

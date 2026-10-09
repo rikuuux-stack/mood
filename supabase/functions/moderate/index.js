@@ -1,0 +1,85 @@
+/**
+ * /functions/v1/moderate — modération, réservée à RIKU (compte connecté inscrit dans « admins »).
+ *
+ *   GET                                  → { pending, hidden, published } (images en attente : liens signés 1 h)
+ *   POST { action: 'approve', id }       → fichiers déplacés du bucket privé vers le public, dépôt visible
+ *   POST { action: 'reject',  id }       → dépôt en attente supprimé (fichiers + ligne)
+ *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
+ *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
+ */
+import { cors, json, fail, service, adminId } from '../_shared/http.js';
+
+const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, is_riku, status, report_count, created_at, approved_at';
+
+async function withUrls(db, rows, bucket) {
+  const paths = rows.flatMap(r => (r.image_path ? [r.image_path, r.thumb_path] : []));
+  const signed = {};
+  if (bucket === 'pending' && paths.length) {
+    const { data } = await db.storage.from('pending').createSignedUrls(paths, 3600);
+    for (const s of data || []) signed[s.path] = s.signedUrl;
+  }
+  const pub = p => db.storage.from('published').getPublicUrl(p).data.publicUrl;
+  return rows.map(r => ({
+    ...r,
+    image_url: r.image_path ? (bucket === 'pending' ? signed[r.image_path] : pub(r.image_path)) : null,
+    thumb_url: r.thumb_path ? (bucket === 'pending' ? signed[r.thumb_path] : pub(r.thumb_path)) : null,
+  }));
+}
+
+async function moveFiles(db, row, from, to) {
+  for (const p of [row.image_path, row.thumb_path]) {
+    const { data, error } = await db.storage.from(from).download(p);
+    if (error) throw error;
+    const up = await db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true });
+    if (up.error) throw up.error;
+  }
+  await db.storage.from(from).remove([row.image_path, row.thumb_path]);
+}
+
+Deno.serve(async req => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) });
+  const db = service();
+  if (!(await adminId(req, db))) return fail(req, 401, 'admin');
+
+  if (req.method === 'GET') {
+    const q = s => db.from('posts').select(COLS).eq('status', s);
+    const [p, h, a] = await Promise.all([
+      q('pending').order('created_at', { ascending: true }),
+      q('hidden').order('created_at', { ascending: false }),
+      q('approved').order('approved_at', { ascending: false }).limit(300),
+    ]);
+    return json(req, 200, {
+      pending: await withUrls(db, p.data || [], 'pending'),
+      hidden: await withUrls(db, h.data || [], 'published'),
+      published: await withUrls(db, a.data || [], 'published'),
+    });
+  }
+  if (req.method !== 'POST') return fail(req, 405, 'method');
+
+  let body;
+  try { body = await req.json(); } catch { return fail(req, 400, 'bad'); }
+  const { action, id } = body || {};
+  const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
+  if (!row) return fail(req, 404, 'gone');
+
+  try {
+    if (action === 'approve' && row.status === 'pending') {
+      if (row.image_path) await moveFiles(db, row, 'pending', 'published');
+      await db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id);
+    } else if (action === 'reject' && row.status === 'pending') {
+      if (row.image_path) await db.storage.from('pending').remove([row.image_path, row.thumb_path]);
+      await db.from('posts').delete().eq('id', id);
+    } else if (action === 'remove' && row.status !== 'pending') {
+      if (row.image_path) await db.storage.from('published').remove([row.image_path, row.thumb_path]);
+      await db.from('posts').delete().eq('id', id);
+    } else if (action === 'restore' && row.status === 'hidden') {
+      await db.from('reports').delete().eq('post_id', id);
+      await db.from('posts').update({ status: 'approved', report_count: 0 }).eq('id', id);
+    } else {
+      return fail(req, 400, 'action');
+    }
+  } catch {
+    return fail(req, 500, 'storage');
+  }
+  return json(req, 200, { ok: true });
+});

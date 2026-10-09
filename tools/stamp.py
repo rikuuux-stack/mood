@@ -7,8 +7,8 @@ Un navigateur qui a gardé une ancienne version en cache voit une adresse NOUVEL
 fichier change, et la retélécharge. Un fichier inchangé garde son adresse (et son cache).
 
 Références traitées :
-  - index.html (et admin/*.html) : <script src>, <link href> (CSS, préchargement de police) ;
-  - js/**/*.js : import … from './x.js', export … from './x.js', import('./x.js') ;
+  - index.html et admin/*.html : <script src>, <link href> (CSS, préchargement de police) ;
+  - js/**/*.js et admin/*.js : import … from './x.js', export … from './x.js', import('./x.js') ;
   - css/*.css : url('../assets/…').
 L'empreinte d'un fichier dépend de son contenu, y compris des empreintes qu'il cite : si
 js/i18n.js change, la ligne d'import de js/main.js change, donc l'empreinte de main.js aussi,
@@ -25,6 +25,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 def sources():
     files = [ROOT / 'index.html', *sorted((ROOT / 'admin').glob('*.html'))]
     files += sorted((ROOT / 'css').glob('*.css')) + sorted((ROOT / 'js').rglob('*.js'))
+    files += sorted((ROOT / 'admin').glob('*.js')) + sorted((ROOT / 'admin').glob('*.css'))
     return [f for f in files if f.exists()]
 
 # (motif, groupe du chemin) — le groupe « v » contient l'éventuelle empreinte existante
