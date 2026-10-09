@@ -9,7 +9,7 @@ const URL_ = cfg.match(/supabaseUrl: '([^']+)'/)[1];
 const KEY = cfg.match(/supabaseAnonKey: '([^']+)'/)[1];
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 const ORIGIN = 'https://moodwall.pages.dev';
-const fx = n => new Blob([readFileSync(new URL(`./fixtures-img/${n}`, import.meta.url))], { type: n.endsWith('.webp') ? 'image/webp' : n.endsWith('.png') ? 'image/png' : 'image/jpeg' });
+const fx = n => new Blob([readFileSync(new URL(`./fixtures-img/${n}`, import.meta.url))], { type: /\.(mp4|mov)$/.test(n) ? 'video/mp4' : n.endsWith('.webp') ? 'image/webp' : n.endsWith('.png') ? 'image/png' : 'image/jpeg' });
 
 let failed = 0;
 async function t(label, fn) {
@@ -111,6 +111,22 @@ await t('image valide avec un faux captcha refusée', async () =>
   code(await submitForm({ text: 'court' }, { image: fx('tall.webp'), thumb: fx('lossy.webp'), }), 'captcha'));
 
 // --- signalement et modération
+// --- vidéos : lues de l'intérieur par le serveur, refusées avant tout enregistrement
+const vid = (v, extra = {}) => submitForm({ grain: '30', ...extra.fields }, { video: fx(v), loop: fx('h264.mp4'), poster: fx('clean.jpg'), ...extra.files });
+await t('vidéo valide : contrôles passés, refusée seulement faute de captcha', async () => code(await vid('h264.mp4'), 'captcha'));
+await t('vidéo « fragmentée » (comme l’enregistreur des navigateurs) acceptée jusqu’au captcha', async () => code(await vid('h264-frag.mp4'), 'captcha'));
+await t('vidéo avec son refusée', async () => code(await vid('h264-audio.mp4'), 'audio'));
+await t('vidéo avec coordonnées GPS refusée', async () => code(await vid('h264-gps.mov'), 'location'));
+await t('vidéo de plus de 10 s refusée', async () => code(await vid('h264-long.mp4'), 'duration'));
+await t('vidéo HEVC refusée (H.264 seulement)', async () => code(await vid('hevc.mp4'), 'video'));
+await t('vidéo 1080p refusée (720p au plus)', async () => code(await vid('h264-1080.mp4'), 'size'));
+await t('faux fichier vidéo (une image) refusé', async () => code(await vid('clean.jpg'), 'video'));
+await t('grain hors limites refusé', async () => code(await vid('h264.mp4', { fields: { grain: '150' } }), 'grain'));
+await t('image ET vidéo dans le même dépôt refusées', async () => code(await vid('h264.mp4', { files: { image: fx('clean.jpg'), thumb: fx('lossy.webp') } }), 'bad'));
+await t('la vue « wall » donne les champs vidéo', async () => {
+  const r = await req('/rest/v1/wall?select=id,kind,loop_path,duration,grain&limit=5');
+  return r.status === 200 || `HTTP ${r.status} ${r.bodyText.slice(0, 120)}`;
+});
 await t('signalement sans captcha refusé', async () => code(await req('/functions/v1/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ post_id: '00000000-0000-4000-8000-000000000000', reason: 'spam', captcha: '' }) }), 'captcha'));
 await t('modération refusée sans être connecté (401 « auth »)', async () => code(await req('/functions/v1/moderate'), 'auth'));

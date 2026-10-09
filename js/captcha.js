@@ -4,7 +4,7 @@
  * En mode maquette : une simple case à cocher, rien n'est vérifié.
  */
 import { CONFIG } from './config.js?v=1f46695844';
-import { mode } from './data.js?v=78561e8d4f';
+import { mode } from './data.js?v=373c366bb6';
 
 const widgets = new Map();            // élément → { id, token }
 let loading = null;

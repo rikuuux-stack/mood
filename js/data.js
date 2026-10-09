@@ -43,7 +43,7 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = 
     return MOCK_POSTS.slice(offset, offset + limit);
   }
   const q = new URLSearchParams({
-    select: 'id,kind,text,name,image_path,thumb_path,width,height,size,is_riku,created_at,approved_at',
+    select: 'id,kind,text,name,image_path,thumb_path,loop_path,width,height,size,duration,grain,is_riku,created_at,approved_at',
     order: 'approved_at.desc', offset: String(offset), limit: String(limit),
   });
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/wall?${q}`, { headers: headers() });
@@ -51,7 +51,11 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.pageSize } = 
   const posts = (await r.json()).map(p => ({
     id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', isAuthor: p.is_riku, size: p.size || 'm',
     createdAt: p.created_at,
-    image: p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
+    // une vidéo a aussi son image fixe (poster) dans `image` : le mur la place et l'affiche comme une photo
+    image: p.kind === 'video' ? { src: publicUrl(p.thumb_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height }
+      : p.image_path ? { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height } : null,
+    video: p.kind === 'video' ? { src: publicUrl(p.image_path), loop: publicUrl(p.loop_path), duration: p.duration } : null,
+    grain: p.grain || 0,
   }));
   if (offset === 0) savePosts(posts);
   return posts;
@@ -66,8 +70,11 @@ async function call(fn, init) {
   return out;
 }
 
-/** Envoie un dépôt : { text, name, lang, size: 's'|'m'|'l', image: { full, thumb } | null, captcha }. */
-export async function submitPost({ text, name, lang, size = 'm', image, captcha }) {
+/**
+ * Envoie un dépôt : { text, name, lang, size: 's'|'m'|'l', captcha } et au choix
+ * image: { full, thumb } ou video: { full, loop, poster } + grain (0–100, vidéo seulement).
+ */
+export async function submitPost({ text, name, lang, size = 'm', image, video, grain = 0, captcha }) {
   if (mode === 'mock') { await wait(600); return { ok: true }; }
   const form = new FormData();
   form.append('text', text);
@@ -80,6 +87,13 @@ export async function submitPost({ text, name, lang, size = 'm', image, captcha 
     const ext = t => (t === 'image/webp' ? 'webp' : t === 'image/png' ? 'png' : 'jpg');
     form.append('image', image.full, `image.${ext(image.full.type)}`);
     form.append('thumb', image.thumb, `thumb.${ext(image.thumb.type)}`);
+  }
+  if (video) {
+    const ext = t => (t === 'image/webp' ? 'webp' : 'jpg');
+    form.append('video', video.full, 'video.mp4');
+    form.append('loop', video.loop, 'loop.mp4');
+    form.append('poster', video.poster, `poster.${ext(video.poster.type)}`);
+    form.append('grain', String(grain));
   }
   return call('submit', { method: 'POST', headers: headers(), body: form });
 }

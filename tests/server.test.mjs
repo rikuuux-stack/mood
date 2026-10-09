@@ -4,6 +4,7 @@ import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../supabase/f
 import { textBudget as serverBudget } from '../supabase/functions/_shared/budget.js';
 import { textBudget as siteBudget } from '../js/budget.js';
 import { stripMetadata } from '../js/image.js';
+import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -36,6 +37,26 @@ for (const n of ['exif.jpg', 'text.png', 'exif.webp', 'clean.jpg', 'lossy.webp']
   check(`${n} nettoyé : sans métadonnées, même format et mêmes dimensions`,
     [hasMetadata(out), sniffType(out), dimensions(out)], [false, sniffType(f(n)), { width: 37, height: 23 }]);
 }
+
+// vidéos : lues de l'intérieur (format réel, son, GPS, taille, durée), MP4 « fragmentés » compris
+const FULL = { maxSide: 1280, maxShort: 720, maxDuration: 10.5 };
+for (const [n, want, extra] of [
+  ['h264.mp4', '', { codec: 'avc1', width: 320, height: 180, duration: 2 }],
+  ['h264-frag.mp4', '', { codec: 'avc1', duration: 2 }],                 // comme l'enregistreur des navigateurs
+  ['h264-audio.mp4', 'audio', { hasAudio: true }],
+  ['h264-gps.mov', 'location', { hasLocation: true }],
+  ['h264-long.mp4', 'duration', { duration: 12 }],
+  ['hevc.mp4', 'video', { codec: 'hvc1' }],
+  ['vp9.mp4', 'video', { codec: 'vp09' }],
+  ['h264-1080.mp4', 'size', { width: 1920, height: 1080 }],
+  ['clean.jpg', 'video', null],
+]) {
+  const info = inspectMp4(f(n));
+  const got = extra ? Object.fromEntries(Object.keys(extra).map(k => [k, info?.[k]])) : info;
+  check(`${n} : lecture ${JSON.stringify(extra)} → contrôle « ${want || 'OK'} »`, [got, checkVideo(info, FULL)], [extra, want]);
+}
+check('js/mp4.js est une copie exacte de _shared/mp4.js',
+  readFileSync(new URL('../js/mp4.js', import.meta.url), 'utf8') === readFileSync(new URL('../supabase/functions/_shared/mp4.js', import.meta.url), 'utf8'), true);
 
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);

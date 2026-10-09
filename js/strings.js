@@ -10,7 +10,8 @@ const UI = {
   rRights: 'Rights', rOffensive: 'Offensive', rPersonal: 'Private', rSpam: 'Spam', rOther: 'Other',
   anon: 'Anon',
   chooseImage: 'Image', changeImage: 'Change', removeImage: 'Remove',
-  imageHint: 'JPEG · PNG · WebP · 5 MB',
+  imageHint: 'JPEG · PNG · WebP · 5 MB — MP4 · MOV · 10 s',
+  start: 'Start',
   processed: '{w} × {h}',
   size: 'Size', grain: 'Grain',
   textPlaceholder: 'Words', nameLabel: 'Name', count: '{n} / {max}',
@@ -34,6 +35,7 @@ export const STRINGS = {
     textBy: 'Texte déposé par {name}',
     reportTitle: 'Signaler ce contenu',
     mentions: 'Les dépôts sont modérés : rien n’est publié sans validation. En déposant, vous confirmez détenir les droits sur ce que vous publiez. Pour demander un retrait : {email}.',
+    videoBy: 'Vidéo déposée par {name}',
     // erreurs : traduites, courtes
     eTooBig: 'Trop lourd · 5 Mo max',
     eTooBigSrv: 'Trop lourd · 5 Mo max',
@@ -49,6 +51,11 @@ export const STRINGS = {
     eGone: 'Retiré',
     eNetwork: 'Hors ligne',
     eServer: 'Erreur',
+    eVideoUnsupported: 'Vidéo impossible sur ce navigateur',
+    eVideoDecode: 'Vidéo illisible',
+    eVideoTooBig: 'Vidéo trop lourde',
+    eVideo: 'Vidéo refusée',
+    eFull: 'Plus de place pour les vidéos',
   },
   ja: {
     ...UI,
@@ -61,6 +68,7 @@ export const STRINGS = {
     textBy: '{name}さんが投稿したテキスト',
     reportTitle: 'この投稿を報告',
     mentions: '投稿はすべて確認後に掲載されます。投稿することで、その内容の権利を持っていることを確認したものとみなします。削除のご依頼：{email}',
+    videoBy: '{name}さんが投稿した動画',
     // erreurs : traduites, courtes
     eTooBig: '重すぎます · 5MBまで',
     eTooBigSrv: '重すぎます · 5MBまで',
@@ -76,6 +84,11 @@ export const STRINGS = {
     eGone: '削除済み',
     eNetwork: 'オフライン',
     eServer: 'エラー',
+    eVideoUnsupported: 'このブラウザでは動画を扱えません',
+    eVideoDecode: '動画を読み込めません',
+    eVideoTooBig: '動画が重すぎます',
+    eVideo: '動画は受け付けられません',
+    eFull: '動画の保存容量がいっぱいです',
   },
   en: {
     ...UI,
@@ -88,6 +101,7 @@ export const STRINGS = {
     textBy: 'Text shared by {name}',
     reportTitle: 'Report this post',
     mentions: 'Posts are moderated: nothing is published without approval. By posting, you confirm you own the rights to what you share. To request removal: {email}.',
+    videoBy: 'Video shared by {name}',
     // erreurs : traduites, courtes
     eTooBig: 'Too heavy · 5 MB max',
     eTooBigSrv: 'Too heavy · 5 MB max',
@@ -103,5 +117,10 @@ export const STRINGS = {
     eGone: 'Gone',
     eNetwork: 'Offline',
     eServer: 'Error — retry',
+    eVideoUnsupported: 'Video not possible in this browser',
+    eVideoDecode: 'Unreadable video',
+    eVideoTooBig: 'Video too heavy',
+    eVideo: 'Video refused',
+    eFull: 'No more room for videos',
   },
 };

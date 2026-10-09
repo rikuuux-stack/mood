@@ -55,7 +55,7 @@ function canvasOf(src, w, h) {
 const fit = (w, h, side) => { const s = Math.min(1, side / Math.max(w, h)); return [Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))]; };
 
 /** WebP (ou JPEG pour Safari), métadonnées retirées ; qualité baissée si le fichier dépasse la limite. */
-async function encode(c) {
+export async function encode(c) {
   let blob = null;
   for (const q of [0.86, 0.75, 0.62]) {
     blob = await toBlob(c, 'image/webp', q);

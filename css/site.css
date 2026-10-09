@@ -112,8 +112,32 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .photo::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay; opacity: .55;
+  mix-blend-mode: overlay; opacity: .55; z-index: 3;
 }
+
+/* vidéos : l'image fixe (traitée comme une photo) d'abord ; la boîte vidéo (.vbox) apparaît par-dessus dès que
+   la vidéo joue. Le traitement N&B est posé sur la boîte entière (vidéo + grain), comme pour une photo dont
+   le grain est dans les pixels. Même courbe que le filtre #tone des photos, approchée sans filtre SVG (trop
+   lourd sur une vidéo pour l'iPhone) : niveaux de gris + plafond des hautes lumières (.vbox::after) + luminosité 0,9. */
+.vbox {
+  position: absolute; inset: 0; display: block; isolation: isolate;
+  filter: grayscale(1) brightness(.9); opacity: 0; transition: opacity .4s ease;
+}
+.vbox video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.vbox::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: #d7d7d7; mix-blend-mode: darken; }
+.photo.is-video.is-playing .vbox { opacity: 1; }
+.viewer-body .vbox:has(video[controls]), .preview .vbox { position: relative; opacity: 1; }
+.viewer-body .vbox video[controls], .preview .vbox video { position: static; width: auto; height: auto; max-width: 100%; max-height: 36dvh; }
+.viewer-body .vbox video[controls] { max-height: none; }
+/* grain des vidéos, appliqué à l'affichage (js/grain.js) : pixel + bruit, comme pour une image */
+.vgrain { position: absolute; inset: 0; z-index: 2; pointer-events: none; background-repeat: repeat; animation: vgrain .5s steps(1) infinite; }
+.vgrain--plus { mix-blend-mode: plus-lighter; }
+.vgrain--minus { mix-blend-mode: difference; }
+@keyframes vgrain {
+  0% { background-position: 0 0; } 20% { background-position: -37% 21%; } 40% { background-position: 53% -11%; }
+  60% { background-position: -19% -47%; } 80% { background-position: 29% 61%; }
+}
+@media (prefers-reduced-motion: reduce) { .vgrain { animation: none; } .vbox { transition: none; } }
 
 /* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
 .sticker {
@@ -215,16 +239,16 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .sizes span { display: grid; place-items: center; width: 40px; height: 40px; border: var(--line) solid var(--rule); font: var(--light) 13px var(--mono); cursor: pointer; }
 .sizes input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .sizes input:focus-visible + span { outline: 2px solid var(--fg); outline-offset: 2px; }
-/* grain : curseur à filet fin, gris uniquement */
-.grain { display: grid; grid-template-columns: auto 1fr 2.5em; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
-.grain[hidden] { display: none; }
-.grain output { font-family: var(--mono); text-align: right; color: var(--fg); }
-.grain input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; background: transparent; margin: 0; }
-.grain input::-webkit-slider-runnable-track { height: 1px; background: var(--muted); }
-.grain input::-moz-range-track { height: 1px; background: var(--muted); }
-.grain input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -9px; border-radius: 0; background: var(--fg); border: 0; }
-.grain input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 0; background: var(--fg); border: 0; }
-.grain input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+/* curseurs (grain, début de l'extrait vidéo) : filet fin, gris uniquement */
+.slider { display: grid; grid-template-columns: auto 1fr 3.4em; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
+.slider[hidden] { display: none; }
+.slider output { font-family: var(--mono); text-align: right; color: var(--fg); }
+.slider input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; background: transparent; margin: 0; }
+.slider input::-webkit-slider-runnable-track { height: 1px; background: var(--muted); }
+.slider input::-moz-range-track { height: 1px; background: var(--muted); }
+.slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -9px; border-radius: 0; background: var(--fg); border: 0; }
+.slider input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 0; background: var(--fg); border: 0; }
+.slider input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .preview figcaption { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin-top: 6px; }
 .captcha-mock { font-size: 13px; }
 .form-msg { margin: 0; min-height: 1.5em; font-size: 13px; }

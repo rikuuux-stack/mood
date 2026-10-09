@@ -5,11 +5,12 @@
 #   - le site lui-même ;
 #   - Supabase (données, photos publiées, liens signés de l'admin) ;
 #   - Cloudflare Turnstile (script + cadre du captcha) ;
-#   - blob: / data: pour l'aperçu des images et le grain du fond (SVG en data URI).
+#   - blob: / data: pour l'aperçu des images et des vidéos, et le grain (SVG / PNG en data URI) ;
+#   - media-src : les vidéos publiées (Supabase) et l'aperçu de la vidéo choisie (blob:).
 # Après un changement de fournisseur ou d'adresse Supabase, mettre à jour cette ligne.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://ovvdtthnykqvgarrjina.supabase.co; img-src 'self' blob: data: https://ovvdtthnykqvgarrjina.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://ovvdtthnykqvgarrjina.supabase.co; img-src 'self' blob: data: https://ovvdtthnykqvgarrjina.supabase.co; media-src 'self' blob: https://ovvdtthnykqvgarrjina.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

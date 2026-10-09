@@ -12,11 +12,12 @@
  */
 import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
 
-const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_riku, status, report_count, created_at, approved_at';
+const COLS = 'id, kind, text, name, image_path, thumb_path, loop_path, width, height, size, duration, grain, is_riku, status, report_count, created_at, approved_at';
+const filesOf = r => [r.image_path, r.thumb_path, r.loop_path].filter(Boolean);   // image : 2 fichiers ; vidéo : 3
 const SIZES = ['s', 'm', 'l'];
 
 async function withUrls(db, rows, bucket) {
-  const paths = rows.flatMap(r => (r.image_path ? [r.image_path, r.thumb_path] : []));
+  const paths = rows.flatMap(filesOf);
   const signed = {};
   if (bucket === 'pending' && paths.length) {
     const { data } = await db.storage.from('pending').createSignedUrls(paths, 3600);
@@ -27,17 +28,18 @@ async function withUrls(db, rows, bucket) {
     ...r,
     image_url: r.image_path ? (bucket === 'pending' ? signed[r.image_path] : pub(r.image_path)) : null,
     thumb_url: r.thumb_path ? (bucket === 'pending' ? signed[r.thumb_path] : pub(r.thumb_path)) : null,
+    loop_url: r.loop_path ? (bucket === 'pending' ? signed[r.loop_path] : pub(r.loop_path)) : null,
   }));
 }
 
 async function moveFiles(db, row, from, to) {
-  for (const p of [row.image_path, row.thumb_path]) {
+  for (const p of filesOf(row)) {
     const { data, error } = await db.storage.from(from).download(p);
     if (error) throw error;
     const up = await db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE });
     if (up.error) throw up.error;
   }
-  await db.storage.from(from).remove([row.image_path, row.thumb_path]);
+  await db.storage.from(from).remove(filesOf(row));
 }
 
 Deno.serve(async req => {
@@ -65,7 +67,9 @@ Deno.serve(async req => {
       q('hidden').order('created_at', { ascending: false }),
       q('approved').order('approved_at', { ascending: false }).limit(300),
     ]);
+    const used = await db.rpc('storage_used');             // jauge de stockage (plafond des vidéos : 800 Mo)
     return json(req, 200, {
+      storage: { used: Number(used.data) || 0, cap: 800 * 1024 * 1024 },
       pending: await withUrls(db, p.data || [], 'pending'),
       hidden: await withUrls(db, h.data || [], 'published'),
       published: await withUrls(db, a.data || [], 'published'),
@@ -84,10 +88,10 @@ Deno.serve(async req => {
       if (row.image_path) await moveFiles(db, row, 'pending', 'published');
       await db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id);
     } else if (action === 'reject' && row.status === 'pending') {
-      if (row.image_path) await db.storage.from('pending').remove([row.image_path, row.thumb_path]);
+      if (row.image_path) await db.storage.from('pending').remove(filesOf(row));
       await db.from('posts').delete().eq('id', id);
     } else if (action === 'remove' && row.status !== 'pending') {
-      if (row.image_path) await db.storage.from('published').remove([row.image_path, row.thumb_path]);
+      if (row.image_path) await db.storage.from('published').remove(filesOf(row));
       await db.from('posts').delete().eq('id', id);
     } else if (action === 'resize' && SIZES.includes(size)) {
       const { error } = await db.from('posts').update({ size }).eq('id', id);

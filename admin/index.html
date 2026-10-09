@@ -7,8 +7,8 @@
 <title>Mood — admin</title>
 <meta name="theme-color" content="#0b0b0b">
 <link rel="stylesheet" href="../css/fonts.css?v=af3ebca491">
-<link rel="stylesheet" href="../css/site.css?v=ba5a13fde1">
-<link rel="stylesheet" href="admin.css?v=ffa5709076">
+<link rel="stylesheet" href="../css/site.css?v=734132e0ae">
+<link rel="stylesheet" href="admin.css?v=41e42d78b2">
 </head>
 <body>
 <header class="bar">
@@ -35,16 +35,18 @@
       <button type="button" role="tab" data-tab="mine" aria-selected="false">Drop</button>
     </nav>
     <p class="form-msg" id="dashMsg" role="status"></p>
+    <p class="adm-storage" id="storage"></p>
     <ol id="cards" class="adm-cards"></ol>
 
     <!-- Dépôt direct de l'auteur du site : publié tout de suite, avec la marque -->
     <form id="mine" class="drop-form adm-mine" hidden>
       <div class="file-row">
-        <label class="file"><input type="file" id="mineFile" accept="image/jpeg,image/png,image/webp"><span class="btn" id="mineFileLabel">Image</span></label>
+        <label class="file"><input type="file" id="mineFile" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov,.mp4"><span class="btn" id="mineFileLabel">Image / video</span></label>
         <button type="button" class="link" id="mineRemove" hidden>Remove</button>
       </div>
-      <figure class="preview" id="minePreview" hidden><canvas aria-hidden="true"></canvas><figcaption id="mineInfo"></figcaption></figure>
-      <label class="grain" id="mineGrainRow" hidden><span>Grain</span><input type="range" id="mineGrain" min="0" max="100" step="1" value="0"><output id="mineGrainOut" for="mineGrain">0</output></label>
+      <figure class="preview" id="minePreview" hidden><canvas aria-hidden="true"></canvas><span class="adm-video" id="mineVideo" hidden></span><figcaption id="mineInfo"></figcaption></figure>
+      <label class="slider" id="mineStartRow" hidden><span>Start</span><input type="range" id="mineStart" min="0" max="0" step="0.1" value="0"><output id="mineStartOut" for="mineStart">0 s</output></label>
+      <label class="slider grain" id="mineGrainRow" hidden><span>Grain</span><input type="range" id="mineGrain" min="0" max="100" step="1" value="0"><output id="mineGrainOut" for="mineGrain">0</output></label>
       <textarea id="mineText" rows="4" placeholder="Words" aria-label="Words"></textarea>
       <p class="hint count"><span id="mineCount"></span></p>
       <fieldset class="sizes"><legend>Size</legend>
@@ -58,6 +60,6 @@
   </section>
 </main>
 
-<script type="module" src="admin.js?v=8358471646"></script>
+<script type="module" src="admin.js?v=dd1dd1744e"></script>
 </body>
 </html>

@@ -22,6 +22,9 @@ La page est en anglais, avec des mots très courts (choix validé).
 **Taille d'affichage** : sous chaque dépôt, trois cases **S / M / L** (la taille choisie par le visiteur est pleine).
 Un toucher la change aussitôt, avant ou après validation.
 
+**Vidéos** : elles se lisent directement dans la carte (bouton lecture), en couleur, avec le grain tel qu'il s'affichera sur le mur ; la ligne grise indique leur durée et leur grain.
+**Stockage** : en haut, `Storage … / 800 MB`. Au-delà de 800 Mo (l'offre gratuite en permet 1 Go), le site refuse automatiquement les nouvelles vidéos ; supprimer d'anciens dépôts libère de la place.
+
 Les photos s'affichent ici **en couleur et telles qu'envoyées**, pour que tu juges le vrai contenu.
 Sur le mur, elles passent en noir et blanc avec du grain.
 Le **grain choisi par le visiteur** (curseur au dépôt) est déjà dans l'image : tu vois l'image finale.

@@ -27,3 +27,12 @@
 .adm-sizes button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .adm-sizes button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .adm-sizes button:disabled { opacity: .5; }
+/* vidéos : lues en couleur, commandes natives ; grain tel qu'il s'affichera sur le mur (js/grain.js) */
+.adm-video { position: relative; display: inline-block; max-width: 100%; }
+.adm-video video { display: block; max-width: 100%; max-height: 60dvh; }
+/* l'admin voit les vidéos en couleur : pas de traitement N&B, seulement le grain */
+.adm-video .vbox { position: relative; opacity: 1; filter: none; }
+.adm-video .vbox::after { display: none; }
+.adm-video .vbox video { position: static; width: auto; height: auto; }
+.adm-video[hidden] { display: none; }
+.adm-storage { margin: 0 0 8px; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
