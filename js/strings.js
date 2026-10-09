@@ -34,7 +34,7 @@ export const STRINGS = {
     eRights: 'Cochez la case sur les droits.', eCaptcha: 'Validez la vérification anti-robot.',
     mentions: 'Les dépôts sont modérés : rien n’est publié sans validation. En déposant, vous confirmez détenir les droits sur ce que vous publiez. Pour demander un retrait : {email}.',
     aboutBody: 'RIKU, c’est Félix Cardonnel : artiste visuel franco-japonais, image, montage et direction artistique, entre le Japon et la France. Ce mur est un moodboard ouvert : chacun peut y déposer une image ou un texte qui l’inspire.',
-    stampLegend: 'Le carré vermillon signale mes propres dépôts.',
+    stampLegend: 'Le petit carré noir signale mes propres dépôts.',
   },
   ja: {
     moderated: '投稿は承認制です。',
@@ -70,7 +70,7 @@ export const STRINGS = {
     eRights: '権利についてのチェックを入れてください。', eCaptcha: 'ボット対策の確認を完了してください。',
     mentions: '投稿はすべて確認後に掲載されます。投稿することで、その内容の権利を持っていることを確認したものとみなします。削除のご依頼：{email}',
     aboutBody: 'RIKU（フェリックス・カルドネル）は日仏にルーツを持つビジュアルアーティスト。映像、編集、アートディレクションを日本とフランスで手がけています。このウォールは開かれたムードボード。インスピレーションを受けた画像やテキストをだれでも投稿できます。',
-    stampLegend: '朱色の四角は、私自身の投稿の印です。',
+    stampLegend: '小さな黒い四角は、私自身の投稿の印です。',
   },
   en: {
     moderated: 'Posts are moderated.',
@@ -106,6 +106,6 @@ export const STRINGS = {
     eRights: 'Please tick the rights box.', eCaptcha: 'Please complete the anti-bot check.',
     mentions: 'Posts are moderated: nothing is published without approval. By posting, you confirm you own the rights to what you share. To request removal: {email}.',
     aboutBody: 'RIKU is Félix Cardonnel, a French-Japanese visual artist working in image, editing and art direction between Japan and France. This wall is an open moodboard: anyone can share an image or a text that inspires them.',
-    stampLegend: 'The vermilion square marks my own posts.',
+    stampLegend: 'The small black square marks my own posts.',
   },
 };

@@ -9,11 +9,11 @@ for (const [W, mobile, limit] of [[1366,false,.3],[1920,false,.3],[1024,false,.3
   const t0=performance.now(); const L = layout(boxes, W, {limit, pad: mobile?16:24, mobile}); const ms=performance.now()-t0;
   const cov = coverage(L.rects);
   const textCovered = cov.filter((c,i)=>boxes[i].kind==='text' && c>0).length;
-  const textText = L.overlaps.filter(([a,b])=>boxes[a].kind==='text'&&boxes[b].kind==='text').length;
+  const textText = L.overlaps.filter(([a,b])=>boxes[a].kind==='text'||boxes[b].kind==='text').length;   // un texte ne touche rien
   const maxImg = Math.max(...cov.filter((c,i)=>boxes[i].kind==='image'));
   const outside = L.rects.filter(r=>r.x<0||r.x+r.w>W).length;
   const ok = textCovered===0 && textText===0 && maxImg<=limit+1e-9 && outside===0;
   if (!ok) fail++;
-  console.log(ok?'OK ':'ÉCHEC', {W, ms:Math.round(ms), maxImageCouverte:maxImg.toFixed(3), textesRecouverts:textCovered, texteSurTexte:textText, imagesChevauchées: cov.filter((c,i)=>boxes[i].kind==='image'&&c>0.01).length, parÉcran:(150/(L.height/(mobile?700:800))).toFixed(1)});
+  console.log(ok?'OK ':'ÉCHEC', {W, ms:Math.round(ms), maxImageCouverte:maxImg.toFixed(3), textesRecouverts:textCovered, chevauchementsAvecTexte:textText, imagesChevauchées: cov.filter((c,i)=>boxes[i].kind==='image'&&c>0.01).length, parÉcran:(150/(L.height/(mobile?700:800))).toFixed(1)});
 }
 process.exit(fail);

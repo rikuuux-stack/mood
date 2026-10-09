@@ -1,13 +1,12 @@
 /* RIKU — moodboard ouvert. Direction « Mur brut ».
-   Règle de couleur : le vermillon est RÉSERVÉ à deux usages, la marque de RIKU (tampon)
-   et le bouton Déposer. Tout le reste de l'interface est en noir, blanc et gris. */
+   Règle de couleur : UNIQUEMENT des gris neutres, du noir au blanc. Aucune teinte.
+   Toutes les photos déposées sont affichées en noir et blanc avec du grain (.photo). */
 :root {
-  --concrete: #9b9a96;      /* béton plat ; texte noir dessus : contraste ≈ 7,4:1 */
+  --concrete: #a7a7a7;      /* béton plat, gris neutre ; texte noir dessus : contraste ≈ 7,9:1 */
   --ink: #111111;
-  --paper: #f4f3ef;
-  --muted-dark: #c9c8c3;    /* texte secondaire sur fond noir */
-  --muted-light: #3d3c3a;   /* texte secondaire sur fond papier */
-  --verm: #d33a1d;          /* 朱 — tampon RIKU + bouton Déposer uniquement ; blanc dessus ≈ 4,7:1 */
+  --paper: #f2f2f2;
+  --muted-light: #3d3d3d;   /* texte secondaire sur fond clair */
+  --photo-bg: #7d7d7d;      /* fond d'une photo pendant son chargement */
   /* traits très fins partout : IBM Plex Sans JP ExtraLight (200), Thin (100) pour « RIKU ».
      Repli : Hiragino Sans (iPhone/Mac) existe aussi en graisses fines. */
   --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
@@ -36,7 +35,7 @@ body {
   overflow-wrap: anywhere;
 }
 button, input, textarea { font: inherit; color: inherit; }
-/* japonais : chasse proportionnelle (palt), plus serrée et plus lisible en titre comme en sticker */
+/* japonais : chasse proportionnelle (palt), plus serrée et plus lisible */
 :lang(ja) { font-feature-settings: 'palt' 1; letter-spacing: .02em; }
 button { cursor: pointer; }
 a { color: inherit; }
@@ -57,7 +56,7 @@ a { color: inherit; }
 }
 .bar { justify-content: space-between; }
 .id { all: unset; cursor: pointer; font-weight: 100; font-size: 1.9rem; letter-spacing: .32em; line-height: 1; padding: 6px 0; }
-.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 18px 0; padding-block: 10px; border-block: 1px solid rgba(17,17,17,.15); }
+.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 18px 0; padding-block: 10px; border-block: 1px solid rgba(17,17,17,.2); }
 .langs { display: flex; gap: 14px; }
 .link { all: unset; cursor: pointer; font-size: .9rem; padding: 10px 0; line-height: 1; }
 .link:hover { text-decoration: underline; text-underline-offset: 4px; }
@@ -66,10 +65,10 @@ a { color: inherit; }
 .link:focus-visible, .id:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; box-shadow: none; }
 
 .btn-drop {
-  border: 0; background: var(--verm); color: #fff; font-weight: var(--light); font-size: 1rem; letter-spacing: .08em;
+  border: 0; background: var(--ink); color: var(--paper); font-weight: var(--light); font-size: 1rem; letter-spacing: .08em;
   padding: 10px 16px; min-height: 44px;
 }
-.btn-drop:hover { filter: brightness(1.08); }
+.btn-drop:hover { background: #2b2b2b; }
 .btn-drop:disabled { opacity: .6; cursor: progress; }
 .btn-drop--wide { width: 100%; margin-top: 4px; }
 
@@ -90,45 +89,50 @@ a { color: inherit; }
 
 /* ------------------------------------------------------------------ mur */
 .wall { position: relative; list-style: none; margin: 0; padding: 0; }
-.item {
-  position: absolute;
-  transform: rotate(var(--rot, 0deg));
-  transition: transform .18s ease;
-  box-shadow: 0 6px 16px -10px rgba(0,0,0,.5);
-}
-.item:hover, .item:focus-within { transform: rotate(0deg) scale(1.015); }
+.item { position: absolute; }
 .item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
 .item-hit:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; box-shadow: 0 0 0 7px var(--paper); }
-.item--image img { display: block; width: 100%; height: 100%; object-fit: cover; background: #7d7c78; }
+.item--image .photo, .item--image img { width: 100%; height: 100%; }
+.item--image img { object-fit: cover; }
 
-/* stickers : fort contraste, taille minimale 16 px (fixée par js/wall.js, jamais réduite) */
+/* photos : noir et blanc + grain, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
+   Appliqué à l'affichage : les fichiers restent intacts, le traitement est le même pour tous. */
+.photo { position: relative; display: block; overflow: hidden; background: var(--photo-bg); }
+.photo img { display: block; filter: grayscale(1) contrast(1.12); }
+.photo::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: .55;
+}
+
+/* textes : posés directement sur le béton, sans cadre ni fond ; jamais superposés à quoi que ce soit */
 .sticker {
   display: block; height: 100%;
-  padding: 14px 16px 16px;
-  background: var(--paper); color: var(--ink);
+  padding: 6px 2px 10px;
+  color: var(--ink);
   font-weight: var(--light); font-size: max(16px, var(--fs, 18px)); line-height: 1.5;
   text-align: start;
 }
-.sticker--dark { background: var(--ink); color: var(--paper); }
 .sticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 9; overflow: hidden; white-space: pre-line; }
 .sticker-by { display: block; margin-top: .55em; font: var(--light) max(14px, .78em)/1.4 var(--mono); opacity: .85; }
 
-/* tampon RIKU : petit carré vermillon, sans texte */
+/* marque de RIKU : petit carré noir façon tampon, sans texte */
 .stamp {
   position: absolute; top: -7px; right: -7px; z-index: 1;
-  width: 18px; height: 18px; background-color: var(--verm);
-  background-image: radial-gradient(rgba(255,255,255,.22) .8px, transparent 1.1px);
+  width: 16px; height: 16px; background-color: var(--ink);
+  background-image: radial-gradient(rgba(255,255,255,.18) .8px, transparent 1.1px);
   background-size: 3px 3px;
-  box-shadow: inset 0 0 0 2px var(--verm), inset 0 0 0 3px rgba(255,255,255,.35);
-  transform: rotate(-6deg);
+  box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 3px rgba(255,255,255,.3);
 }
-@media (max-width: 639px) { .stamp { width: 16px; height: 16px; top: -6px; right: -6px; } }
-.stamp.stamp--inline { position: relative; top: 0; right: 0; display: inline-block; width: 13px; height: 13px; vertical-align: -1px; }
+@media (max-width: 639px) { .stamp { width: 14px; height: 14px; top: -6px; right: -6px; } }
+.stamp.stamp--inline { position: relative; top: 0; right: 0; display: inline-block; width: 12px; height: 12px; vertical-align: -1px; }
+.item--text .stamp { top: -4px; left: 2px; right: auto; width: 12px; height: 12px; }
+.item--text.is-riku .sticker { padding-top: 16px; }
 
 /* ------------------------------------------------------------------ liste */
 .list { list-style: none; max-width: 680px; margin: 0 auto; padding: 12px var(--gutter) 24px; display: grid; gap: 32px; }
 .row .item-hit { display: block; height: auto; }
-.row img { display: block; width: 100%; height: auto; }
+.row .photo img { width: 100%; height: auto; }
 .row .sticker { height: auto; font-size: max(16px, 1.15rem); }
 .row .sticker-text { -webkit-line-clamp: unset; display: block; }
 .row-meta { margin: 8px 0 0; font: var(--light) .85rem/1.5 var(--mono); }
@@ -148,7 +152,8 @@ a { color: inherit; }
 #aboutTitle { font-weight: 100; letter-spacing: .32em; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .viewer-meta { margin: 0; font: var(--light) .9rem/1.5 var(--mono); }
-.viewer-body img { display: block; max-width: 100%; max-height: 72dvh; width: auto; height: auto; margin: 0 auto; }
+.viewer-body .photo { display: table; margin: 0 auto; }
+.viewer-body img { max-width: 100%; max-height: 72dvh; width: auto; height: auto; }
 .viewer-body .sticker { font-size: clamp(18px, 2.6vw, 26px); }
 .viewer-body .sticker-text { -webkit-line-clamp: unset; display: block; }
 
@@ -180,11 +185,11 @@ a { color: inherit; }
 .hint { margin: 0; font-size: .85rem; color: var(--muted-light); }
 .count { text-align: end; font-family: var(--mono); }
 .preview { margin: 0; }
-.preview img { display: block; max-width: 100%; max-height: 40dvh; width: auto; }
+.preview .photo { display: inline-block; }
+.preview img { max-width: 100%; max-height: 40dvh; width: auto; }
 .preview figcaption { font: var(--light) .85rem/1.5 var(--mono); margin-top: 6px; }
 .captcha-mock { font-size: .9rem; }
 .about-role { font-size: 1.05rem; margin-top: 0; }
 .form-msg { margin: 0; min-height: 1.5em; }
 .mail { font-size: 1.15rem; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 
-@media (prefers-reduced-motion: reduce) { .item { transition: none; } .item:hover, .item:focus-within { transform: rotate(var(--rot, 0deg)); } }

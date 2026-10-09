@@ -2,8 +2,8 @@
  * MUR — composition libre, mais lisible.
  *
  * Règles :
- *   - les textes (stickers) passent toujours au-dessus des images et ne sont JAMAIS recouverts :
- *     deux textes ne se chevauchent pas ;
+ *   - les textes sont posés à nu sur le béton : ils ne chevauchent RIEN (ni image, ni texte) ;
+ *   - pas d'inclinaison : tout est droit (direction brutaliste) ;
  *   - une image n'est jamais recouverte à plus de `limit` (30 % sur ordinateur, 15 % sur mobile) :
  *     on additionne la surface que lui prennent tous les éléments posés au-dessus d'elle ;
  *   - placement stable : tout dépend de l'identifiant du dépôt (graine) et de la largeur du mur ;
@@ -53,7 +53,7 @@ export const zOf = (box, i, n) => i + 1 + (box.kind === 'text' ? n : 0);
 
 /**
  * boxes : [{ id, kind, w, h }] dans l'ordre d'affichage (le plus récent d'abord).
- * Retourne { rects: [{ x, y, w, h, rot, z }], height, overlaps: [[i, j], …] }.
+ * Retourne { rects: [{ x, y, w, h, z }], height, overlaps: [[i, j], …] }.
  */
 export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false } = {}) {
   const inner = W - 2 * pad;
@@ -84,7 +84,7 @@ export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false } = {})
         for (const p of cols) {
           const a = inter(cand, p);
           if (!a) continue;
-          if (b.kind === 'text' && p.kind === 'text') { ok = false; break; }   // jamais texte sur texte
+          if (b.kind === 'text' || p.kind === 'text') { ok = false; break; }   // un texte ne touche rien
           // l'élément du dessous est l'image (un texte est toujours au-dessus) ; entre images, l'ancienne
           const meBelow = b.kind === 'image' && p.kind === 'text';
           if (meBelow) { mine += a; if (mine > area * limit) { ok = false; break; } }
@@ -103,11 +103,7 @@ export function layout(boxes, W, { limit = 0.3, pad = 24, mobile = false } = {})
     placed.push(rect);
   });
 
-  const rects = placed.map((p, i) => {
-    const r = rng(boxes[i].id + ':rot');
-    const amp = boxes[i].kind === 'text' ? 2 : 3.2;
-    return { x: p.x + pad, y: p.y + pad, w: p.w, h: p.h, z: zOf(boxes[i], i, n), rot: +(((r() - 0.5) * 2 * amp) * (mobile ? 0.6 : 1)).toFixed(2) };
-  });
+  const rects = placed.map((p, i) => ({ x: p.x + pad, y: p.y + pad, w: p.w, h: p.h, z: zOf(boxes[i], i, n) }));
   const height = Math.ceil(Math.max(0, ...placed.map(p => p.y + p.h)) + 2 * pad);
   return { rects, height, overlaps };
 }

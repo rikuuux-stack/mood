@@ -49,17 +49,18 @@ function content(p, { full = false, font, byline = false } = {}) {
     img.alt = full ? label(p) : '';
     img.decoding = 'async';
     if (!full) img.loading = 'lazy';
-    return img;
+    // noir et blanc + grain : appliqué par .photo (css/site.css) à toutes les photos déposées
+    const ph = document.createElement('span'); ph.className = 'photo'; ph.append(img);
+    return ph;
   }
   const s = document.createElement('span');
-  s.className = `sticker ${dark(p) ? 'sticker--dark' : ''}`;
+  s.className = 'sticker';
   if (font) s.style.setProperty('--fs', `${font}px`);
   const tx = document.createElement('span'); tx.className = 'sticker-text'; tx.textContent = p.text;
   s.append(tx);
   if (byline && p.name && !p.isRiku) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
   return s;
 }
-const dark = p => (parseInt(p.id.replace(/\D/g, '').slice(-3) || '0', 10) % 3) === 1;
 
 /* ------------------------------------------------------------------ rendu */
 let lastW = 0;
@@ -81,7 +82,7 @@ function renderWall(items) {
   const nodes = items.map((p, i) => {
     const { w, font } = sizeFor(p, W - 2 * pad, mobile);
     const li = document.createElement('li');
-    li.className = `item item--${p.kind}`;
+    li.className = `item item--${p.kind}${p.isRiku ? ' is-riku' : ''}`;
     li.style.width = `${w}px`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
@@ -100,7 +101,6 @@ function renderWall(items) {
   nodes.forEach((n, i) => {
     const r = L.rects[i];
     Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });
-    n.li.style.setProperty('--rot', `${r.rot}deg`);
   });
   wallEl.style.height = `${L.height}px`;
   neighbours = Array.from(nodes, () => []);

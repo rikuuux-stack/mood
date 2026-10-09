@@ -4,14 +4,17 @@
 Site de RIKU (Félix Cardonnel, artiste visuel franco-japonais, futur directeur artistique). Moodboard en ligne participatif : les visiteurs déposent une image ou un texte ; rien n'est visible avant validation de RIKU. Hébergé sur GitHub Pages (dépôt public `rikuuux-stack/riku-portfolio`). Félix n'est pas développeur : expliquer en français, simplement, pas à pas.
 
 ## Décisions validées (ne pas remettre en cause sans lui demander)
-- **Direction visuelle « Mur brut »** : béton gris plat, noir/blanc très contrastés.
+- **Direction visuelle « Mur brut », brutaliste** : béton gris plat neutre.
+- **Couleurs : uniquement des gris neutres, du noir au blanc** (demande de Félix). Aucune teinte nulle part (plus de vermillon).
+- **Toutes les photos déposées s'affichent en noir et blanc avec du grain** (classe `.photo` : `grayscale` + bruit en `overlay`), partout : mur, liste, agrandissement, aperçu du formulaire. Appliqué à l'affichage, les fichiers restent intacts.
+- **Pas d'effet « post-it »** : textes posés à nu sur le béton (pas de cadre, pas de fond), rien n'est incliné, pas d'ombres.
 - **Typographie : traits très fins partout** (demande de Félix). IBM Plex Sans JP ExtraLight (200) pour tous les textes, Thin (100) pour « RIKU », IBM Plex Mono ExtraLight pour les légendes ; bordures et filets à 1 px. Aucun gras. Polices auto-hébergées, découpées par `tools/fonts/subset.py` (qui réécrit `css/fonts.css`) : un fichier « core » + des tranches de kanji chargées à la demande.
 - **Pas de « RIKU » géant en fond.**
 - **L'essentiel seulement à l'écran** : le mur + un bandeau réduit à « RIKU » et « Déposer ». Tout le reste (rôle, présentation, e-mail, langues, bouton Mur/Liste, légende du tampon, mentions) est dans le panneau qui s'ouvre en touchant « RIKU ». Pas de pied de page, pas de texte d'intro, pas de pseudo sur le mur (seulement à l'agrandissement). Langue détectée d'après le navigateur. Ne rien rajouter à l'écran sans demander à Félix.
-- **Vermillon (`--verm`) réservé** à la marque de RIKU et au bouton Déposer. Rien d'autre.
-- **Marque de RIKU** : petit carré vermillon façon tampon, sans texte, sur ses propres dépôts.
-- **Mur** : chevauchement max 30 % (15 % sur mobile) ; les textes sont au-dessus des images et jamais recouverts ; jamais texte sur texte ; toucher = premier plan, 2e toucher = agrandissement ; densité réduite sur mobile. Bouton Mur / Liste (choix mémorisé). Règles testées par `node tests/wall.test.mjs`.
-- **Stickers** : fort contraste, 16 px minimum (17 px en pratique à cause des traits fins).
+- **Bouton Déposer** : noir, texte clair.
+- **Marque de RIKU** : petit carré noir façon tampon, sans texte, sur ses propres dépôts.
+- **Mur** : chevauchement des images max 30 % (15 % sur mobile) ; un texte ne chevauche RIEN (ni image ni texte) ; toucher = premier plan, 2e toucher = agrandissement ; densité réduite sur mobile. Bouton Mur / Liste (choix mémorisé). Règles testées par `node tests/wall.test.mjs`.
+- **Textes du mur** : noir sur béton, 16 px minimum (17 px en pratique à cause des traits fins).
 - Pseudo facultatif (≤ 40 car., sans lien) ; masquage auto après 3 signalements ; limites 3 dépôts/heure et 10/jour par visiteur ; 150 derniers affichés puis « voir plus anciens » ; placement automatique stable.
 - **Alerte e-mail à chaque dépôt** via Resend → rikuuux@gmail.com.
 - **Stack** : site statique sans build + Supabase (offre gratuite) + Cloudflare Turnstile + Resend. Déploiement des migrations/fonctions par GitHub Action (secrets GitHub).
