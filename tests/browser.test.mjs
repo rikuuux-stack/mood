@@ -386,6 +386,8 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     } else if (!open.canPlay) console.log('SAUTÉ  lecture réelle : ce Chromium de test ne lit pas le H.264 (vérifiée dans GitHub avec Google Chrome, puis sur iPhone)');
     await vp.keyboard.press('Escape');
     await vp.waitForSelector('#viewer:not([open])', { state: 'attached' });
+    // l'événement « close » (qui libère la vidéo) arrive juste APRÈS la fermeture : on l'attend (2 s au plus)
+    await vp.waitForFunction(() => !document.querySelector('#viewerBody').childElementCount, null, { timeout: 2000 }).catch(() => {});
     const closed = await vp.evaluate(() => ({ videos: document.querySelectorAll('video').length, body: document.querySelector('#viewerBody').childElementCount }));
     ok(closed.videos === 0 && closed.body === 0, 'fermeture : la vidéo est arrêtée et libérée de la mémoire', JSON.stringify(closed));
     // Keep : le fragment utilise l'image fixe érodée

@@ -21,6 +21,14 @@ import * as captcha from './captcha.js?v=94658e943e';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 import { serverError, videoError } from './errors.js?v=d67ec3ce38';
 
+/* VARIANTES À COMPARER (PR de comparaison, ne pas merger) — paramètres d'URL combinables :
+ *   ?bg=black    fond noir pur, grain fin et discret (css/site.css)
+ *   ?restore=0   un dépôt ouvert en grand garde son érosion (images et vidéos)
+ *   ?keepurl=0   le fragment Keep ne porte que la date et la consigne (sans l'adresse du site)
+ *   ?age=N       (aperçu seulement) chaque dépôt vieillit de N jours : voir l'érosion avec les vrais dépôts, encore neufs */
+const VARIANT = (q => ({ black: q.get('bg') === 'black', restore: q.get('restore') !== '0', keepUrl: q.get('keepurl') !== '0', age: Math.max(0, Math.min(400, +q.get('age') || 0)) }))(new URLSearchParams(location.search));
+if (VARIANT.black) document.documentElement.dataset.bg = 'black';
+const ageOf = (iso, now) => ageDays(iso, now) + VARIANT.age;
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -50,7 +58,7 @@ onLangChange(() => { viewLabel(); showPrompt(); render(); refreshDropTexts(); })
  * Liste : tout, à 100 %.
  */
 const asPending = p => ({ ...p, pending: true });
-const wallItems = () => [...pending.map(asPending), ...posts.filter(p => onWall(ageDays(p.approvedAt)))];
+const wallItems = () => [...pending.map(asPending), ...posts.filter(p => onWall(ageOf(p.approvedAt)))];
 const listItems = () => [...pending.map(asPending), ...posts];
 const items = () => (view === 'wall' ? wallItems() : listItems());
 
@@ -238,7 +246,7 @@ function renderWall(list, { glide = false } = {}) {
     n.li.dataset.i = i;
     // érosion : selon le temps passé sur le mur (un dépôt en attente garde son propre aspect) ;
     // images : palier fixe (classe age-N → filtre partagé), textes : --v
-    const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)), stage = stageOf(v);
+    const v = p.pending ? 1 : visibility(ageOf(p.approvedAt, now)), stage = stageOf(v);
     n.li.style.setProperty('--v', v.toFixed(3));
     if (n.stage !== stage) { if (n.stage) n.li.classList.remove(`age-${n.stage}`); if (stage) n.li.classList.add(`age-${stage}`); n.stage = stage; }
     if (!n.li.isConnected) wallEl.append(n.li);
@@ -362,6 +370,10 @@ function showViewer() {
   $('#viewerMeta').textContent = metaOf(p);
   freeVideos($('#viewerBody'));
   $('#viewerBody').replaceChildren(content(p, { full: true, byline: true }));
+  // ?restore=0 : l'agrandissement garde le palier d'érosion du dépôt (sinon : neuf, comme en production)
+  const vb = $('#viewerBody'), stage = !VARIANT.restore && !p.pending ? stageOf(visibility(ageOf(p.approvedAt))) : 0;
+  vb.classList.remove('age-1', 'age-2', 'age-3', 'age-4');
+  if (stage) vb.classList.add(`age-${stage}`);
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
   const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas
   captcha.reset($('[data-captcha]', $('#reportForm')));
@@ -398,8 +410,8 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=f5d57a1e3e');
-    const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
+    const { makeFragment, today } = await import('./fragment.js?v=08987fd814');
+    const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '', url: VARIANT.keepUrl });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
     kept = { ...out, url: URL.createObjectURL(out.blob), file: new File([out.blob], name, { type: 'image/jpeg' }) };
