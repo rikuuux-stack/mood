@@ -259,11 +259,10 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .captcha-mock { font-size: 13px; }
 .form-msg { margin: 0; min-height: 1.5em; font-size: 13px; }
 
-/* ------------------------------------------------------------------ contexte, consigne, strates */
+/* ------------------------------------------------------------------ consigne, strates */
 .intro { padding: calc(64px + var(--safe-t)) var(--gutter) 0; }   /* au départ sous « Mood » ; puis défile sous lui */
 @media (max-width: 639px) { .intro { padding-top: calc(54px + var(--safe-t)); } }
-.context { margin: 0; font-size: 12px; color: var(--muted); }
-.prompt { margin: 2px 0 0; font: var(--light) 12px/1.5 var(--mono); color: var(--fg); }
+.prompt { margin: 0; font: var(--light) 12px/1.5 var(--mono); color: var(--fg); }
 .drop-form .prompt { margin: 0; }
 /* séparateur de strates : un filet fin et le mot de la consigne de ce mois-là (rien s'il n'y en avait pas) */
 .stratum { position: absolute; list-style: none; height: 64px; border-top: var(--line) solid var(--rule); pointer-events: none; }

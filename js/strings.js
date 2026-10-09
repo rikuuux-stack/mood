@@ -6,7 +6,6 @@
 const UI = {
   drop: 'Drop', send: 'Drop', sending: '…', processing: '…',
   empty: 'No posts yet.', startWall: 'Start the wall.',
-  context: 'A moderated wall for images and words.',
   thisMonth: 'This month: {prompt}',
   // manifeste (panneau Mood)
   m1: 'Images and words, left by anyone.', m2: 'Nothing appears before review.',

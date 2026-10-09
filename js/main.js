@@ -13,7 +13,7 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=95312ca8f3';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=83ee815207';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=d356199d88';
 import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=8906cf420f';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=71b45ca5a4';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=637f4a0538';
