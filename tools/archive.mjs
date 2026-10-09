@@ -81,12 +81,23 @@ function wallState(rows, prompt, now = Date.now()) {
 }
 
 /* ------------------------------------------------------------------ capture */
+// fichiers publiés (miniatures) gardés en mémoire pendant la nuit : la 2ᵉ vue ne les retélécharge pas
+const files = new Map();
+const shareFiles = ctx => ctx.route(/\/storage\/v1\/object\/public\//, async route => {
+  const url = route.request().url();
+  if (files.has(url)) return route.fulfill(files.get(url));
+  const res = await route.fetch();
+  const hit = { status: res.status(), headers: res.headers(), body: await res.body() };
+  if (res.ok()) files.set(url, hit);
+  return route.fulfill(hit);
+});
+
 async function capture(browser, { width, height, mobile, scale }, url, route) {
   const ctx = await browser.newContext({
     viewport: { width, height }, deviceScaleFactor: scale, isMobile: mobile, hasTouch: mobile,
     reducedMotion: 'reduce', serviceWorkers: 'block',
   });
-  if (route) await route(ctx);
+  if (route) await route(ctx); else await shareFiles(ctx);
   const page = await ctx.newPage();
   await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForTimeout(1500);                       // paquets suivants du mur, placement progressif
@@ -196,6 +207,7 @@ site?.close();
 state.captures = Object.fromEntries(Object.entries(shots).map(([k, v]) => [k, v.meta]));
 const json = Buffer.from(JSON.stringify(state, null, 1));
 const night = Object.values(shots).reduce((s, v) => s + v.jpeg.length, 0) + json.length;
+console.log(`fichiers du mur téléchargés une seule fois pour les deux vues : ${files.size} (${Math.round([...files.values()].reduce((s, f) => s + f.body.length, 0) / 1024)} Ko)`);
 console.log(`nuit ${state.date} : ${state.wall.length} dépôt(s) sur le mur, ${state.list_only} dans la liste seulement ; ${Math.round(night / 1024)} Ko en tout`);
 
 if (OUT) {
