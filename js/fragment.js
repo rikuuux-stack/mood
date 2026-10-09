@@ -142,7 +142,7 @@ export const today = (d = new Date()) => `${pad2(d.getDate())}.${pad2(d.getMonth
  * @param prompt  consigne de la strate du dépôt ('' = aucune)
  * @returns {Promise<{ blob: Blob, width: number, height: number, footer: string, photos: { drawn, missing } }>}
  */
-export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', date = new Date() }) {
+export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', date = new Date(), url = true }) {
   const [W, H] = FORMATS[format] || FORMATS['4:5'];
   const RH = H - BAND;                                           // hauteur réservée au mur
   const box = { x: li.offsetLeft, y: li.offsetTop, w: li.offsetWidth, h: li.offsetHeight };
@@ -205,7 +205,8 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
   ctx.restore();
 
   // la ligne du bas : adresse, date du jour, consigne de la strate (rien d'autre)
-  const footer = `moodwall.pages.dev — ${today(date)}${prompt ? ` — ${prompt}` : ''}`;
+  // url = false (?keepurl=0, variante à comparer) : la date et la consigne seulement
+  const footer = [url ? 'moodwall.pages.dev' : '', today(date), prompt].filter(Boolean).join(' — ');
   const font = '200 24px "IBM Plex Mono"';
   try { await document.fonts.load(font, footer); } catch {}
   ctx.font = font; ctx.fillStyle = '#bdbdbd'; ctx.textBaseline = 'middle';

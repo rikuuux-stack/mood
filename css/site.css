@@ -298,3 +298,17 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .convert progress::-webkit-progress-value { background: var(--fg); }
 .convert progress::-moz-progress-bar { background: var(--fg); }
 .convert .link { justify-self: start; }
+
+/* ------------------------------------------------------------------ VARIANTES À COMPARER (PR de comparaison, ne pas merger)
+ * ?bg=black : noir pur, sans l'effet « béton » (bruit fractal nuageux) ; grain fin et discret (7 % au lieu de 16 %,
+ * une seule octave, fréquence plus haute) pour qu'il reste subtil sur le noir.
+ * ?restore=0 : l'agrandissement garde le palier d'érosion du dépôt (images ET vidéos en lecture). */
+:root[data-bg="black"] {
+  --bg: #000;
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.viewer-body.age-1 .photo :is(img, video) { filter: url(#erode1); }
+.viewer-body.age-2 .photo :is(img, video) { filter: url(#erode2); }
+.viewer-body.age-3 .photo :is(img, video) { filter: url(#erode3); }
+.viewer-body.age-4 .photo :is(img, video) { filter: url(#erode4); }
+.viewer-body:is(.age-1, .age-2, .age-3, .age-4) .photo::after { display: none; }
