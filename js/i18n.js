@@ -43,8 +43,9 @@ export function setLang(l) {
 export const onLangChange = fn => listeners.add(fn);
 
 /** Date courte dans la langue courante. */
+// date d'un dépôt : au jour, dans le fuseau de référence du mur (Asia/Tokyo), la même pour tous les visiteurs
 export const formatDate = iso => new Intl.DateTimeFormat(lang === 'ja' ? 'ja-JP' : lang === 'fr' ? 'fr-FR' : 'en-GB',
-  { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(iso));
+  { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Tokyo' }).format(new Date(iso));
 
 export function formatBytes(n) {
   const loc = lang === 'ja' ? 'ja-JP' : lang === 'fr' ? 'fr-FR' : 'en-GB';

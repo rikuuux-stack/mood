@@ -13,7 +13,7 @@
  */
 import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
 
-const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_riku, status, report_count, created_at, approved_at, prompt';
+const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, is_author, status, report_count, created_at, approved_at, prompt';
 const SIZES = ['s', 'm', 'l'];
 
 async function withUrls(db, rows, bucket) {

@@ -131,7 +131,7 @@ function render() {
     if (r.image_url) { const img = document.createElement('img'); img.src = r.image_url; img.alt = ''; img.loading = 'lazy'; li.append(img); }
     if (r.text) { const t = document.createElement('p'); t.className = 'adm-text'; t.textContent = r.text; li.append(t); }
     const meta = document.createElement('p'); meta.className = 'adm-meta';
-    meta.textContent = [r.is_riku ? 'me' : (r.name || 'anon'), fmt(r.created_at),
+    meta.textContent = [r.is_author ? 'me' : (r.name || 'anon'), fmt(r.created_at),
       r.width ? `${r.width}×${r.height}` : null, r.prompt ? `prompt: ${r.prompt}` : null, r.report_count ? `${r.report_count} reports` : null].filter(Boolean).join(' · ');
     li.append(meta, sizePicker(r));
     const bar = document.createElement('div'); bar.className = 'adm-actions';
