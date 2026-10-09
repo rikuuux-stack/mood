@@ -1,0 +1,40 @@
+# En-têtes HTTP appliqués par Cloudflare Pages (https://moodwall.pages.dev).
+# GitHub Pages ignore ce fichier. Documentation : https://developers.cloudflare.com/pages/configuration/headers/
+#
+# Content-Security-Policy : seules sources autorisées
+#   - le site lui-même ;
+#   - Supabase (données, photos publiées, liens signés de l'admin) ;
+#   - Cloudflare Turnstile (script + cadre du captcha) ;
+#   - blob: / data: pour l'aperçu des images et le grain du fond (SVG en data URI).
+# Après un changement de fournisseur ou d'adresse Supabase, mettre à jour cette ligne.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://ovvdtthnykqvgarrjina.supabase.co; img-src 'self' blob: data: https://ovvdtthnykqvgarrjina.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+
+# Fichiers versionnés par tools/stamp.py (?v=empreinte) : un changement de contenu change l'adresse,
+# on peut donc les garder en cache longtemps.
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Page de modération : jamais indexée, jamais gardée en cache partagé.
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store
+
+# Fichiers de travail du dépôt : pas destinés aux visiteurs, pas indexés.
+/docs/*
+  X-Robots-Tag: noindex
+/tests/*
+  X-Robots-Tag: noindex
+/tools/*
+  X-Robots-Tag: noindex
+/supabase/*
+  X-Robots-Tag: noindex

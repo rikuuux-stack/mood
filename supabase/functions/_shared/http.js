@@ -9,16 +9,21 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 export const ADMIN_EMAIL = 'rikuuux@gmail.com';
-export const SITE_URL = 'https://rikuuux-stack.github.io/riku-portfolio/';
+export const SITE_URL = 'https://moodwall.pages.dev/';
 
-// Origines autorisées à appeler les fonctions : le site, et un serveur local pour tester.
-const ORIGINS = [/^https:\/\/rikuuux-stack\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
+// Origines autorisées à appeler les fonctions : le site (Cloudflare Pages, avec ses aperçus
+// <id>.moodwall.pages.dev), l'ancienne adresse GitHub Pages le temps de la transition, et un serveur local.
+const ORIGINS = [
+  /^https:\/\/([a-z0-9-]+\.)?moodwall\.pages\.dev$/,
+  /^https:\/\/rikuuux-stack\.github\.io$/,            // transition : à retirer quand l'ancienne adresse n'est plus utilisée
+  /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
+];
 
 export function cors(req) {
   const origin = req.headers.get('origin') || '';
   const ok = ORIGINS.some(r => r.test(origin));
   return {
-    'Access-Control-Allow-Origin': ok ? origin : 'https://rikuuux-stack.github.io',
+    'Access-Control-Allow-Origin': ok ? origin : 'https://moodwall.pages.dev',
     'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Vary': 'Origin',
@@ -73,7 +78,7 @@ function jwtRole(token) {
 
 /**
  * Qui appelle ?
- *   { status: 'admin', id }   RIKU connecté, inscrit dans la table admins
+ *   { status: 'admin', id }   administrateur connecté, inscrit dans la table admins
  *   { status: 'none' }        visiteur (clé publique « anon ») ou aucun jeton
  *   { status: 'auth' }        jeton de session invalide ou expiré → se reconnecter
  *   { status: 'notAdmin' }    compte connecté, mais pas administrateur

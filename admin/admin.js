@@ -1,5 +1,5 @@
 /**
- * Mood — page de modération (RIKU seulement).
+ * Mood — page de modération (administrateur seulement).
  *
  * Connexion : e-mail + mot de passe du compte créé dans Supabase (les inscriptions sont fermées).
  * Toutes les actions passent par la fonction serveur « moderate », qui revérifie que le compte
@@ -111,7 +111,7 @@ function render() {
     if (r.image_url) { const img = document.createElement('img'); img.src = r.image_url; img.alt = ''; img.loading = 'lazy'; li.append(img); }
     if (r.text) { const t = document.createElement('p'); t.className = 'adm-text'; t.textContent = r.text; li.append(t); }
     const meta = document.createElement('p'); meta.className = 'adm-meta';
-    meta.textContent = [r.is_riku ? 'RIKU' : (r.name || 'anonyme'), fmt(r.created_at),
+    meta.textContent = [r.is_riku ? 'moi' : (r.name || 'anonyme'), fmt(r.created_at),
       r.width ? `${r.width} × ${r.height} px` : null, r.report_count ? `${r.report_count} signalement(s)` : null].filter(Boolean).join(' · ');
     li.append(meta);
     const bar = document.createElement('div'); bar.className = 'adm-actions';
@@ -131,7 +131,7 @@ function render() {
   }));
 }
 
-/* ------------------------------------------------------------------ dépôt de RIKU (publié directement, avec la marque) */
+/* ------------------------------------------------------------------ dépôt de l'auteur du site (publié directement, avec la marque) */
 let prepared = null, preparing = null, imageError = '', sending = false;
 const budget = () => prepared ? textBudget(prepared.width, prepared.height) : textBudget();
 const IMAGE_ERRORS = {

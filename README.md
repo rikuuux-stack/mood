@@ -1,8 +1,10 @@
-# Mood — le moodboard ouvert de RIKU
+# Mood — moodboard participatif
 
-Site de RIKU (Félix Cardonnel) : un mur de moodboard où chacun peut déposer une image ou un court texte. Rien n'est publié sans validation de RIKU.
+Un mur de moodboard où chacun peut déposer une image ou un court texte. Rien n'est publié sans validation.
 
-**État : en ligne, branché sur Supabase.** Dépôts réels, modération par RIKU sur `/admin/`, captcha Turnstile, alerte e-mail (Resend, facultative).
+Adresse : **https://moodwall.pages.dev** (Cloudflare Pages, branche `main`, sans étape de build, dossier racine ; en-têtes HTTP dans `_headers`).
+
+**État : en ligne, branché sur Supabase.** Dépôts réels, modération sur `/admin/`, captcha Turnstile, alerte e-mail (Resend, facultative).
 
 - Installation (une fois) : `docs/INSTALLATION.md`
 - Modération au quotidien : `docs/MODERATION.md`

@@ -1,4 +1,4 @@
-/* Page de modération (RIKU seulement). Reprend css/site.css ; ici, seulement la mise en page propre à /admin/. */
+/* Page de modération (administrateur seulement). Reprend css/site.css ; ici, seulement la mise en page propre à /admin/. */
 .adm { max-width: 720px; margin: 0 auto; padding: 8px var(--gutter) calc(48px + var(--safe-b)); }
 .adm h1 { font-weight: var(--light); font-size: 1.1rem; letter-spacing: .06em; margin: 24px 0 8px; }
 .adm-login { display: grid; gap: 12px; max-width: 360px; }

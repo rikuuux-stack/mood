@@ -6,7 +6,7 @@
 -- Toutes les écritures passent par les fonctions serveur (supabase/functions/*), qui
 -- utilisent la clé de service et vérifient captcha, limites, formats et budget.
 -- Les fichiers en attente sont dans le bucket PRIVÉ « pending » (aucune URL publique) ;
--- ils ne passent dans le bucket public « published » qu'après validation par RIKU.
+-- ils ne passent dans le bucket public « published » qu'après validation par l'administrateur.
 -- =============================================================================
 
 -- ------------------------------------------------------------------ pixels contre mots
@@ -55,7 +55,7 @@ create table public.reports (
 );
 create index reports_ip_idx on public.reports (ip_hash, created_at desc);
 
--- 3 signalements → le dépôt est masqué en attendant la décision de RIKU
+-- 3 signalements → le dépôt est masqué en attendant la décision de l'administrateur
 create or replace function public.on_report() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
@@ -68,7 +68,7 @@ end $$;
 create trigger reports_count after insert on public.reports
   for each row execute function public.on_report();
 
--- ------------------------------------------------------------------ administrateur (RIKU)
+-- ------------------------------------------------------------------ administrateur
 create table public.admins (
   user_id uuid primary key references auth.users (id) on delete cascade
 );

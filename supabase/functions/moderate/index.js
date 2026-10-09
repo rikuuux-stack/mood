@@ -1,5 +1,5 @@
 /**
- * /functions/v1/moderate — modération, réservée à RIKU (compte connecté inscrit dans « admins »).
+ * /functions/v1/moderate — modération, réservée à l'administrateur (compte connecté inscrit dans « admins »).
  *
  *   GET                                  → { pending, hidden, published } (images en attente : liens signés 1 h)
  *   POST { action: 'approve', id }       → fichiers déplacés du bucket privé vers le public, dépôt visible

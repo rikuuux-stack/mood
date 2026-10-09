@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mood — RIKU</title>
-<meta name="description" content="Mood, le moodboard ouvert de RIKU (Félix Cardonnel), image et direction artistique entre Tokyo et Paris. Déposez une image, des mots, ou les deux.">
+<title>Mood</title>
+<meta name="description" content="Mood — moodboard participatif.">
 <meta name="theme-color" content="#0b0b0b">
-<link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=2c79654c43" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/fonts.css?v=1d2766be6d">
-<link rel="stylesheet" href="css/site.css?v=6c9b86302c">
+<link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=ee0f9b5474" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/fonts.css?v=ad93aceaba">
+<link rel="stylesheet" href="css/site.css?v=b1df9b2531">
 </head>
 <body>
 <!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
@@ -27,7 +27,7 @@
 <a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
 
 <header class="bar">
-  <!-- nom du site, écrit à l'envers (retourné) ; ouvre le panneau RIKU -->
+  <!-- nom du site, écrit à l'envers (retourné) ; ouvre le panneau « à propos » -->
   <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
   <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Déposer</button>
 </header>
@@ -94,14 +94,12 @@
   </form>
 </dialog>
 
-<!-- RIKU : présentation, contact, réglages (langue, affichage), mentions -->
+<!-- À propos : contact, réglages (langue, affichage), mentions -->
 <dialog id="about" class="dlg dlg--about" aria-labelledby="aboutTitle">
   <div class="dlg-head">
-    <h2 id="aboutTitle">RIKU</h2>
+    <h2 id="aboutTitle">Mood</h2>
     <button type="button" class="x" data-close data-i18n-label="close">×</button>
   </div>
-  <p class="about-role" data-i18n="role"></p>
-  <p data-i18n="aboutBody"></p>
   <p><a class="mail" href="mailto:rikuuux@gmail.com">rikuuux@gmail.com</a></p>
   <div class="prefs">
     <span class="langs" role="group" aria-label="Langue / 言語 / Language">
@@ -115,6 +113,6 @@
   <p class="hint" data-i18n="mentions"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=3733afdd10"></script>
+<script type="module" src="js/main.js?v=450aa14e0a"></script>
 </body>
 </html>

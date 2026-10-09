@@ -1,7 +1,7 @@
 /**
  * POST /functions/v1/report — signale un dépôt publié. JSON : { post_id, reason, captcha }.
  * Une personne ne compte qu'une fois par dépôt ; 3 signalements masquent le dépôt
- * (déclencheur dans la base) en attendant la décision de RIKU. Limite : 10 signalements par jour.
+ * (déclencheur dans la base) en attendant la décision de l'administrateur. Limite : 10 signalements par jour.
  */
 import { cors, json, fail, service, ipHash, verifyCaptcha } from '../_shared/http.js';
 

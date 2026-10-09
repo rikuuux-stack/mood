@@ -7,7 +7,7 @@ dans assets/fonts/ et RÉÉCRIT css/fonts.css.
       · un fichier « core » : latin, kana, ponctuation et tous les caractères des textes du site ;
       · des tranches de kanji (unicode-range) : le navigateur ne télécharge que les tranches
         des kanji réellement affichés (dépôts des visiteurs), comme Google Fonts, mais chez nous.
-  - IBM Plex Sans JP Thin (100) : le nom « RIKU » (latin seulement).
+  - IBM Plex Sans JP Thin (100) : le nom « Mood » (bandeau et panneau « à propos »).
   - IBM Plex Mono ExtraLight (200) : petites légendes (dates, poids des fichiers).
 
 À relancer après avoir modifié des textes du site :
@@ -73,11 +73,11 @@ size = subset(sans, core, 'PlexSansJP-200-core.woff2')
 faces.append(("IBM Plex Sans JP", 200, 'PlexSansJP-200-core.woff2', urange(core)))
 print(f'Sans 200 : core {size // 1024} Ko + {len(slices)} tranches de kanji ({total // 1024} Ko au total, chargées à la demande)')
 
-thin = {ord(c) for c in 'RIKUMod'}  # seuls « Mood » (bandeau) et « RIKU » (panneau) utilisent le Thin
+thin = {ord(c) for c in 'Mod'}  # seul « Mood » (bandeau, titre du panneau) utilise le Thin
 thin = thin & set(TTFont(SRC / 'IBMPlexSansJP-Thin.ttf').getBestCmap())
 size = subset('IBMPlexSansJP-Thin.ttf', thin, 'PlexSansJP-100-latin.woff2')
 faces.append(("IBM Plex Sans JP", 100, 'PlexSansJP-100-latin.woff2', urange(thin)))
-print(f'Sans 100 (RIKU) : {size} octets')
+print(f'Sans 100 (Mood) : {size} octets')
 
 mono = (LATIN | {c for c in site if c < 0x2E80}) & set(TTFont(SRC / 'IBMPlexMono-ExtraLight.ttf').getBestCmap())
 size = subset('IBMPlexMono-ExtraLight.ttf', mono, 'PlexMono-200-latin.woff2')
