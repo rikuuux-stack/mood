@@ -6,7 +6,7 @@ Site de RIKU (Félix Cardonnel, artiste visuel franco-japonais, futur directeur 
 ## Décisions validées (ne pas remettre en cause sans lui demander)
 - **Direction brutaliste, fond noir** (`--bg` #0b0b0b), texte blanc cassé, fenêtres gris très sombre.
 - **Couleurs : uniquement des gris neutres, du noir au blanc** (demande de Félix). Aucune teinte nulle part (plus de vermillon).
-- **Toutes les photos déposées s'affichent en noir et blanc avec du grain** (classe `.photo` : `grayscale` + bruit en `overlay`), partout : mur, liste, agrandissement, aperçu du formulaire. Appliqué à l'affichage, les fichiers restent intacts.
+- **Toutes les photos déposées s'affichent en noir et blanc avec du grain et les hautes lumières assombries** (classe `.photo` : filtre SVG `#tone` dans `index.html` = N&B + courbe 0→0, 25→24, 50→47, 75→64, 100→76 % ; grain en `overlay`), partout : mur, liste, agrandissement, aperçu du formulaire. Appliqué à l'affichage, les fichiers restent intacts.
 - **Pas d'effet « post-it »** : textes posés à nu sur le fond (pas de cadre, pas de fond), rien n'est incliné, pas d'ombres.
 - **Petites lettres** : 14 px de base ; textes du mur 14 à 19 px selon la longueur ; commentaires 13 px. Les champs de formulaire restent à 16 px (sinon l'iPhone zoome).
 - **Typographie : traits très fins partout** (demande de Félix). IBM Plex Sans JP ExtraLight (200) pour tous les textes, Thin (100) pour « RIKU », IBM Plex Mono ExtraLight pour les légendes ; bordures et filets à 1 px. Aucun gras. Polices auto-hébergées, découpées par `tools/fonts/subset.py` (qui réécrit `css/fonts.css`) : un fichier « core » + des tranches de kanji chargées à la demande.

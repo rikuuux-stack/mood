@@ -11,6 +11,19 @@
 <link rel="stylesheet" href="css/site.css">
 </head>
 <body>
+<!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
+     Point d'entrée → sortie : 0 → 0 · 25 % → 24 % · 50 % → 47 % · 75 % → 64 % · 100 % → 76 %.
+     Utilisé par css/site.css (.photo img). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="tone" color-interpolation-filters="sRGB">
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer>
+      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+    </feComponentTransfer>
+  </filter>
+</svg>
 <a class="skip" href="#board" data-i18n="skip">Aller au contenu</a>
 
 <header class="bar">
