@@ -16,7 +16,7 @@ const publicUrl = path => `${CONFIG.supabaseUrl}/storage/v1/object/public/publis
 
 /** Erreur serveur → code traduisible (js/strings.js : e<Code>). */
 export class ServerError extends Error {
-  constructor(code, status) { super(code); this.code = code; this.status = status; }
+  constructor(code, status, reason) { super(code); this.code = code; this.status = status; this.reason = reason; }
 }
 
 /* ------------------------------------------------------------------ mur gardé sur l'appareil
@@ -101,7 +101,7 @@ async function call(fn, init) {
   try { r = await fetch(`${CONFIG.supabaseUrl}/functions/v1/${fn}`, init); }
   catch { throw new ServerError('network', 0); }
   const out = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ServerError(out.error || 'server', r.status);
+  if (!r.ok) throw new ServerError(out.error || 'server', r.status, out.reason);
   return out;
 }
 

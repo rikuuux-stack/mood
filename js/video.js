@@ -21,10 +21,11 @@
  */
 import { TONE } from './wall.js?v=8906cf420f';
 import { inspectMp4, checkVideo } from './mp4.js?v=53a1dd24ca';
+import { stripMetadata } from './image.js?v=a3f88b470d';
 
 export const VIDEO = { side: 480, fps: 24, bitrate: 300_000, maxDuration: 60, maxBytes: 4 * 1024 * 1024, posterSide: 800 };
 export class VideoError extends Error {
-  constructor(code, detail) { super(code); this.code = code; this.detail = detail; }
+  constructor(code, detail, why) { super(code); this.code = code; this.detail = detail; this.why = why; }
 }
 const lib = () => import('./vendor/mediabunny.js?v=d7b3a90e82');
 export const isGif = file => file.type === 'image/gif' || /\.gif$/i.test(file.name || '');
@@ -56,7 +57,9 @@ const canvas = (w, h) => {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   return { c, g: c.getContext('2d', { willReadFrequently: true }) };
 };
-const jpeg = c => new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new VideoError('eVideoUnsupported'))), 'image/jpeg', 0.85));
+// Safari (iPhone) ajoute un bloc Exif à tout JPEG qu'il fabrique : on le retire (le serveur refuse les métadonnées)
+const jpeg = c => new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new VideoError('eVideoUnsupported', 'poster'))), 'image/jpeg', 0.85))
+  .then(stripMetadata);
 const aborted = signal => { if (signal?.aborted) throw new VideoError('canceled'); };
 
 /* ------------------------------------------------------------------ encodeur (WebCodecs, sinon MediaRecorder) */
@@ -89,7 +92,7 @@ async function retry(run) {
     if (blob.size <= VIDEO.maxBytes) return blob;
     bitrate = Math.max(60_000, Math.floor(bitrate * 0.85 * VIDEO.maxBytes / blob.size));
   }
-  throw new VideoError('eTooBig', `passes ${sizes.join(' / ')} octets, débit constant ${cbr}`);
+  throw new VideoError('eTooBigVideo', `passes ${sizes.join(' / ')} octets, débit constant ${cbr}`);
 }
 
 /** Encodeur image par image : add(t, durée) encode le canvas tel qu'il est, puis finish() → Blob MP4. */
@@ -135,15 +138,21 @@ export async function openMedia(file) {
   return isGif(file) ? openGif(file) : openVideo(file);
 }
 
+/* Fichier d'ENTRÉE : jamais refusé pour ses pistes en plus (timecode de DaVinci / Premiere / Final Cut,
+ * son, métadonnées de l'iPhone, chapitres…). On prend la première piste vidéo décodable, le reste est
+ * ignoré. Les contrôles stricts (une piste, muet, 480 px, 60 s, 4 Mo) ne portent que sur le fichier CONVERTI. */
 async function openVideo(file) {
-  let MB, input, track = null, decodable = false;
+  let MB, input, track = null;
   try {
     MB = await lib();
     input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
-    track = await input.getPrimaryVideoTrack();
-    decodable = !!track && await track.canDecode();
-  } catch { track = null; }
-  if (decodable) return openDecodable(MB, input, track, file);
+    const primary = await input.getPrimaryVideoTrack().catch(() => null);
+    const all = await input.getVideoTracks().catch(() => []);
+    for (const t of [primary, ...all.filter(t => t !== primary)]) {
+      if (t && await t.canDecode().catch(() => false)) { track = t; break; }
+    }
+  } catch (e) { console.warn('[video] lecture du conteneur impossible :', e?.message); track = null; }
+  if (track) return openDecodable(MB, input, track, file);
   return openPlayable(file);                             // chemin B / C : lecture par le navigateur
 }
 
@@ -168,7 +177,7 @@ async function openDecodable(MB, input, track, file) {
       const [pw, ph] = posterSize(w0, h0);
       const ps = new MB.CanvasSink(track, { width: pw, height: ph, fit: 'fill' });
       const pf = await ps.getCanvas(start);
-      if (!pf) throw new VideoError('eVideoUnsupported');
+      if (!pf) throw new VideoError('eVideoUnsupported', 'aucune image au point de départ');
       const pc = canvas(pw, ph); pc.g.drawImage(pf.canvas, 0, 0);
       const poster = await jpeg(pc.c);
       aborted(signal);
@@ -199,7 +208,7 @@ async function openDecodable(MB, input, track, file) {
         } catch (e) {
           enc.cancel();
           if (signal?.aborted) throw new VideoError('canceled');
-          throw e instanceof VideoError ? e : new VideoError(n ? 'eVideoUnsupported' : 'decode', e?.message);
+          throw e instanceof VideoError ? e : new VideoError(n ? 'eVideoEncode' : 'decode', e?.message);
         }
       };
       try { return finish(await retry(pass), poster, width, height); }
@@ -276,7 +285,7 @@ async function playbackConvert(file, { start, len, width, height, poster, onProg
       const tick = () => {
         if (signal?.aborted) return;
         const t = v.currentTime - start;
-        if (t !== last) { last = t; stalled = 0; } else if (++stalled > 120) return rej(new VideoError('eVideoUnsupported'));   // ≈ 4 s sans image
+        if (t !== last) { last = t; stalled = 0; } else if (++stalled > 120) return rej(new VideoError('eVideoStalled'));   // ≈ 4 s sans image (écran verrouillé, appareil dépassé)
         if (t >= next) { grab(next); next += step; while (next <= t) next += step; }
         onProgress?.(Math.min(1, t / len));
         if (t >= len || v.ended) return res();
@@ -286,11 +295,11 @@ async function playbackConvert(file, { start, len, width, height, poster, onProg
     });
     v.pause();
     await queue;
-    if (!frames) throw new VideoError('eVideoUnsupported');
+    if (!frames) throw new VideoError('eVideoUnsupported', 'aucune image lue');
     return finish(await enc.finish(), poster, width, height);
   } catch (e) {
     v.pause(); enc.cancel();
-    throw e instanceof VideoError ? e : new VideoError('eVideoUnsupported', e?.message);
+    throw e instanceof VideoError ? e : new VideoError('eVideoEncode', e?.message);
   } finally {
     if (url) { v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); }
   }
@@ -363,9 +372,9 @@ async function openGif(file) {
 
 /* ------------------------------------------------------------------ contrôle du résultat (comme le serveur) */
 async function finish(blob, poster, width, height) {
-  if (blob.size > VIDEO.maxBytes) throw new VideoError('eTooBig');
+  if (blob.size > VIDEO.maxBytes) throw new VideoError('eTooBigVideo', `${blob.size} octets`);
   const info = inspectMp4(new Uint8Array(await blob.arrayBuffer()));
   const err = checkVideo(info, { maxSide: VIDEO.side, maxShort: VIDEO.side, maxDuration: VIDEO.maxDuration + 0.5 });
-  if (err) throw new VideoError('eVideoUnsupported', `${err} ${JSON.stringify(info)}`);
+  if (err) throw new VideoError('eVideoOutput', `${err} ${JSON.stringify(info)}`, err);
   return { video: blob, poster, width, height, duration: info.duration, bytes: blob.size };
 }

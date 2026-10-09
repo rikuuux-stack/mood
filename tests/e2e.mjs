@@ -165,6 +165,10 @@ await t('vidéo HEVC (pas H.264) refusée : format lu dans le fichier', async ()
 await t('vidéo trop grande (plus de 480 px) refusée', async () => code(await submitForm({}, { video: vid('v-720.mp4'), poster: fx('clean.jpg') }), 'size'));
 await t('image déguisée en vidéo refusée', async () => code(await submitForm({}, { video: fx('clean.jpg'), poster: fx('clean.jpg') }), 'video'));
 await t('vidéo sans image fixe refusée', async () => code(await submitForm({}, { video: vid('v-ok.mp4') }), 'thumb'));
+await t('image fixe avec Exif (comme les JPEG de Safari) refusée AVEC la raison « meta »', async () => {
+  const r = await submitForm({}, { video: vid('v-ok.mp4'), poster: fx('exif.jpg') });
+  return code(r, 'thumb') === true && r.body_?.reason === 'meta' ? true : `réponse ${r.status} ${r.bodyText.slice(0, 160)} (attendu « thumb » + raison « meta »)`;
+});
 await t('image et vidéo à la fois refusées', async () =>
   code(await submitForm({}, { image: fx('tall.webp'), thumb: fx('lossy.webp'), video: vid('v-ok.mp4'), poster: fx('clean.jpg') }), 'bad'));
 

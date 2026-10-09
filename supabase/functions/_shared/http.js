@@ -37,7 +37,7 @@ export const json = (req, status, body) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors(req), 'Content-Type': 'application/json' } });
 
 /** Réponse d'erreur : un code court que le site traduit (js/strings.js). */
-export const fail = (req, status, code) => json(req, status, { error: code });
+export const fail = (req, status, code, reason) => json(req, status, reason ? { error: code, reason } : { error: code });
 
 export const service = () =>
   createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });

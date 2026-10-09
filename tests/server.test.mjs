@@ -5,6 +5,8 @@ import { textBudget as serverBudget } from '../supabase/functions/_shared/budget
 import { textBudget as siteBudget } from '../js/budget.js';
 import { stripMetadata } from '../js/image.js';
 import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
+import { serverError, videoError, WHY } from '../js/errors.js';
+import { STRINGS } from '../js/strings.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -48,6 +50,18 @@ for (const n of ['exif.jpg', 'text.png', 'exif.webp', 'clean.jpg', 'lossy.webp']
   check(`${n} nettoyé : sans métadonnées, même format et mêmes dimensions`,
     [hasMetadata(out), sniffType(out), dimensions(out)], [false, sniffType(f(n)), { width: 37, height: 23 }]);
 }
+
+// messages d'erreur vidéo : toujours la RAISON (plus jamais un simple « Format refusé »)
+check('image fixe avec Exif refusée → « Vidéo refusée : l’image fixe contient encore des métadonnées »', serverError('thumb', 'meta', true), { key: 'eVideoRejected', why: 'poster_meta' });
+check('vidéo refusée (format) → raison « format »', serverError('video', undefined, true), { key: 'eVideoRejected', why: 'video' });
+check('vidéo refusée (taille / son / GPS / durée / poids) → raison précise',
+  ['size', 'audio', 'location', 'duration', 'tooBig'].map(c => serverError(c, undefined, true).why), ['size', 'audio', 'location', 'duration', 'tooBig']);
+check('photo refusée : messages inchangés', [serverError('type'), serverError('meta'), serverError('captcha', undefined, true)], [{ key: 'eType' }, { key: 'eMeta' }, { key: 'eCaptcha' }]);
+check('conversion : erreurs du navigateur gardent leur raison', [videoError({ code: 'eVideoStalled' }), videoError({ code: 'eVideoOutput', why: 'audio' }), videoError({ code: 'decode' })],
+  [{ key: 'eVideoStalled', why: 'video' }, { key: 'eVideoOutput', why: 'audio' }, { key: 'eVideoUnsupported', why: 'video' }]);
+const keys = ['eVideoUnsupported', 'eVideoStalled', 'eVideoEncode', 'eVideoOutput', 'eVideoRejected', 'eTooBigVideo', 'eVideoBrowser', ...WHY.map(w => `why_${w}`)];
+check('messages vidéo présents en FR / JA / EN', ['fr', 'ja', 'en'].map(l => keys.filter(k => !STRINGS[l][k])), [[], [], []]);
+check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'].map(l => ['eVideoOutput', 'eVideoRejected'].every(k => STRINGS[l][k].includes('{why}'))), [true, true, true]);
 
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);

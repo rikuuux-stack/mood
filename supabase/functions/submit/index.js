@@ -77,12 +77,12 @@ Deno.serve(async req => {
     full = await readVideo(form.get('video'));
     if (full.error) { console.warn('[submit] vidéo refusée :', full.error, JSON.stringify(full.info || {})); return fail(req, full.error === 'tooBig' ? 413 : 415, full.error); }
     thumb = await readImage(form.get('poster'), MAX_THUMB, POSTER_SIDE);
-    if (thumb.error) { console.warn('[submit] image fixe refusée :', thumb.error); return fail(req, 415, 'thumb'); }
+    if (thumb.error) { console.warn('[submit] image fixe refusée :', thumb.error); return fail(req, 415, 'thumb', thumb.error); }
   } else if (hasImage) {
     full = await readImage(imageFile, MAX_BYTES, MAX_SIDE);
     if (full.error) { console.warn('[submit] image refusée :', full.error); return fail(req, full.error === 'tooBig' ? 413 : 415, full.error); }
     thumb = await readImage(thumbFile, MAX_THUMB, THUMB_SIDE);
-    if (thumb.error) { console.warn('[submit] miniature refusée :', thumb.error); return fail(req, 415, 'thumb'); }
+    if (thumb.error) { console.warn('[submit] miniature refusée :', thumb.error); return fail(req, 415, 'thumb', thumb.error); }
   } else if (!text) {
     return fail(req, 400, 'empty');
   }

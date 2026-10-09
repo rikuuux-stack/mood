@@ -13,12 +13,13 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=dddb743260';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=672c3e2890';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=123647c65c';
 import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=8906cf420f';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=a3f88b470d';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=8f81220d1a';
-import * as captcha from './captcha.js?v=0d4e71c590';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=7bb3934f8a';
+import * as captcha from './captcha.js?v=94658e943e';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
+import { serverError, videoError } from './errors.js?v=d67ec3ce38';
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
@@ -469,10 +470,9 @@ const mountCaptcha = f => captcha.mount($('[data-captcha]', f), { lang, mockLabe
 /** Message lisible pour une erreur du serveur ou du réseau (codes : supabase/functions/*). */
 function errorText(err) {
   if (!(err instanceof ServerError)) return t('eServer');
-  const map = { captcha: 'eCaptcha', rate: 'eRate', tooBig: media ? 'eTooBigVideo' : 'eTooBigSrv', type: 'eType', thumb: 'eType', size: 'eType',
-    video: 'eType', audio: 'eMeta', location: 'eMeta', duration: 'eDuration', full: 'eFull',
-    meta: 'eMeta', tooLong: 'eTooLong', empty: 'eEmpty', rights: 'eRights', name: 'eName', gone: 'eGone', network: 'eNetwork' };
-  return t(map[err.code] || 'eServer', { max: budget() });
+  // vidéo refusée par le serveur : le message dit POURQUOI (format, taille, son, GPS, image fixe…)
+  const { key, why } = serverError(err.code, err.reason, !!media);
+  return t(key, { max: budget(), why: why && t(`why_${why}`) });
 }
 
 /* ------------------------------------------------------------------ dépôt */
@@ -485,7 +485,9 @@ let src = null, preparing = null, imageError = '';   // src : image lue ; imageE
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
-const videoLib = () => import('./video.js?v=0a226f5f52');
+const videoLib = () => import('./video.js?v=a62762daa0');
+/** Message d'une erreur de lecture ou de conversion vidéo (js/video.js), avec la raison quand elle est connue. */
+const videoErrorText = err => { const { key, why } = videoError(err); return t(key, { why: t(`why_${why}`) }); };
 const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');
 const clock = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const chosenSize = () => new FormData(form).get('size') || 'm';
@@ -545,7 +547,8 @@ fileIn.addEventListener('change', async () => {
     } catch (err) {
       if (job !== preparing) return;
       fileIn.value = '';
-      msgEl.textContent = imageError = t(err?.code && err.code !== 'canceled' ? err.code : 'eVideoUnsupported');
+      if (err?.detail) console.warn('[video]', err.code, err.detail);
+      msgEl.textContent = imageError = videoErrorText(err);
     }
     preparing = null; $('#send').disabled = false;
     return refreshDropTexts();
@@ -620,8 +623,8 @@ form.addEventListener('submit', async e => {
       video = await media.convert({ start: media.kind === 'video' ? +$('#start').value : 0, signal: ctl.signal, onProgress: p => { bar.value = p; } });
     } catch (err) {
       $('#convert').hidden = true; $('#startRow').hidden = media?.kind !== 'video';
-      msgEl.textContent = err?.code === 'canceled' ? '' : t(err?.code || 'eVideoUnsupported');
-      if (err?.detail) console.warn('[video]', err.detail);
+      msgEl.textContent = err?.code === 'canceled' ? '' : videoErrorText(err);
+      if (err?.detail) console.warn('[video]', err.code, err.detail);
       converting = null; send.disabled = false; return;
     }
     converting = null; $('#convert').hidden = true;

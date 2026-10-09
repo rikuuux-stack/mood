@@ -87,6 +87,31 @@ if (a.ok) {
   ok(a.maxLuma > 40 && a.maxLuma <= 0.76 * 255 + 8, `courbe de tons intégrée : hautes lumières assombries (max ${a.maxLuma} / 255)`);
   ok(a.poster.type === 'image/jpeg' && !a.poster.meta, 'image fixe JPEG sans métadonnées', JSON.stringify(a.poster));
 }
+// 1 bis. pistes en plus dans le fichier d'ENTRÉE (jamais une raison de refuser) : timecode (DaVinci Resolve,
+// Premiere, Final Cut), son, date et position (iPhone) → on garde la vidéo, le fichier converti n'a qu'une piste
+for (const [label, f, w, h] of [['MP4 H.264 High + piste timecode (tmcd), comme un export DaVinci', 'src-tc.mp4', 270, 480],
+  ['MOV H.264 + son + timecode + date et GPS, comme un export iPhone / Premiere / Final Cut', 'src-tc-audio.mov', 480, 270]]) {
+  const r = await convert(`/tests/fixtures-img/${f}`, { start: 0 });
+  ok(r.ok && r.info.tracks === 1 && !r.info.hasAudio && !r.info.hasLocation && r.info.width === w && r.info.height === h,
+    `${label} : accepté, converti en une seule piste ${r.info?.width} × ${r.info?.height}, muet, sans GPS`, JSON.stringify(r));
+}
+// 1 ter. Safari (iPhone) ajoute un bloc Exif à TOUT JPEG fabriqué par un canvas : simulé ici ; l'image fixe
+// envoyée doit en être débarrassée (sinon le serveur la refuse : c'était le « Format refusé » vu sur iPhone)
+await page.evaluate(() => {
+  const orig = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (cb, type, q) {
+    orig.call(this, async b => {
+      if (!b || type !== 'image/jpeg') return cb(b);
+      const u = new Uint8Array(await b.arrayBuffer());
+      const exif = new Uint8Array([0xff, 0xe1, 0x00, 0x10, 0x45, 0x78, 0x69, 0x66, 0, 0, 0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 0]);
+      cb(new Blob([u.subarray(0, 2), exif, u.subarray(2)], { type: 'image/jpeg' }));
+    }, type, q);
+  };
+  globalThis.__safariExif = orig;
+});
+const sx = await convert('/tests/fixtures-img/src-tc.mp4', { start: 0 });
+ok(sx.ok && sx.poster.type === 'image/jpeg' && !sx.poster.meta, 'JPEG avec Exif façon Safari : l’image fixe envoyée est nettoyée', JSON.stringify(sx));
+await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = globalThis.__safariExif; });
 // 2. GIF perso → MP4 (6 images × 0,12 s)
 const g = await convert('/tests/fixtures-img/anim.gif');
 ok(g.ok && g.kind === 'gif' && g.info.codec === 'avc1' && Math.abs(g.info.duration - 0.72) < 0.1, `GIF → MP4 H.264 (${g.info?.duration} s)`, JSON.stringify(g));
