@@ -4,6 +4,9 @@ import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../supabase/f
 import { textBudget as serverBudget } from '../supabase/functions/_shared/budget.js';
 import { textBudget as siteBudget } from '../js/budget.js';
 import { stripMetadata } from '../js/image.js';
+import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
+import { serverError, videoError, WHY } from '../js/errors.js';
+import { STRINGS } from '../js/strings.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -24,6 +27,17 @@ for (const [n, type, meta] of [['clean.jpg', 'image/jpeg', false], ['exif.jpg', 
 check('toowide.png : dimensions', dimensions(f('toowide.png')), { width: 2001, height: 10 });
 check('faux fichier (GIF) refusé', sniffType(new TextEncoder().encode('GIF89a......')), null);
 
+// vidéos : type réel lu dans le fichier (pas l'extension), son, GPS, taille, durée (limites de submit)
+const VIDEO = { maxSide: 480, maxShort: 480, maxDuration: 60.5 };
+for (const [n, want] of [['v-ok.mp4', ''], ['v-long.mp4', 'duration'], ['v-audio.mp4', 'audio'], ['v-720.mp4', 'size'],
+  ['v-gps.mov', 'location'], ['v-hevc.mp4', 'video'], ['clean.jpg', 'video']]) {
+  check(`${n} : contrôle vidéo`, checkVideo(inspectMp4(f(n)), VIDEO), want);
+}
+check('v-ok.mp4 : 480 × 270, 2 s, H.264, muet', (({ codec, width, height, duration, hasAudio }) => ({ codec, width, height, duration, hasAudio }))(inspectMp4(f('v-ok.mp4'))),
+  { codec: 'avc1', width: 480, height: 270, duration: 2, hasAudio: false });
+check('js/mp4.js est une copie exacte de supabase/functions/_shared/mp4.js',
+  readFileSync(new URL('../js/mp4.js', import.meta.url), 'utf8') === readFileSync(new URL('../supabase/functions/_shared/mp4.js', import.meta.url), 'utf8'), true);
+
 // budget : le serveur applique exactement la même règle que le site
 let diff = 0;
 for (let w = 0; w <= 2000; w += 7) for (let h = 0; h <= 2000; h += 13) if (serverBudget(w, h) !== siteBudget(w, h)) diff++;
@@ -36,6 +50,18 @@ for (const n of ['exif.jpg', 'text.png', 'exif.webp', 'clean.jpg', 'lossy.webp']
   check(`${n} nettoyé : sans métadonnées, même format et mêmes dimensions`,
     [hasMetadata(out), sniffType(out), dimensions(out)], [false, sniffType(f(n)), { width: 37, height: 23 }]);
 }
+
+// messages d'erreur vidéo : toujours la RAISON (plus jamais un simple « Format refusé »)
+check('image fixe avec Exif refusée → « Vidéo refusée : l’image fixe contient encore des métadonnées »', serverError('thumb', 'meta', true), { key: 'eVideoRejected', why: 'poster_meta' });
+check('vidéo refusée (format) → raison « format »', serverError('video', undefined, true), { key: 'eVideoRejected', why: 'video' });
+check('vidéo refusée (taille / son / GPS / durée / poids) → raison précise',
+  ['size', 'audio', 'location', 'duration', 'tooBig'].map(c => serverError(c, undefined, true).why), ['size', 'audio', 'location', 'duration', 'tooBig']);
+check('photo refusée : messages inchangés', [serverError('type'), serverError('meta'), serverError('captcha', undefined, true)], [{ key: 'eType' }, { key: 'eMeta' }, { key: 'eCaptcha' }]);
+check('conversion : erreurs du navigateur gardent leur raison', [videoError({ code: 'eVideoStalled' }), videoError({ code: 'eVideoOutput', why: 'audio' }), videoError({ code: 'decode' })],
+  [{ key: 'eVideoStalled', why: 'video' }, { key: 'eVideoOutput', why: 'audio' }, { key: 'eVideoUnsupported', why: 'video' }]);
+const keys = ['eVideoUnsupported', 'eVideoStalled', 'eVideoEncode', 'eVideoOutput', 'eVideoRejected', 'eTooBigVideo', 'eVideoBrowser', ...WHY.map(w => `why_${w}`)];
+check('messages vidéo présents en FR / JA / EN', ['fr', 'ja', 'en'].map(l => keys.filter(k => !STRINGS[l][k])), [[], [], []]);
+check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'].map(l => ['eVideoOutput', 'eVideoRejected'].every(k => STRINGS[l][k].includes('{why}'))), [true, true, true]);
 
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);

@@ -1,7 +1,8 @@
 # Vérifications automatiques à chaque envoi et pull request :
 #  - les empreintes de cache (?v=…) sont à jour (sinon des visiteurs garderaient d'anciens fichiers) ;
 #  - les règles de lisibilité du mur sont respectées ;
-#  - dans un vrai navigateur (iPhone émulé, données factices) : bandeau, fond fixe, érosion.
+#  - dans un vrai navigateur (iPhone émulé, données factices) : Mood / Drop, fond fixe, érosion, images, vidéos ;
+#  - conversion des vidéos et GIF (Google Chrome, qui encode le H.264).
 name: Vérifications
 on:
   push:
@@ -25,3 +26,9 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium
           node tests/browser.test.mjs
+        env:
+          PW_CHANNEL: chrome          # Google Chrome du runner GitHub : lit le H.264 (lecture réelle des vidéos)
+      - name: Conversion vidéo et GIF (Google Chrome, H.264 ; poids réels sur 60 s)
+        run: node tests/video.test.mjs
+        env:
+          PW_CHANNEL: chrome

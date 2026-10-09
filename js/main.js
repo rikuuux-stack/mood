@@ -12,13 +12,14 @@
  *
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
-import { CONFIG } from './config.js?v=95312ca8f3';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=d356199d88';
+import { CONFIG } from './config.js?v=dddb743260';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=123647c65c';
 import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey } from './wall.js?v=8906cf420f';
-import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=71b45ca5a4';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=637f4a0538';
-import * as captcha from './captcha.js?v=4efce66ea2';
+import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=a3f88b470d';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=7bb3934f8a';
+import * as captcha from './captcha.js?v=94658e943e';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
+import { serverError, videoError } from './errors.js?v=d67ec3ce38';
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
@@ -62,7 +63,9 @@ function showPrompt() {
 }
 
 /* ------------------------------------------------------------------ éléments */
-const label = p => t(p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
+// une vidéo (ou un GIF converti) se comporte comme une photo partout, sauf dans l'agrandissement où elle joue
+const visual = p => p.kind === 'image' || p.kind === 'video';
+const label = p => t(p.kind === 'video' ? 'videoBy' : p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
 const ariaOf = p => (p.pending ? `${t('pending')} — ` : '') + (p.text ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
 const metaOf = p => (p.pending ? t('pending') : `${p.name || t('anon')} · ${formatDate(p.createdAt)}`);
 
@@ -109,9 +112,47 @@ function photo(p, full) {
   return ph;
 }
 
+/*
+ * Vidéo dans l'agrandissement : téléchargée seulement à l'ouverture, jouée muette, en boucle, neuve (noir et blanc
+ * déjà dans le fichier, aucune érosion). Avec « Réduire les animations » : pas de lecture automatique, un bouton ▶.
+ * Arrêtée et libérée de la mémoire à la fermeture ou au passage à un autre dépôt (freeVideos).
+ */
+function player(p) {
+  const ph = document.createElement('span'); ph.className = 'photo is-video';
+  const v = document.createElement('video');
+  v.crossOrigin = 'anonymous';
+  v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+  v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+  v.width = p.image.w; v.height = p.image.h;
+  v.poster = p.image.thumb;
+  v.setAttribute('aria-label', label(p));
+  v.addEventListener('loadeddata', () => ph.classList.add('is-loaded'), { once: true });
+  ph.append(v);
+  v.src = p.image.video;
+  if (reducedMotion.matches) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'vplay'; b.textContent = t('play'); b.setAttribute('aria-label', t('playVideo'));
+    b.addEventListener('click', () => { b.remove(); v.play().catch(() => {}); });
+    ph.append(b);
+  } else {
+    v.autoplay = true;
+    v.play().catch(() => {});                          // lecture muette : permise sans geste
+  }
+  return ph;
+}
+/** Arrête et libère les vidéos sous `root` (l'image décodée et le fichier ne restent pas en mémoire). */
+function freeVideos(root) {
+  root.querySelectorAll('video').forEach(v => { v.pause(); v.removeAttribute('src'); v.load(); });
+}
+
 function content(p, { full = false, font, byline = false } = {}) {
-  if (p.kind === 'image') {
-    const fig = document.createElement('span'); fig.className = 'fig'; fig.append(photo(p, full));
+  if (visual(p)) {
+    const media = full && p.kind === 'video' && p.image.video ? player(p) : photo(p, full);
+    const fig = document.createElement('span'); fig.className = 'fig'; fig.append(media);
+    if (!full && p.kind === 'video') {                 // sur le mur et dans la liste : l'image fixe + un petit ▶
+      const m = document.createElement('span'); m.className = 'vmark'; m.textContent = '▶'; m.setAttribute('aria-hidden', 'true');
+      media.append(m);
+    }
     if (p.text) {                       // commentaire de la photo, sous l'image
       const cap = document.createElement('span'); cap.className = 'caption';
       const tx = document.createElement('span'); tx.className = 'caption-text'; tx.textContent = p.text;
@@ -152,7 +193,7 @@ function nodeFor(p, w, font) {
   const old = nodeCache.get(p.id);
   if (old && old.key === key) { old.p = p; return old; }
   const li = document.createElement('li');
-  li.className = `item item--${p.kind}${p.pending ? ' is-pending' : ''}`;
+  li.className = `item item--${p.kind === 'video' ? 'image item--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
   li.style.width = `${w}px`;
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'item-hit';
@@ -160,7 +201,7 @@ function nodeFor(p, w, font) {
   b.append(content(p, { font }));
   li.append(b);
   if (p.pending) { const tag = document.createElement('span'); tag.className = 'pending-tag'; tag.textContent = t('pending'); li.append(tag); }
-  const photoH = p.kind === 'image' ? Math.round(w * p.image.h / p.image.w) : 0;
+  const photoH = visual(p) ? Math.round(w * p.image.h / p.image.w) : 0;
   if (photoH) li.querySelector('.photo').style.height = `${photoH}px`;
   if (old) old.li.replaceWith(li);
   const n = { li, key, p, w, photoH };
@@ -245,7 +286,7 @@ function renderWall(list, { glide = false } = {}) {
 function renderList(list) {
   listEl.replaceChildren(...list.map((p, i) => {
     const li = document.createElement('li');
-    li.className = `row row--${p.kind}${p.pending ? ' is-pending' : ''}`;
+    li.className = `row row--${p.kind === 'video' ? 'image row--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
     b.setAttribute('aria-label', ariaOf(p));
@@ -319,6 +360,7 @@ function openViewer(list, i) {
 function showViewer() {
   const p = current();
   $('#viewerMeta').textContent = metaOf(p);
+  freeVideos($('#viewerBody'));
   $('#viewerBody').replaceChildren(content(p, { full: true, byline: true }));
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
   const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas
@@ -356,7 +398,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=e51ce5f6da');
+    const { makeFragment, today } = await import('./fragment.js?v=f5d57a1e3e');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -390,7 +432,7 @@ keepGo.addEventListener('click', () => {
   if (canShare()) navigator.share({ files: [kept.file] }).catch(e => { if (e.name !== 'AbortError') download(); });
   else download();
 });
-$('#viewer').addEventListener('close', () => { keepJob++; dropKept(); });
+$('#viewer').addEventListener('close', () => { keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerBody').replaceChildren(); });
 
 const step = d => { const j = at + d; if (j >= 0 && j < seq.length) { at = j; showViewer(); } };
 $('#prev').addEventListener('click', () => step(-1));
@@ -428,9 +470,9 @@ const mountCaptcha = f => captcha.mount($('[data-captcha]', f), { lang, mockLabe
 /** Message lisible pour une erreur du serveur ou du réseau (codes : supabase/functions/*). */
 function errorText(err) {
   if (!(err instanceof ServerError)) return t('eServer');
-  const map = { captcha: 'eCaptcha', rate: 'eRate', tooBig: 'eTooBigSrv', type: 'eType', thumb: 'eType', size: 'eType',
-    meta: 'eMeta', tooLong: 'eTooLong', empty: 'eEmpty', rights: 'eRights', name: 'eName', gone: 'eGone', network: 'eNetwork' };
-  return t(map[err.code] || 'eServer', { max: budget() });
+  // vidéo refusée par le serveur : le message dit POURQUOI (format, taille, son, GPS, image fixe…)
+  const { key, why } = serverError(err.code, err.reason, !!media);
+  return t(key, { max: budget(), why: why && t(`why_${why}`) });
 }
 
 /* ------------------------------------------------------------------ dépôt */
@@ -440,7 +482,14 @@ function errorText(err) {
 const form = $('#dropForm'), fileIn = $('#file'), textIn = $('#text'), msgEl = $('#dropMsg');
 const canvas = $('#preview canvas');
 let src = null, preparing = null, imageError = '';   // src : image lue ; imageError : image refusée, bloque l'envoi
-const budget = () => src ? textBudget(src.width, src.height) : textBudget();
+let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
+const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
+// js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
+const videoLib = () => import('./video.js?v=a62762daa0');
+/** Message d'une erreur de lecture ou de conversion vidéo (js/video.js), avec la raison quand elle est connue. */
+const videoErrorText = err => { const { key, why } = videoError(err); return t(key, { why: t(`why_${why}`) }); };
+const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');
+const clock = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const chosenSize = () => new FormData(form).get('size') || 'm';
 
 textIn.addEventListener('input', refreshDropTexts);
@@ -448,16 +497,62 @@ function refreshDropTexts() {
   const max = budget(), n = textLength(textIn.value);
   $('#countN').textContent = `${n} / ${max}`;
   $('#count').classList.toggle('over', n > max);
-  $('#fileLabel').textContent = t(src ? 'changeImage' : 'chooseImage');
-  $('#removeImage').hidden = !src && !imageError;
+  $('#fileLabel').textContent = t(src || media ? 'changeImage' : 'chooseImage');
+  $('#removeImage').hidden = !src && !media && !imageError;
   if (src) $('#previewInfo').textContent = t('processed', { w: src.width, h: src.height });
+  if (media) {
+    const start = media.kind === 'video' ? +$('#start').value : 0;
+    const len = Math.min(60, media.duration - start);
+    $('#previewInfo').textContent = `${t('processed', { w: media.width, h: media.height })} · ${clock(len)}`;
+    $('#startTime').textContent = clock(start);
+  }
 }
+function dropMedia() {
+  converting?.abort(); converting = null;
+  media?.close(); media = null;
+  $('#startRow').hidden = true; $('#convert').hidden = true;
+}
+/** Aperçu de l'image sous le curseur « Start » (elle deviendra l'image fixe, et la vidéo commencera là). */
+let previewJob = 0;
+async function showMediaPreview() {
+  if (!media) return;
+  const job = ++previewJob, s = Math.min(1, 480 / Math.max(media.width, media.height));
+  canvas.width = Math.round(media.width * s); canvas.height = Math.round(media.height * s);
+  try { await media.preview(canvas, +$('#start').value); } catch { /* image suivante */ }
+  if (job === previewJob) $('#preview').hidden = false;
+}
+$('#start').addEventListener('input', () => { refreshDropTexts(); clearTimeout(showMediaPreview.tm); showMediaPreview.tm = setTimeout(showMediaPreview, 60); });
+$('#convCancel').addEventListener('click', () => converting?.abort());
 
 fileIn.addEventListener('change', async () => {
   const file = fileIn.files[0];
   src = null; imageError = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  dropMedia();
   if (!file) { preparing = null; $('#send').disabled = false; return refreshDropTexts(); }
   msgEl.textContent = t('processing');
+  // vidéo ou GIF animé : ouvert ici, converti à l'envoi (un GIF d'une seule image est traité comme une photo)
+  const animated = isMediaFile(file) && !(file.type === 'image/gif' && !(await videoLib().then(v => v.openMedia(file)).then(m => m.frames > 1, () => true)));
+  if (animated) {
+    const job = preparing = videoLib().then(v => v.openMedia(file));
+    $('#send').disabled = true;
+    try {
+      const m = await job;
+      if (job !== preparing) { m.close(); return; }
+      media = m;
+      const r = $('#start');
+      r.max = String(Math.max(0, media.duration - 0.5)); r.value = String(media.defaultStart);
+      $('#startRow').hidden = media.kind !== 'video';
+      await showMediaPreview();
+      msgEl.textContent = '';
+    } catch (err) {
+      if (job !== preparing) return;
+      fileIn.value = '';
+      if (err?.detail) console.warn('[video]', err.code, err.detail);
+      msgEl.textContent = imageError = videoErrorText(err);
+    }
+    preparing = null; $('#send').disabled = false;
+    return refreshDropTexts();
+  }
   const job = preparing = decodeImage(file);
   $('#send').disabled = true;                          // pas d'envoi tant que l'image n'est pas lue
   try {
@@ -476,11 +571,13 @@ fileIn.addEventListener('change', async () => {
   refreshDropTexts();
 });
 $('#removeImage').addEventListener('click', () => {
+  dropMedia();
   src = null; preparing = null; imageError = ''; $('#send').disabled = false; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
   refreshDropTexts();
 });
 
 function resetDrop() {
+  dropMedia();
   form.reset(); src = null; preparing = null; imageError = '';
   $('#preview').hidden = true; msgEl.textContent = '';
   $('#send').disabled = false;
@@ -503,31 +600,48 @@ form.addEventListener('submit', async e => {
   e.preventDefault();
   if (preparing || $('#send').disabled) return;        // image en préparation ou envoi en cours : pas de double dépôt
   if (imageError) { msgEl.textContent = imageError; return; }                        // jamais de texte seul « à la place » de l'image
-  if (fileIn.files.length && !src) { msgEl.textContent = t('eDecode'); return; }
+  if (fileIn.files.length && !src && !media) { msgEl.textContent = t('eDecode'); return; }
   const text = textIn.value.trim(), max = budget();
-  if (!src && !text) { msgEl.textContent = t('eEmpty'); return; }
+  if (!src && !media && !text) { msgEl.textContent = t('eEmpty'); return; }
   if (textLength(text) > max) { msgEl.textContent = t('eTooLong', { max }); return; }
   if (!$('#rights').checked) { msgEl.textContent = t('eRights'); return; }
   const tok = captcha.token($('[data-captcha]', form));
   if (!tok) { msgEl.textContent = t('eCaptcha'); return; }
   const send = $('#send');
   send.disabled = true; msgEl.textContent = t('sending');
-  let image = null;
+  let image = null, video = null;
   if (src) {
     try { image = await renderImage(src); }            // image finale : réduite, métadonnées retirées
     catch (err) { msgEl.textContent = err instanceof ImageError ? t(err.code) : t('eDecode'); send.disabled = false; return; }
   }
+  if (media) {                                         // conversion sur l'appareil (jusqu'à ≈ 60 s) : progression, annulable
+    const ctl = converting = new AbortController();
+    const bar = $('#convProgress'); bar.value = 0;
+    $('#convert').hidden = false; $('#startRow').hidden = true; msgEl.textContent = '';
+    $('#convert').scrollIntoView({ block: 'nearest' });
+    try {
+      video = await media.convert({ start: media.kind === 'video' ? +$('#start').value : 0, signal: ctl.signal, onProgress: p => { bar.value = p; } });
+    } catch (err) {
+      $('#convert').hidden = true; $('#startRow').hidden = media?.kind !== 'video';
+      msgEl.textContent = err?.code === 'canceled' ? '' : videoErrorText(err);
+      if (err?.detail) console.warn('[video]', err.code, err.detail);
+      converting = null; send.disabled = false; return;
+    }
+    converting = null; $('#convert').hidden = true;
+    msgEl.textContent = t('sending');
+    image = { width: video.width, height: video.height, thumb: video.poster };   // pour la copie « en attente »
+  }
   const name = $('#name').value.trim().slice(0, CONFIG.upload.maxName), size = chosenSize();
   try {
-    const out = await submitPost({ text, lang, name, size, image, captcha: tok });
-    if (image && out.kind === 'text') console.error('[submit] image non reçue par le serveur');
+    const out = await submitPost({ text, lang, name, size, image: video ? null : image, video, captcha: tok });
+    if (image && out.kind === 'text') console.error('[submit] fichier non reçu par le serveur');
     msgEl.textContent = t(mode === 'mock' ? 'thanksMock' : 'thanks');
     // mon dépôt, chez moi seulement, jusqu'à sa validation
     if (out.id && out.status === 'pending') {
       const copy = image ? await smallCopy(image.thumb) : null;
       if (!image || copy) {
         const nowIso = new Date().toISOString();
-        addPending({ id: out.id, kind: image ? 'image' : 'text', text, name, size, prompt, createdAt: nowIso, approvedAt: nowIso,
+        addPending({ id: out.id, kind: video ? 'video' : image ? 'image' : 'text', text, name, size, prompt, createdAt: nowIso, approvedAt: nowIso,
           image: image ? { src: copy, thumb: copy, w: image.width, h: image.height } : null });
         pending = pendingPosts();
         render();

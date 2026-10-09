@@ -1,13 +1,15 @@
 /**
  * Préparation d'une image AVANT l'envoi, entièrement sur l'appareil du visiteur :
- *   1. contrôle du format (JPEG / PNG / WebP) et du poids (≤ 5 Mo) ;
+ *   1. lecture de n'importe quelle image que l'appareil sait décoder (JPEG, PNG, WebP, HEIC / HEIF d'iPhone,
+ *      photos de 10 à 50 Mo, très grandes dimensions) ; refus seulement si elle est illisible ou énorme
+ *      (> 60 Mo ou > 100 mégapixels : au-delà, la mémoire d'un iPhone n'est plus sûre) ;
  *   2. redessin dans un canvas, réduit à 2000 px de côté maximum (+ miniature 800 px), avec le grain
  *      choisi par le visiteur (0 = aucun) ;
  *   3. ré-encodage (WebP, ou JPEG si le navigateur ne sait pas produire de WebP) :
  *      un canvas ne recopie AUCUNE métadonnée → EXIF, GPS, XMP, profil appareil disparaissent ;
  *   4. vérification du résultat : si une métadonnée subsistait malgré tout, on bloque l'envoi.
  */
-import { CONFIG } from './config.js?v=95312ca8f3';
+import { CONFIG } from './config.js?v=dddb743260';
 
 export class ImageError extends Error {
   constructor(code, detail) { super(code); this.code = code; this.detail = detail; }
@@ -68,22 +70,13 @@ async function encode(c) {
   return stripMetadata(blob);
 }
 
-/** Type réel d'après les premiers octets (l'iPhone annonce parfois un type vide). */
-async function sniff(file) {
-  const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  const s = (o, n) => String.fromCharCode(...b.subarray(o, o + n));
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
-  if (b[0] === 0x89 && s(1, 3) === 'PNG') return 'image/png';
-  if (s(0, 4) === 'RIFF' && s(8, 4) === 'WEBP') return 'image/webp';
-  return null;
-}
-
-/** 1. Lecture : contrôle du format et du poids, décodage. → { img, width, height } (taille publiée). */
+/** 1. Lecture : n'importe quel format lisible par l'appareil, décodage. → { img, width, height } (taille publiée). */
 export async function decodeImage(file) {
   const U = CONFIG.upload;
-  if (!U.types.includes(file.type) && !U.types.includes(await sniff(file))) throw new ImageError('eType');
-  if (file.size > U.maxBytes) throw new ImageError('eTooBig', file.size);
+  if (file.size > U.maxInputBytes) throw new ImageError('eHuge', file.size);
   const img = await load(file);
+  if (!img.naturalWidth || !img.naturalHeight) throw new ImageError('eDecode');
+  if (img.naturalWidth * img.naturalHeight > U.maxInputPixels) throw new ImageError('eHuge', `${img.naturalWidth}×${img.naturalHeight}`);
   const [width, height] = fit(img.naturalWidth, img.naturalHeight, U.maxSide);
   return { img, width, height };
 }

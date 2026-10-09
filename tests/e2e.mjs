@@ -152,6 +152,26 @@ await t('dépôt valide avec un FAUX captcha refusé', async () => code(await su
 await t('image valide avec un faux captcha refusée', async () =>
   code(await submitForm({ text: 'court' }, { image: fx('tall.webp'), thumb: fx('lossy.webp'), }), 'captcha'));
 
+// --- vidéos / GIF convertis (fausses vidéos générées : tests/fixtures-img/v-*.mp4) : tout est vérifié AVANT le captcha
+const vid = n => new Blob([readFileSync(new URL(`./fixtures-img/${n}`, import.meta.url))], { type: 'video/mp4' });   // type annoncé : ignoré par le serveur
+await t('vidéo valide (MP4 H.264 480 px, muette, 2 s) + image fixe : contrôles passés, refusée seulement au captcha', async () =>
+  code(await submitForm({ text: 'court' }, { video: vid('v-ok.mp4'), poster: fx('clean.jpg') }), 'captcha'));
+await t('vidéo de plus de 60 s refusée', async () => code(await submitForm({}, { video: vid('v-long.mp4'), poster: fx('clean.jpg') }), 'duration'));
+await t('vidéo de plus de 4 Mo refusée', async () =>
+  code(await submitForm({}, { video: new Blob([new Uint8Array(4 * 1024 * 1024 + 1)], { type: 'video/mp4' }), poster: fx('clean.jpg') }), 'tooBig'));
+await t('vidéo avec piste son refusée', async () => code(await submitForm({}, { video: vid('v-audio.mp4'), poster: fx('clean.jpg') }), 'audio'));
+await t('vidéo avec coordonnées GPS refusée', async () => code(await submitForm({}, { video: vid('v-gps.mov'), poster: fx('clean.jpg') }), 'location'));
+await t('vidéo HEVC (pas H.264) refusée : format lu dans le fichier', async () => code(await submitForm({}, { video: vid('v-hevc.mp4'), poster: fx('clean.jpg') }), 'video'));
+await t('vidéo trop grande (plus de 480 px) refusée', async () => code(await submitForm({}, { video: vid('v-720.mp4'), poster: fx('clean.jpg') }), 'size'));
+await t('image déguisée en vidéo refusée', async () => code(await submitForm({}, { video: fx('clean.jpg'), poster: fx('clean.jpg') }), 'video'));
+await t('vidéo sans image fixe refusée', async () => code(await submitForm({}, { video: vid('v-ok.mp4') }), 'thumb'));
+await t('image fixe avec Exif (comme les JPEG de Safari) refusée AVEC la raison « meta »', async () => {
+  const r = await submitForm({}, { video: vid('v-ok.mp4'), poster: fx('exif.jpg') });
+  return code(r, 'thumb') === true && r.body_?.reason === 'meta' ? true : `réponse ${r.status} ${r.bodyText.slice(0, 160)} (attendu « thumb » + raison « meta »)`;
+});
+await t('image et vidéo à la fois refusées', async () =>
+  code(await submitForm({}, { image: fx('tall.webp'), thumb: fx('lossy.webp'), video: vid('v-ok.mp4'), poster: fx('clean.jpg') }), 'bad'));
+
 // --- signalement et modération
 await t('signalement sans captcha refusé', async () => code(await req('/functions/v1/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ post_id: '00000000-0000-4000-8000-000000000000', reason: 'spam', captcha: '' }) }), 'captcha'));

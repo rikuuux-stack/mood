@@ -7,8 +7,8 @@
 <title>Mood — admin</title>
 <meta name="theme-color" content="#0b0b0b">
 <link rel="stylesheet" href="../css/fonts.css?v=4a16f2367f">
-<link rel="stylesheet" href="../css/site.css?v=924804351f">
-<link rel="stylesheet" href="admin.css?v=4aabfae5ce">
+<link rel="stylesheet" href="../css/site.css?v=5cbec1c67a">
+<link rel="stylesheet" href="admin.css?v=7864bf6c7f">
 </head>
 <body>
 <header class="bar">
@@ -28,6 +28,8 @@
 
   <!-- Tableau de bord -->
   <section id="dash" hidden>
+    <!-- place occupée sur l'offre gratuite (1 Go) : avertissement dès 700 Mo, nouvelles vidéos refusées à 900 Mo -->
+    <p class="adm-storage" id="storage" hidden></p>
     <nav class="adm-tabs" role="tablist">
       <button type="button" role="tab" data-tab="pending" aria-selected="true">Pending <span data-n="pending"></span></button>
       <button type="button" role="tab" data-tab="hidden" aria-selected="false">Reported <span data-n="hidden"></span></button>
@@ -47,7 +49,7 @@
     <!-- Dépôt direct de l'auteur du site : publié tout de suite, avec la marque -->
     <form id="mine" class="drop-form adm-mine" hidden>
       <div class="file-row">
-        <label class="file"><input type="file" id="mineFile" accept="image/jpeg,image/png,image/webp"><span class="btn" id="mineFileLabel">Image</span></label>
+        <label class="file"><input type="file" id="mineFile" accept="image/*"><span class="btn" id="mineFileLabel">Image</span></label>
         <button type="button" class="link" id="mineRemove" hidden>Remove</button>
       </div>
       <figure class="preview" id="minePreview" hidden><canvas aria-hidden="true"></canvas><figcaption id="mineInfo"></figcaption></figure>
@@ -64,6 +66,6 @@
   </section>
 </main>
 
-<script type="module" src="admin.js?v=3e643b14dd"></script>
+<script type="module" src="admin.js?v=ffc99ab632"></script>
 </body>
 </html>
