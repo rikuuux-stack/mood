@@ -36,6 +36,13 @@
 - `js/data.js` : seul point d'accès aux données.
 - Branche de travail : `claude/moodboard`. Archive de l'ancien site : branche `archive/expo-3d` (ne jamais supprimer). Le tag `v1-expo-3d` doit être créé par Félix depuis GitHub (push de tags bloqué dans les sessions cloud).
 
+## Cache-busting (obligatoire avant chaque mise en ligne)
+- Toutes les adresses internes portent une empreinte du contenu : `js/main.js?v=…`, imports `./x.js?v=…` (statiques et `import()`), CSS, polices. Un fichier modifié change d'adresse, donc aucun visiteur ne garde une ancienne version en cache (incident réel : l'ancien `js/main.js` de l'expo 3D restait en cache et bloquait Mood).
+- **Après toute modification de `index.html`, `css/` ou `js/` : `python3 tools/stamp.py`** (`tools/fonts/subset.py` le lance aussi). Un nouvel import doit être écrit avec un chemin relatif `./…` ; le script ajoute l'empreinte.
+- Vérification : `python3 tools/stamp.py --check` (aussi lancée par GitHub Actions, `.github/workflows/checks.yml`).
+- Limite : `index.html` lui-même ne peut pas porter d'empreinte ; GitHub Pages le garde jusqu'à 10 min en cache.
+
 ## Tester
 - `python3 -m http.server 8000` puis Playwright/Chromium (iPhone 12 et SE émulés).
+- `node tests/wall.test.mjs` et `python3 tools/stamp.py --check`.
 - Le Chromium de test ne remplace pas un vrai iPhone : le dire honnêtement.
