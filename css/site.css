@@ -86,7 +86,14 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 
 /* ------------------------------------------------------------------ mur */
 .wall { position: relative; list-style: none; margin: 0; padding: 0; }
-.item { position: absolute; }
+.item { position: absolute; opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+/* apparition en fondu quand l'image est prête (js/main.js : reveal) ; disparition des dépôts retirés */
+.item.is-in { opacity: 1; pointer-events: auto; }
+.item.no-fade { transition: none; }
+.item.is-out { opacity: 0; pointer-events: none; }
+/* après une mise à jour en arrière-plan : les éléments glissent vers leur nouvelle place */
+.wall.glide .item { transition: opacity .4s ease, left .7s ease, top .7s ease; }
+@media (prefers-reduced-motion: reduce) { .item, .wall.glide .item { transition: none; } }
 .item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
 .item-hit:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
 .fig { display: block; }

@@ -11,6 +11,10 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 export const ADMIN_EMAIL = 'rikuuux@gmail.com';
 export const SITE_URL = 'https://moodwall.pages.dev/';
 
+// Fichiers publiés : nom unique (identifiant du dépôt), jamais modifiés → gardés un an par le
+// navigateur et le réseau de diffusion de Supabase (affichage instantané au retour, moins de bande passante).
+export const CACHE = '31536000';
+
 // Origines autorisées à appeler les fonctions : le site (Cloudflare Pages, avec ses aperçus
 // <id>.moodwall.pages.dev) et un serveur local pour tester.
 const ORIGINS = [

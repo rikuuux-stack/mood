@@ -12,11 +12,11 @@
  */
 import { CONFIG } from './config.js?v=1f46695844';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=81b3c75cac';
-import { layout, sizeFor, DRIFT } from './wall.js?v=adc98a8050';
+import { createLayout, sizeFor, MOTIONS, motionStyle } from './wall.js?v=14d76741cd';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=6375903f29';
-import { fetchPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=6967e50ef7';
-import * as captcha from './captcha.js?v=e2511343c5';
-import { createMotion } from './motion.js?v=0d30068fc4';
+import { fetchPosts, cachedPosts, submitPost, reportPost, mode, ServerError } from './data.js?v=78561e8d4f';
+import * as captcha from './captcha.js?v=a66a75c1dc';
+import { createMotion } from './motion.js?v=2f8d05385e';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -87,53 +87,110 @@ function render() {
   if (view === 'wall') renderWall(items); else renderList(items);
 }
 
-function renderWall(items) {
+/*
+ * Mur : les éléments déjà créés sont RÉUTILISÉS d'un rendu à l'autre (images déjà chargées, pas de
+ * clignotement) ; le placement est PROGRESSIF (le premier écran tout de suite, le reste par morceaux,
+ * sans bloquer la page) ; chaque élément apparaît en fondu quand son image est prête.
+ * `glide` : après une mise à jour en arrière-plan, les éléments glissent vers leur nouvelle place.
+ */
+const nodeCache = new Map();          // identifiant → { li, key, p, w, photoH }
+let wallNodes = [], renderToken = 0;
+const motionName = motionStyle(new URLSearchParams(location.search).get('motion'));
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+function nodeFor(p, w, font) {
+  const key = `${w}|${font || 0}|${p.text}|${p.size}`;
+  const old = nodeCache.get(p.id);
+  if (old && old.key === key) { old.p = p; return old; }
+  const li = document.createElement('li');
+  li.className = `item item--${p.kind}${p.isAuthor ? ' is-author' : ''}`;
+  li.style.width = `${w}px`;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'item-hit';
+  b.setAttribute('aria-label', ariaOf(p));
+  b.append(content(p, { font }));
+  li.append(b);
+  if (p.isAuthor) li.append(stamp());
+  const photoH = p.kind === 'image' ? Math.round(w * p.image.h / p.image.w) : 0;
+  if (photoH) li.querySelector('.photo').style.height = `${photoH}px`;
+  if (old) { old.li.replaceWith(li); if (old.li.classList.contains('is-in')) li.classList.add('is-in', 'no-fade'); }
+  const n = { li, key, p, w, photoH };
+  nodeCache.set(p.id, n);
+  return n;
+}
+
+/** Fondu d'apparition : dès que l'image est décodée (tout de suite pour un texte). */
+function reveal(n, delay) {
+  if (n.li.classList.contains('is-in')) return;
+  const show = () => {
+    n.li.style.transitionDelay = `${delay}ms`; n.li.classList.add('is-in');
+    setTimeout(() => { n.li.style.transitionDelay = ''; }, delay + 450);   // le délai ne vaut que pour l'apparition
+  };
+  const img = n.li.querySelector('img');
+  if (!img || img.complete) return show();
+  img.addEventListener('load', show, { once: true });
+  img.addEventListener('error', show, { once: true });
+}
+
+function renderWall(items, { glide = false } = {}) {
+  const token = ++renderToken;
   const W = wallEl.clientWidth || document.documentElement.clientWidth;
   lastW = W;
   const mobile = W < CONFIG.wall.mobileBelow;
   const pad = mobile ? 16 : 24;
-  const A = mobile ? DRIFT.mobile : DRIFT.desktop;       // amplitude du mouvement : réservée autour de chaque élément
+  const A = MOTIONS[motionName].A[mobile ? 'mobile' : 'desktop'];   // amplitude du mouvement : réservée autour de chaque élément
   raised = null;                                          // l'élément touché est retrouvé par son identifiant (raisedId)
-  wallEl.replaceChildren();
-  wallEl.style.height = '';
-  // 1. créer chaque élément à sa largeur, pour mesurer la hauteur des stickers
-  const nodes = items.map((p, i) => {
+  // 1. créer (ou reprendre) chaque élément à sa largeur, pour mesurer la hauteur des textes
+  const ids = new Set(items.map(p => p.id));
+  for (const [id, n] of nodeCache) if (!ids.has(id)) {          // retirés : s'effacent
+    nodeCache.delete(id); n.li.classList.remove('is-in'); n.li.classList.add('is-out');
+    setTimeout(() => n.li.remove(), reducedMotion.matches ? 0 : 450);
+  }
+  wallNodes = items.map((p, i) => {
     const { w, font } = sizeFor(p, W - 2 * pad - 2 * A, mobile);
-    const li = document.createElement('li');
-    li.className = `item item--${p.kind}${p.isAuthor ? ' is-author' : ''}`;
-    li.style.width = `${w}px`;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'item-hit';
-    b.setAttribute('aria-label', ariaOf(p));
-    b.append(content(p, { font }));
-    li.append(b);
-    if (p.isAuthor) li.append(stamp());
-    li.dataset.i = i;
-    const photoH = p.kind === 'image' ? Math.round(w * p.image.h / p.image.w) : 0;
-    if (photoH) li.querySelector('.photo').style.height = `${photoH}px`;
-    return { li, w, p, photoH };
+    const n = nodeFor(p, w, font);
+    n.li.dataset.i = i;
+    if (!n.li.isConnected) wallEl.append(n.li);
+    return n;
   });
-  wallEl.append(...nodes.map(n => n.li));
+  wallEl.classList.toggle('glide', glide && !reducedMotion.matches);
+  if (glide) setTimeout(() => wallEl.classList.remove('glide'), 900);
   // hauteur réelle (image + commentaire éventuel) ; capH = bande du commentaire, que rien ne doit recouvrir
-  const boxes = nodes.map(n => {
+  const boxes = wallNodes.map(n => {
     const h = n.li.offsetHeight;
     return { id: n.p.id, kind: n.p.kind, w: n.w, h, capH: n.photoH ? h - n.photoH : 0 };
   });
-  // 2. placer
-  const L = layout(boxes, W, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile, drift: A });
-  nodes.forEach((n, i) => {
-    const r = L.rects[i];
-    n.li.dataset.z = r.z;                                // le plus récent au-dessus
-    Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });
-  });
-  motion.set(nodes.map(n => ({ el: n.li, id: n.p.id })), A);
-  wallEl.style.height = `${L.height}px`;
-  neighbours = Array.from(nodes, () => []);
-  for (const [a, b] of L.overlaps) { neighbours[a].push(b); neighbours[b].push(a); }
-  top = 2 * nodes.length;
-  // le mur peut être recomposé (police chargée, largeur changée) : l'élément touché reste au premier plan
-  const k = raisedId ? items.findIndex(p => p.id === raisedId) : -1;
-  if (k >= 0) { raised = nodes[k].li; raised.style.zIndex = String(++top); } else raisedId = null;
+  // 2. placer : d'abord ce qui est à l'écran (et un écran de plus), puis le reste par morceaux
+  const L = createLayout(W, boxes.length, { limit: mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap, pad, mobile, drift: A });
+  neighbours = wallNodes.map(() => []);
+  top = 2 * wallNodes.length;
+  const moving = [];
+  const screen = scrollY + innerHeight * 2 - (wallEl.getBoundingClientRect().top + scrollY);
+  let i = 0;
+  const placeUntil = stop => {
+    for (; i < wallNodes.length && !stop(); i++) {
+      const n = wallNodes[i], r = L.add(boxes[i]);
+      n.li.dataset.z = r.z;                              // le plus récent au-dessus
+      Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });
+      moving.push({ el: n.li, id: n.p.id, x: r.x, y: r.y });
+      reveal(n, Math.min(i * 30, 300));
+    }
+    for (const [a, b] of L.overlaps.splice(0)) { neighbours[a].push(b); neighbours[b].push(a); }
+    wallEl.style.height = `${L.height()}px`;
+    motion.set(moving, A, motionName, W);
+    // le mur peut être recomposé (police chargée, largeur changée) : l'élément touché reste au premier plan
+    const k = raisedId ? items.findIndex(p => p.id === raisedId) : -1;
+    if (k >= 0 && k < i) { raised = wallNodes[k].li; raised.style.zIndex = String(++top); }
+  };
+  placeUntil(() => i >= 8 && boxes[i - 1] && L.height() > screen);
+  const more = () => {
+    if (token !== renderToken) return;                   // un rendu plus récent a pris le relais
+    const end = i + 25;
+    placeUntil(() => i >= end);
+    if (i < wallNodes.length) setTimeout(more, 0);
+    else if (raisedId && !items.some(p => p.id === raisedId)) raisedId = null;
+  };
+  if (i < wallNodes.length) setTimeout(more, 0);
 }
 
 function renderList(items) {
@@ -164,7 +221,7 @@ addEventListener('pointerdown', e => {
   lastPointer = e.pointerType;
   if (raised && e.target.closest?.('.item') !== raised && !e.target.closest?.('dialog')) lower();
 }, { capture: true, passive: true });
-const isOnTop = li => neighbours[+li.dataset.i]?.every(j => +wallEl.children[j].style.zIndex < +li.style.zIndex) ?? true;
+const isOnTop = li => neighbours[+li.dataset.i]?.every(j => +wallNodes[j].li.style.zIndex < +li.style.zIndex) ?? true;
 const raise = li => { if (raised !== li) lower(); if (!isOnTop(li)) { li.style.zIndex = String(++top); raised = li; raisedId = posts[+li.dataset.i]?.id ?? null; } };
 
 wallEl.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const li = e.target.closest('.item'); if (li) raise(li); } });
@@ -342,11 +399,41 @@ form.addEventListener('submit', async e => {
   captcha.reset($('[data-captcha]', form));          // un jeton ne sert qu'une fois
 });
 
-/* ------------------------------------------------------------------ démarrage */
+/* ------------------------------------------------------------------ démarrage
+ * 1. le mur gardé sur l'appareil (moins de 24 h) s'affiche tout de suite ;
+ * 2. la version à jour arrive en arrière-plan : si elle diffère, les éléments glissent vers leur
+ *    nouvelle place, les nouveaux apparaissent en fondu, les retirés s'effacent.
+ * Les miniatures du premier écran sont demandées dès que la liste est connue.
+ */
+const preload = list => list.slice(0, 14).forEach(p => {
+  if (!p.image) return;
+  const im = new Image(); im.fetchPriority = 'high'; im.decoding = 'async'; im.src = p.image.thumb;
+});
+const sameWall = (a, b) => a.length === b.length && a.every((p, i) => p.id === b[i].id && p.size === b[i].size && p.text === b[i].text);
+// la hauteur des textes dépend de la police : on l'attend (brièvement) avant de composer le mur
+const fontsReady = () => Promise.race([document.fonts?.ready, new Promise(r => setTimeout(r, 1500))]);
+
 refreshDropTexts();
-try { await loadPage(); }
-catch { posts = []; hasMore = false; }               // serveur injoignable : mur vide plutôt qu'une page cassée
-// la hauteur des stickers dépend de la police : on attend qu'elle soit chargée avant de composer le mur
-await Promise.race([document.fonts?.ready, new Promise(r => setTimeout(r, 1500))]);
-setView(view);
+const fresh = fetchPosts({ offset: 0 });
+const cached = cachedPosts();
+if (cached) {
+  posts = cached; hasMore = cached.length === CONFIG.wall.pageSize;
+  preload(posts);
+  await fontsReady();
+  setView(view);
+  try {
+    const page = await fresh;
+    if (!sameWall(posts, page)) {
+      posts = page; hasMore = page.length === CONFIG.wall.pageSize;
+      preload(posts);
+      $('#empty').hidden = posts.length > 0; $('#more').hidden = !hasMore;
+      if (view === 'wall') renderWall(posts, { glide: true }); else renderList(posts);
+    }
+  } catch { /* serveur injoignable : on garde le mur de l'appareil */ }
+} else {
+  try { posts = await fresh; hasMore = posts.length === CONFIG.wall.pageSize; preload(posts); }
+  catch { posts = []; hasMore = false; }             // serveur injoignable : mur vide plutôt qu'une page cassée
+  await fontsReady();
+  setView(view);
+}
 document.fonts?.addEventListener?.('loadingdone', () => { if (view === 'wall') render(); });
