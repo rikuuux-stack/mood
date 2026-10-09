@@ -1,0 +1,8 @@
+# masters et intermédiaires : jamais publiés
+assets/lightmaps/src/
+assets/models/*.src.glb
+*.blend1
+.DS_Store
+node_modules/
+# copie générée par tools/publish.sh
+_a-mettre-en-ligne/
