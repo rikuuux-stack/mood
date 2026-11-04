@@ -3,7 +3,10 @@
 #   - à chaque mise à jour de main qui touche supabase/ (et à la demande : bouton « Run workflow ») :
 #       1. base de données (supabase/migrations) ; 2. fonctions (submit, report, moderate) ; 3. tests ;
 #   - chaque lundi : tests seuls, plus le contrôle de la production dans un vrai navigateur (aussi à la
-#     demande). Ça garde aussi le projet Supabase gratuit actif (il se met en pause après 7 jours sans activité).
+#     demande). Ça garde aussi le projet Supabase gratuit actif (il se met en pause après 7 jours sans activité) ;
+#   - chaque nuit à 03:00 heure de Tokyo (et à la demande : « Run workflow » ▸ task = archive) : archive du mur
+#     (tools/archive.mjs : captures iPhone et ordinateur + état en JSON, bucket PRIVÉ « archive »). Rien d'autre :
+#     ni déploiement, ni tests.
 #
 # Secrets GitHub nécessaires (Settings ▸ Secrets and variables ▸ Actions) :
 #   SUPABASE_ACCESS_TOKEN   jeton personnel Supabase (Account ▸ Access Tokens)
@@ -14,13 +17,20 @@ on:
     branches: [main]
     paths: ['supabase/**', 'tests/e2e.mjs', '.github/workflows/supabase.yml']
   workflow_dispatch:
+    inputs:
+      task:
+        description: 'deploy = base, fonctions et tests ; archive = archive du mur seulement'
+        type: choice
+        options: [deploy, archive]
+        default: deploy
   schedule:
-    - cron: '17 6 * * 1'
+    - cron: '17 6 * * 1'     # lundi : tests
+    - cron: '0 18 * * *'     # chaque nuit, 03:00 à Tokyo (18:00 UTC) : archive du mur
 env:
   PROJECT_REF: ovvdtthnykqvgarrjina
 jobs:
   deploy:
-    if: github.event_name != 'schedule'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task != 'archive')
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -42,7 +52,9 @@ jobs:
         run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api
   e2e:
     needs: deploy
-    if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+    if: >-
+      always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+      && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task != 'archive') || github.event.schedule == '17 6 * * 1')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,5 +71,33 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium webkit
           node tests/prod.test.mjs
+        env:
+          PW_CHANNEL: chrome
+  archive:
+    # une visite du site par vue (iPhone, ordinateur) et une lecture du mur public : rien n'est déposé ni modifié
+    if: github.event.schedule == '0 18 * * *' || (github.event_name == 'workflow_dispatch' && inputs.task == 'archive')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Clé d'envoi (lue avec le jeton déjà présent, jamais écrite)
+        run: |
+          key=$(supabase projects api-keys --project-ref "$PROJECT_REF" -o json | jq -r '.[] | select(.name == "service_role") | .api_key' | head -n 1)
+          [ -n "$key" ] && [ "$key" != "null" ] || { echo "::error::clé service_role introuvable"; exit 1; }
+          echo "::add-mask::$key"
+          echo "SERVICE_KEY=$key" >> "$GITHUB_ENV"
+      - name: Captures du mur et envoi dans le bucket privé « archive »
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tools/archive.mjs
         env:
           PW_CHANNEL: chrome
