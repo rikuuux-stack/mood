@@ -31,7 +31,7 @@ env:
 jobs:
   deploy:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task != 'archive')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04     # pas ubuntu-latest (26.04) : Playwright 1.56 ne s'y installe pas, voir checks.yml
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -55,7 +55,7 @@ jobs:
     if: >-
       always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
       && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task != 'archive') || github.event.schedule == '17 6 * * 1')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,7 +76,7 @@ jobs:
   archive:
     # une visite du site par vue (iPhone, ordinateur) et une lecture du mur public : rien n'est déposé ni modifié
     if: github.event.schedule == '0 18 * * *' || (github.event_name == 'workflow_dispatch' && inputs.task == 'archive')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
