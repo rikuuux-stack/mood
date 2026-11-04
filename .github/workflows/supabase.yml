@@ -21,7 +21,7 @@ env:
 jobs:
   deploy:
     if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04     # pas ubuntu-latest (26.04) : Playwright 1.56 ne s'y installe pas, voir checks.yml
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -43,7 +43,7 @@ jobs:
   e2e:
     needs: deploy
     if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
