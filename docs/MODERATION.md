@@ -14,9 +14,10 @@ La page est en anglais, avec des mots très courts (choix validé).
 
 | Onglet | Ce qu'il contient | Boutons |
 |---|---|---|
-| **Pending** (en attente) | les nouveaux dépôts, du plus ancien au plus récent | **Approve** : il apparaît sur le mur. **Reject** : il est supprimé définitivement (2ᵉ toucher, « Sure? », pour confirmer). |
+| **Pending** (en attente) | les nouveaux dépôts, du plus ancien au plus récent | **Approve** : il apparaît sur le mur. **Reject** : choisis la raison en un mot (rights, offensive, private, spam, test, other) ; le toucher sur la raison supprime le dépôt définitivement. |
 | **Reported** (signalés) | les dépôts masqués automatiquement après 3 signalements | **Restore** (les signalements sont effacés) ou **Delete** |
 | **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
+| **Stats** | le journal de modération résumé : par mois (heure de Tokyo) acceptés / refusés (par raison) / retirés, et dépôts par consigne. **Aucune donnée personnelle** : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne. | — |
 | **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L | publié tout de suite, comme n'importe quel dépôt (aucune marque visible ; « me » ici seulement) |
 
 **Consigne du mois** : en haut, champ **Prompt** (un court texte anglais, 60 caractères au plus, ex. « trace. ») ▸ **Save**. Elle s'affiche « This month: trace. » sur le mur et dans Drop, et elle est gardée sur chaque nouveau dépôt : le mur se lit ainsi par strates (un mois, une consigne). **Clear** = pas de consigne ce mois-ci.

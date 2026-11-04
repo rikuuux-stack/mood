@@ -33,8 +33,8 @@ async function token() {
   if (!session) throw new Error('auth');
   return session.access_token;
 }
-async function moderate(method, body) {
-  const r = await fetch(`${API}/functions/v1/moderate`, {
+async function moderate(method, body, query = '') {
+  const r = await fetch(`${API}/functions/v1/moderate${query}`, {
     method, headers: { apikey: KEY, Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -94,6 +94,8 @@ const ACTIONS = {
   published: [['remove', 'Remove', true]],
 };
 const SIZES = ['s', 'm', 'l'];
+// raison d'un refus, en un mot (gardée dans le journal de modération, sans aucune donnée personnelle)
+const REASONS = ['rights', 'offensive', 'private', 'spam', 'test', 'other'];
 
 /** Taille d'affichage S / M / L d'un dépôt : un toucher la change (en attente comme publié). */
 function sizePicker(r) {
@@ -131,8 +133,10 @@ const sizeOf = async url => {                         // poids réel du fichier 
 
 function render() {
   $('#mine').hidden = tab !== 'mine';
+  $('#stats').hidden = tab !== 'stats';
   const list = $('#cards');
-  list.hidden = tab === 'mine';
+  list.hidden = tab === 'mine' || tab === 'stats';
+  if (tab === 'stats') return renderStats();
   if (tab === 'mine') return;
   const rows = data[tab] || [];
   if (!rows.length) {
@@ -158,18 +162,65 @@ function render() {
     const bar = document.createElement('div'); bar.className = 'adm-actions';
     for (const [action, label, risky] of ACTIONS[tab]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label;
-      b.addEventListener('click', async () => {
-        // action irréversible : un second toucher pour confirmer
-        if (risky && !b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Sure?'; return; }
+      const send = async extra => {
         bar.querySelectorAll('button').forEach(x => { x.disabled = true; });
-        try { await moderate('POST', { action, id: r.id }); $('#dashMsg').textContent = 'Done'; await refresh(); }
+        try { await moderate('POST', { action, id: r.id, ...extra }); $('#dashMsg').textContent = 'Done'; await refresh(); }
         catch { $('#dashMsg').textContent = 'Failed — retry'; bar.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+      };
+      b.addEventListener('click', () => {
+        // Reject : la raison en un mot sert de confirmation (un toucher sur la raison = refus envoyé)
+        if (action === 'reject') {
+          if (bar.querySelector('.adm-reasons')) return;
+          const box = document.createElement('div'); box.className = 'adm-reasons'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', 'Reject: reason');
+          for (const reason of REASONS) {
+            const x = document.createElement('button'); x.type = 'button'; x.className = 'btn'; x.textContent = reason; x.dataset.reason = reason;
+            x.addEventListener('click', () => send({ reason }));
+            box.append(x);
+          }
+          b.classList.add('confirm'); b.textContent = 'Why?';
+          bar.append(box);
+          return;
+        }
+        // autre action irréversible : un second toucher pour confirmer
+        if (risky && !b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Sure?'; return; }
+        send({});
       });
       bar.append(b);
     }
     li.append(bar);
     return li;
   }));
+}
+
+/* ------------------------------------------------------------------ journal de modération (Stats)
+ * Par mois (heure de Tokyo) : acceptés, refusés (et par raison), retirés. Par consigne : dépôts acceptés / refusés.
+ * Aucune donnée personnelle : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne.
+ */
+function table(head, rows) {
+  const t = document.createElement('table'); t.className = 'adm-table';
+  const tr = (cells, tag) => { const r = document.createElement('tr'); for (const c of cells) { const x = document.createElement(tag); x.textContent = c; r.append(x); } return r; };
+  const th = document.createElement('thead'); th.append(tr(head, 'th'));
+  const tb = document.createElement('tbody'); rows.forEach(r => tb.append(tr(r, 'td')));
+  t.append(th, tb);
+  const wrap = document.createElement('div'); wrap.className = 'adm-table-wrap'; wrap.append(t);
+  return wrap;
+}
+async function renderStats() {
+  const box = $('#stats');
+  box.textContent = '…';
+  let s;
+  try { s = await moderate('GET', null, '?stats'); }
+  catch (e) { if (e.message !== 'auth') box.textContent = 'Stats unreadable — retry'; return; }
+  if (tab !== 'stats') return;
+  if (!s.total) { box.textContent = 'No decision logged yet.'; return; }
+  const why = o => REASONS.filter(r => o.reasons[r]).map(r => `${r} ${o.reasons[r]}`).join(' · ') || '—';
+  const h = t => { const x = document.createElement('h2'); x.className = 'adm-h'; x.textContent = t; return x; };
+  box.replaceChildren(
+    h('By month (Tokyo time)'),
+    table(['Month', 'Approved', 'Rejected', 'Why', 'Removed'], s.months.map(m => [m.month, m.approved, m.rejected, why(m), m.removed])),
+    h('By prompt'),
+    table(['Prompt', 'Posts', 'Approved', 'Rejected'], s.prompts.map(p => [p.prompt || '(none)', p.approved + p.rejected, p.approved, p.rejected])),
+  );
 }
 
 /* ------------------------------------------------------------------ consigne du mois

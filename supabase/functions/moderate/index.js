@@ -4,18 +4,35 @@
  *   GET                                  → { pending, hidden, published, storage } (fichiers en attente : liens signés 1 h ;
  *                                          storage = place occupée, plafond 900 Mo, avertissement dès 700 Mo)
  *   POST { action: 'approve', id }       → fichiers déplacés du bucket privé vers le public, dépôt visible
- *   POST { action: 'reject',  id }       → dépôt en attente supprimé (fichiers + ligne)
+ *   POST { action: 'reject',  id, reason } → dépôt en attente supprimé (fichiers + ligne) ; raison en un mot
+ *                                          (rights, offensive, private, spam, test, other), gardée dans le journal
  *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
  *   POST { action: 'resize', id, size }  → taille d'affichage changée (s / m / l), quel que soit le statut
  *   POST { action: 'prompt', text }      → consigne du mois (texte anglais, 60 caractères au plus ; vide = aucune)
+ *   GET ?stats                           → journal de modération résumé : par mois (heure de Tokyo) et par consigne
+ *                                          (acceptés, refusés par raison, retirés). Aucune donnée personnelle.
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
 import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
+import { summarize, REASONS } from '../_shared/stats.js';
 
 const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, duration, is_author, status, report_count, created_at, approved_at, prompt';
 const SIZES = ['s', 'm', 'l'];
+
+/* ------------------------------------------------------------------ journal de modération (moderation_log)
+ * Une ligne par décision : heure arrondie (par la base), décision, raison d'un refus, consigne. Rien d'autre :
+ * ni dépôt, ni texte, ni fichier, ni IP. Une écriture ratée du journal ne bloque JAMAIS la modération. */
+async function logDecision(db, decision, prompt, reason = null) {
+  const { error } = await db.from('moderation_log').insert({ decision, reason, prompt: prompt || '' });
+  if (error) console.error('[moderate] journal : écriture impossible :', error.code, error.message);
+}
+async function stats(db) {
+  const { data, error } = await db.from('moderation_log').select('at, decision, reason, prompt').order('at', { ascending: true }).limit(100000);
+  if (error) { console.error('[moderate] journal illisible :', error.code, error.message); return { months: [], prompts: [], total: 0, missing: true }; }
+  return summarize(data);
+}
 const MB = 1024 * 1024, STORAGE = { cap: 900 * MB, warn: 700 * MB };    // offre gratuite : 1 Go (même plafond que submit)
 
 async function withUrls(db, rows, bucket) {
@@ -47,7 +64,7 @@ Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) });
   const db = service();
   if (req.method === 'GET' && new URL(req.url).searchParams.has('health')) {
-    const checks = await Promise.all(['posts', 'reports', 'admins'].map(async t => {
+    const checks = await Promise.all(['posts', 'reports', 'admins', 'moderation_log'].map(async t => {
       const { error } = await db.from(t).select('*', { count: 'exact', head: true });
       if (error) console.error(`[health] « ${t} » illisible :`, error.code, error.message);
       return [t, !error];
@@ -61,6 +78,7 @@ Deno.serve(async req => {
   if (who.status === 'notAdmin') return fail(req, 403, 'admin');                      // connecté, pas admin
   if (who.status !== 'admin') return fail(req, 500, 'server');                         // panne : voir les journaux
 
+  if (req.method === 'GET' && new URL(req.url).searchParams.has('stats')) return json(req, 200, await stats(db));
   if (req.method === 'GET') {
     const q = s => db.from('posts').select(COLS).eq('status', s);
     const [p, h, a] = await Promise.all([
@@ -98,12 +116,17 @@ Deno.serve(async req => {
     if (action === 'approve' && row.status === 'pending') {
       if (row.image_path) await moveFiles(db, row, 'pending', 'published');
       await db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id);
+      await logDecision(db, 'approved', row.prompt);
     } else if (action === 'reject' && row.status === 'pending') {
+      // raison en un mot ; une ancienne page /admin/ encore en cache n'en envoie pas : « other »
+      const reason = REASONS.includes(body.reason) ? body.reason : 'other';
       if (row.image_path) await db.storage.from('pending').remove([row.image_path, row.thumb_path]);
       await db.from('posts').delete().eq('id', id);
+      await logDecision(db, 'rejected', row.prompt, reason);
     } else if (action === 'remove' && row.status !== 'pending') {
       if (row.image_path) await db.storage.from('published').remove([row.image_path, row.thumb_path]);
       await db.from('posts').delete().eq('id', id);
+      await logDecision(db, 'removed', row.prompt);
     } else if (action === 'resize' && SIZES.includes(size)) {
       const { error } = await db.from('posts').update({ size }).eq('id', id);
       if (error) throw error;

@@ -38,3 +38,12 @@
 .adm-card video { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; background: #000; }
 .adm-storage { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin: 8px 0; }
 .adm-storage.warn { color: var(--fg); text-decoration: underline; }
+/* refus : la raison en un mot */
+.adm-reasons { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.adm-reasons .btn { min-width: 0; padding-inline: 12px; font-family: var(--mono); font-size: 13px; }
+/* journal de modération (Stats) */
+.adm-h { font-weight: var(--light); font-size: .95rem; margin: 20px 0 8px; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-table { border-collapse: collapse; font: var(--light) 12px/1.5 var(--mono); min-width: 100%; }
+.adm-table th, .adm-table td { text-align: left; padding: 6px 12px 6px 0; border-bottom: var(--line) solid var(--rule); white-space: nowrap; }
+.adm-table th { color: var(--muted); font-weight: var(--light); }
