@@ -67,3 +67,20 @@ Connexion : `https://moodwall.pages.dev/admin/`.
    - **Save**.
 
 Sans cette clé, tout fonctionne, simplement sans e-mail.
+
+## Étape 5 (facultative, conseillée) — Être prévenu quand une vérification GitHub échoue
+
+Les vérifications automatiques (onglet **Actions** : « Vérifications » à chaque envoi de code, « Supabase » à
+chaque déploiement et chaque lundi) peuvent échouer sans que tu le saches. Avec ce secret, tu reçois un e-mail
+(nom du workflow, branche, lien vers le détail) à chaque échec.
+
+1. Resend ▸ **API Keys** ▸ **Create API Key** : nom `github-alerts`, permission « Sending access ». Copie-la.
+   (Tu peux aussi réutiliser la clé de l'étape 4 ; une clé à part se révoque sans couper l'autre alerte.)
+2. GitHub ▸ dépôt `mood` ▸ **Settings** ▸ **Secrets and variables** ▸ **Actions** ▸ **New repository secret** :
+   - Name : `RESEND_API_KEY`
+   - Secret : la clé
+   - **Add secret**.
+3. C'est tout. Le destinataire est le même que pour les dépôts (`ADMIN_EMAIL`, adresse du compte Resend).
+
+Sans ce secret, rien ne change : l'étape d'alerte écrit seulement « secret non configuré » dans le journal du
+job, sans erreur. Pour l'essayer : onglet **Actions** ▸ un run en échec ▸ job ▸ dernière étape « Alerte e-mail ».
