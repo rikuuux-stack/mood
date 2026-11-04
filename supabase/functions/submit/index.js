@@ -12,7 +12,7 @@
  * fichiers dans le bucket privé. Exception : si l'appelant est l'administrateur (connecté), son dépôt est publié
  * directement avec sa marque, sans captcha ni limite.
  */
-import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, SITE_URL, CACHE } from '../_shared/http.js';
+import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, tooLarge, SITE_URL, CACHE } from '../_shared/http.js';
 import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../_shared/image.js';
 import { textBudget, textLength } from '../_shared/budget.js';
 import { inspectMp4, checkVideo } from '../_shared/mp4.js';
@@ -22,6 +22,8 @@ const PER_HOUR = 3, PER_DAY = 10;
 const VIDEO_MAX = 4 * 1024 * 1024, POSTER_SIDE = 800, STORAGE_CAP = 900 * 1024 * 1024;
 const VIDEO = { maxSide: 480, maxShort: 480, maxDuration: 60.5 };
 const SIZES = ['s', 'm', 'l'];
+// plus gros envoi légitime : image 5 Mo + miniature 1 Mo + champs ; au-delà, refusé sans lire le corps
+const MAX_BODY = MAX_BYTES + MAX_THUMB + 256 * 1024;
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 // Un fichier reçu : File ou Blob selon l'environnement (on ne se fie pas à instanceof File).
@@ -51,6 +53,7 @@ async function readImage(file, maxBytes, maxSide) {
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) });
   if (req.method !== 'POST') return fail(req, 405, 'method');
+  if (tooLarge(req, MAX_BODY)) return fail(req, 413, 'tooBig');   // avant req.formData() : rien n'est chargé en mémoire
 
   let form;
   try { form = await req.formData(); } catch { return fail(req, 400, 'bad'); }

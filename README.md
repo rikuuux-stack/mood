@@ -34,6 +34,7 @@ Les modules JavaScript ne fonctionnent pas en `file://` : il faut un petit serve
 ```bash
 node tests/wall.test.mjs          # règles de lisibilité du mur
 node tests/server.test.mjs        # contrôles serveur (formats, métadonnées, budget)
+node tests/moderate.test.mjs      # modération : reprise après panne (base et stockage factices)
 node tests/e2e.mjs                # contre le vrai Supabase (lancé par GitHub Actions)
 python3 tools/stamp.py --check    # empreintes de cache à jour
 ```

@@ -21,6 +21,8 @@ jobs:
         run: node tests/wall.test.mjs
       - name: Contrôles serveur (formats, métadonnées, budget)
         run: node tests/server.test.mjs
+      - name: Modération (enchaînement des étapes, reprise après panne — base et stockage factices)
+        run: node tests/moderate.test.mjs
       - name: Navigateur (bandeau, fond, érosion)
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
