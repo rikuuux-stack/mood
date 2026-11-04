@@ -9,6 +9,11 @@
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
  *   POST { action: 'resize', id, size }  → taille d'affichage changée (s / m / l), quel que soit le statut
  *   POST { action: 'prompt', text }      → consigne du mois (texte anglais, 60 caractères au plus ; vide = aucune)
+ *   GET ?expiry                          → expiration à 180 jours, RAPPORT (simulation) : réglage (enabled, OFF par défaut),
+ *                                          ce qui serait supprimé maintenant et dans les 30 jours, place libérée
+ *   POST { action: 'expiry-run' }        → supprime vraiment les fichiers des dépôts expirés et ne garde que leur ligne,
+ *                                          SEULEMENT si l'auteur a activé expiry_settings.enabled lui-même (sinon 403
+ *                                          « disabled », rien n'est touché). Aucune action ne peut activer ce réglage.
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
@@ -31,6 +36,46 @@ async function withUrls(db, rows, bucket) {
     image_url: r.image_path ? (bucket === 'pending' ? signed[r.image_path] : pub(r.image_path)) : null,
     thumb_url: r.thumb_path ? (bucket === 'pending' ? signed[r.thumb_path] : pub(r.thumb_path)) : null,
   }));
+}
+
+/* ------------------------------------------------------------------ expiration à 180 jours (simulation par défaut) */
+async function expirySettings(db) {
+  const { data, error } = await db.from('expiry_settings').select('enabled, days').eq('id', 1).maybeSingle();
+  if (error) console.error('[moderate] réglage d\'expiration illisible :', error.code, error.message);
+  return { enabled: data?.enabled === true, days: data?.days || 180, missing: !!error };   // illisible → OFF
+}
+async function expiryReport(db) {
+  const st = await expirySettings(db);
+  const now = await db.rpc('expiry_candidates', { days: st.days });
+  const soon = await db.rpc('expiry_candidates', { days: st.days - 30 });
+  if (now.error || soon.error) console.error('[moderate] candidats illisibles :', (now.error || soon.error).message);
+  const sum = rows => (rows || []).reduce((s, r) => s + Number(r.bytes || 0), 0);
+  const nowIds = new Set((now.data || []).map(r => r.id));
+  const next = (soon.data || []).filter(r => !nowIds.has(r.id));
+  return {
+    enabled: st.enabled, days: st.days, simulation: !st.enabled,
+    now: { count: (now.data || []).length, bytes: sum(now.data), posts: (now.data || []).slice(0, 200) },
+    next30: { count: next.length, bytes: sum(next) },
+  };
+}
+async function expiryRun(db) {
+  const st = await expirySettings(db);
+  if (!st.enabled) return { refused: true };                     // OFF (par défaut) : RIEN n'est supprimé
+  const { data: rows, error } = await db.rpc('expiry_candidates', { days: st.days });
+  if (error) throw error;
+  let done = 0;
+  for (const c of rows || []) {
+    const { data: p } = await db.from('posts').select('id, image_path, thumb_path').eq('id', c.id).maybeSingle();
+    if (!p?.image_path) continue;
+    const { error: e1 } = await db.storage.from('published').remove([p.image_path, p.thumb_path]);
+    if (e1) { console.error('[moderate] expiration : fichiers non supprimés', c.id, e1.message); continue; }
+    // seule la ligne de la liste reste : date, consigne, type, taille (ni fichier, ni texte, ni pseudo)
+    const { error: e2 } = await db.from('posts').update({ image_path: null, thumb_path: null, text: '', name: '', expired_at: new Date().toISOString() }).eq('id', c.id);
+    if (e2) { console.error('[moderate] expiration : ligne non mise à jour', c.id, e2.message); continue; }
+    done++;
+  }
+  console.log(`[moderate] expiration : ${done} dépôt(s) expiré(s)`);
+  return { done };
 }
 
 async function moveFiles(db, row, from, to) {
@@ -61,6 +106,7 @@ Deno.serve(async req => {
   if (who.status === 'notAdmin') return fail(req, 403, 'admin');                      // connecté, pas admin
   if (who.status !== 'admin') return fail(req, 500, 'server');                         // panne : voir les journaux
 
+  if (req.method === 'GET' && new URL(req.url).searchParams.has('expiry')) return json(req, 200, await expiryReport(db));
   if (req.method === 'GET') {
     const q = s => db.from('posts').select(COLS).eq('status', s);
     const [p, h, a] = await Promise.all([
@@ -90,6 +136,15 @@ Deno.serve(async req => {
     const { error } = await db.from('prompt').upsert({ id: 1, text, updated_at: new Date().toISOString() });
     if (error) { console.error('[moderate] consigne impossible :', error.code, error.message); return fail(req, 500, 'db'); }
     return json(req, 200, { ok: true, prompt: text });
+  }
+  if (action === 'expiry-run') {
+    try {
+      const out = await expiryRun(db);
+      return out.refused ? fail(req, 403, 'disabled') : json(req, 200, { ok: true, ...out });
+    } catch (e) {
+      console.error('[moderate] expiration impossible :', e?.message || e);
+      return fail(req, 500, 'storage');
+    }
   }
   const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
   if (!row) return fail(req, 404, 'gone');

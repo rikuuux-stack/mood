@@ -75,8 +75,10 @@ export function settlePending(publishedIds) {
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {}) {
   if (mode === 'mock') {
-    const { MOCK_POSTS } = await import('./mock.js?v=f62979d0a7');
-    return MOCK_POSTS.slice(offset, offset + limit);
+    const { MOCK_POSTS, expiredDemo } = await import('./mock.js?v=e0066123f7');
+    // ?mock=expired : démonstration de la liste des dépôts expirés (fausses données, aucun envoi possible)
+    const all = new URLSearchParams(location.search).get('mock') === 'expired' ? expiredDemo() : MOCK_POSTS;
+    return all.slice(offset, offset + limit);
   }
   const q = new URLSearchParams({
     select: 'id,kind,text,name,image_path,thumb_path,width,height,size,prompt,created_at,approved_at',
@@ -87,6 +89,8 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {})
   const posts = (await r.json()).map(p => ({
     id: p.id, kind: p.kind, text: p.text || '', name: p.name || '', size: p.size || 'm', prompt: p.prompt || '',
     createdAt: p.created_at, approvedAt: p.approved_at || p.created_at,
+    // expiré (à 180 jours, si l'auteur l'active) : ses fichiers sont supprimés, seule sa ligne reste (vue List, texte seul)
+    expired: (p.kind === 'image' || p.kind === 'video') && !p.image_path,
     // vidéo : image fixe (thumb_path) partout ; le fichier vidéo (image_path) seulement à l'ouverture
     image: !p.image_path ? null : p.kind === 'video'
       ? { src: publicUrl(p.thumb_path), thumb: publicUrl(p.thumb_path), video: publicUrl(p.image_path), w: p.width, h: p.height }
