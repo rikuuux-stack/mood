@@ -25,8 +25,10 @@ const SIZES = ['s', 'm', 'l'];
  * Une ligne par décision : heure arrondie (par la base), décision, raison d'un refus, consigne. Rien d'autre :
  * ni dépôt, ni texte, ni fichier, ni IP. Une écriture ratée du journal ne bloque JAMAIS la modération. */
 async function logDecision(db, decision, prompt, reason = null) {
-  const { error } = await db.from('moderation_log').insert({ decision, reason, prompt: prompt || '' });
-  if (error) console.error('[moderate] journal : écriture impossible :', error.code, error.message);
+  try {
+    const { error } = await db.from('moderation_log').insert({ decision, reason, prompt: prompt || '' });
+    if (error) console.error('[moderate] journal : écriture impossible :', error.code, error.message);
+  } catch (e) { console.error('[moderate] journal : écriture impossible :', e?.message || e); }   // jamais bloquant
 }
 async function stats(db) {
   const { data, error } = await db.from('moderation_log').select('at, decision, reason, prompt').order('at', { ascending: true }).limit(100000);
