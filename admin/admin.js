@@ -133,6 +133,7 @@ function render() {
   $('#mine').hidden = tab !== 'mine';
   const list = $('#cards');
   list.hidden = tab === 'mine';
+  renderBulk();
   if (tab === 'mine') return;
   const rows = data[tab] || [];
   if (!rows.length) {
@@ -171,6 +172,54 @@ function render() {
     return li;
   }));
 }
+
+/* ------------------------------------------------------------------ Pending : tout valider / tout refuser
+ * Même action serveur que les boutons de chaque carte, dépôt par dépôt (aucune nouvelle route). Garde-fous :
+ *   - second toucher obligatoire, qui affiche le NOMBRE de dépôts concernés (« Sure? Reject 7 ») ;
+ *   - le lot est figé au moment où la liste est AFFICHÉE : un dépôt arrivé depuis (pas encore vu) n'est jamais traité ;
+ *   - arrêt au premier échec, en disant lequel ; la liste est relue à la fin (réussite ou échec).
+ * Reject all est irréversible (fichiers et ligne supprimés), comme Reject.
+ */
+let batch = [], bulkBusy = false;
+function renderBulk() {
+  const box = $('#bulk'), rows = tab === 'pending' ? data.pending || [] : [];
+  box.hidden = !rows.length;
+  if (bulkBusy) return;
+  batch = rows.map(r => r.id);                         // ce qui est affiché, et seulement ça
+  box.querySelectorAll('button').forEach(b => {
+    b.disabled = false; b.classList.remove('confirm');
+    b.textContent = b.dataset.bulk === 'approve' ? 'Approve all' : 'Reject all';
+  });
+}
+const short = r => [r.kind, fmt(r.created_at), r.text ? `“${r.text.slice(0, 30)}${r.text.length > 30 ? '…' : ''}”` : null].filter(Boolean).join(' · ');
+document.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', async () => {
+  const action = b.dataset.bulk, ids = batch.slice(), verb = action === 'approve' ? 'Approve' : 'Reject';
+  if (!ids.length || bulkBusy) return;
+  if (!b.classList.contains('confirm')) {               // 1ᵉʳ toucher : confirmation avec le nombre
+    $('#bulk').querySelectorAll('button').forEach(x => { x.classList.remove('confirm'); x.textContent = x.dataset.bulk === 'approve' ? 'Approve all' : 'Reject all'; });
+    b.classList.add('confirm'); b.textContent = `Sure? ${verb} ${ids.length}`;
+    return;
+  }
+  bulkBusy = true;
+  $('#bulk').querySelectorAll('button').forEach(x => { x.disabled = true; });
+  $('#cards').querySelectorAll('.adm-actions button').forEach(x => { x.disabled = true; });
+  const byId = new Map((data.pending || []).map(r => [r.id, r]));
+  let done = 0, failedAt = null;
+  for (const id of ids) {
+    $('#dashMsg').textContent = `${verb} ${done + 1} / ${ids.length}…`;
+    try { await moderate('POST', { action, id }); done++; }
+    catch (e) { failedAt = { id, error: e.message }; break; }
+  }
+  bulkBusy = false;
+  if (failedAt?.error === 'auth') return;               // déjà renvoyé à l'écran de connexion
+  const r = byId.get(failedAt?.id);
+  $('#dashMsg').textContent = failedAt
+    ? `Stopped: ${done} / ${ids.length} done. Failed on #${done + 1}${r ? ` (${short(r)})` : ''} — retry`
+    : `Done: ${done} / ${ids.length}`;
+  const msg = $('#dashMsg').textContent;
+  await refresh();
+  $('#dashMsg').textContent = msg;                      // le résultat reste affiché après la relecture
+}));
 
 /* ------------------------------------------------------------------ consigne du mois
  * Un court texte anglais (60 caractères au plus) : « This month: … » sur le mur et dans Drop, et gardé

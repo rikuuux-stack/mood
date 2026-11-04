@@ -15,6 +15,15 @@ La page est en anglais, avec des mots très courts (choix validé).
 | Onglet | Ce qu'il contient | Boutons |
 |---|---|---|
 | **Pending** (en attente) | les nouveaux dépôts, du plus ancien au plus récent | **Approve** : il apparaît sur le mur. **Reject** : il est supprimé définitivement (2ᵉ toucher, « Sure? », pour confirmer). |
+
+**Tout valider / tout refuser** (onglet Pending, au-dessus des cartes) : **Approve all** et **Reject all**.
+1. Premier toucher : le bouton affiche le nombre de dépôts concernés, par exemple « Sure? Reject 7 ». Rien n'est encore fait.
+2. Second toucher : chaque dépôt affiché est traité, un par un, exactement comme avec son propre bouton.
+   - Seuls les dépôts **affichés au moment du toucher** sont traités : un dépôt arrivé entre-temps, que tu n'as pas
+     encore vu, reste en attente.
+   - Au premier échec, tout s'arrête et le message dit lequel (« Stopped: 2 / 7 done. Failed on #3 (…) — retry ») ;
+     la liste est relue. Retoucher le bouton reprend avec ce qui reste.
+   - **Reject all est définitif** (fichiers et texte supprimés). Regarde la liste avant ; en cas de doute, refuse un par un.
 | **Reported** (signalés) | les dépôts masqués automatiquement après 3 signalements | **Restore** (les signalements sont effacés) ou **Delete** |
 | **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
 | **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L | publié tout de suite, comme n'importe quel dépôt (aucune marque visible ; « me » ici seulement) |
