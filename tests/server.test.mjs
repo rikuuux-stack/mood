@@ -8,6 +8,7 @@ import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
 import { summarize } from '../supabase/functions/_shared/stats.js';
 import { serverError, videoError, WHY } from '../js/errors.js';
 import { STRINGS } from '../js/strings.js';
+import { clientIpFrom, bodyTooLarge } from '../supabase/functions/_shared/request.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -90,4 +91,10 @@ check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);
 check('pseudo avec lien refusé', ['http://x', 'www.spam', 'buy.com', '@insta'].map(looksLikeLink), [true, true, true, true]);
+// lecture prudente des requêtes (_shared/request.js)
+check('IP : cf-connecting-ip (posée par Cloudflare) prime sur tout', clientIpFrom(' 203.0.113.9 ', 'faux, 198.51.100.2'), '203.0.113.9');
+check('IP : sans cf-connecting-ip, le DERNIER élément de x-forwarded-for (ajouté par le relais), jamais le premier (écrit par le client)',
+  [clientIpFrom('', 'faux, 198.51.100.2'), clientIpFrom(null, '198.51.100.2'), clientIpFrom('', ''), clientIpFrom(undefined, undefined)], ['198.51.100.2', '198.51.100.2', '', '']);
+check('corps trop gros refusé avant lecture (content-length), inconnu accepté',
+  [bodyTooLarge('7000000', 6 * 1024 * 1024), bodyTooLarge('100', 6 * 1024 * 1024), bodyTooLarge(null, 1), bodyTooLarge('abc', 1)], [true, false, false, false]);
 process.exit(fail ? 1 : 0);

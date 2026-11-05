@@ -10,7 +10,7 @@ Rien de ce que déposent les visiteurs n'est visible avant que tu l'aies validé
 
 La page est en anglais, avec des mots très courts (choix validé).
 
-## Les quatre onglets
+## Les onglets
 
 | Onglet | Ce qu'il contient | Boutons |
 |---|---|---|
@@ -19,6 +19,7 @@ La page est en anglais, avec des mots très courts (choix validé).
 | **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
 | **Stats** | le journal de modération résumé : par mois (heure de Tokyo) acceptés / refusés (par raison) / retirés, et dépôts par consigne. **Aucune donnée personnelle** : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne. | — |
 | **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L | publié tout de suite, comme n'importe quel dépôt (aucune marque visible ; « me » ici seulement) |
+| **Archive** | une ligne par nuit : le mur entier capturé chaque nuit à 03:00 (heure de Tokyo), vue iPhone + vue ordinateur + état (dépôts, paliers, strates, consigne) | toucher une nuit : aperçu et téléchargement ; **Delete night** (2ᵉ toucher) pour une demande de retrait |
 
 **Consigne du mois** : en haut, champ **Prompt** (un court texte anglais, 60 caractères au plus, ex. « trace. ») ▸ **Save**. Elle s'affiche « This month: trace. » sur le mur et dans Drop, et elle est gardée sur chaque nouveau dépôt : le mur se lit ainsi par strates (un mois, une consigne). **Clear** = pas de consigne ce mois-ci.
 
@@ -47,13 +48,21 @@ les nouvelles vidéos sont refusées (« Wall full — come back later. »). Pou
 
 Quelqu'un écrit à rikuuux@gmail.com pour retirer un contenu : onglet **Live** ▸ **Remove** (2ᵉ toucher pour confirmer).
 Le fichier et le texte sont supprimés du serveur (pas seulement cachés).
+Le contenu reste visible dans les **captures d'archive** des nuits où il était sur le mur : onglet **Archive** ▸
+touche chaque nuit concernée ▸ **Delete night** (les captures sont privées : personne d'autre ne les voit, mais
+une demande de retrait concerne aussi elles).
 
 ## Alerte e-mail
 
 Si l'étape 4 de `docs/INSTALLATION.md` est faite, tu reçois un e-mail « Mood — nouveau dépôt à valider »
-avec le texte et un lien vers cette page.
+avec le texte et un lien vers cette page, et un e-mail « Mood — dépôt masqué après 3 signalements » quand un dépôt
+publié vient d'être masqué : il n'est plus sur le mur, mais son fichier reste accessible par son adresse jusqu'à
+ta décision (**Reported** ▸ **Restore** ou **Delete**).
 
 ## Si quelque chose ne marche pas
+
+- « Failed — retry » après Approve, Reject, Remove ou Restore : l'action n'est pas terminée (panne passagère de la
+  base ou du stockage). Rien n'est perdu : touche à nouveau le bouton, le second essai reprend là où ça s'est arrêté.
 
 - « Ce compte n'est pas administrateur » : le compte n'est pas `rikuuux@gmail.com`.
 - « Impossible de charger les dépôts » : le projet Supabase est peut-être en pause (offre gratuite, après

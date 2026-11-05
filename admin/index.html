@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0b0b">
 <link rel="stylesheet" href="../css/fonts.css?v=4a16f2367f">
 <link rel="stylesheet" href="../css/site.css?v=5cbec1c67a">
-<link rel="stylesheet" href="admin.css?v=db79d3d1f9">
+<link rel="stylesheet" href="admin.css?v=657649be97">
 </head>
 <body>
 <header class="bar">
@@ -35,6 +35,7 @@
       <button type="button" role="tab" data-tab="hidden" aria-selected="false">Reported <span data-n="hidden"></span></button>
       <button type="button" role="tab" data-tab="published" aria-selected="false">Live <span data-n="published"></span></button>
       <button type="button" role="tab" data-tab="mine" aria-selected="false">Drop</button>
+      <button type="button" role="tab" data-tab="archive" aria-selected="false">Archive</button>
       <button type="button" role="tab" data-tab="stats" aria-selected="false">Stats</button>
     </nav>
     <!-- consigne du mois : un court texte anglais (60 caractères au plus), affiché sur le mur et dans Drop -->
@@ -47,6 +48,11 @@
     <p class="form-msg" id="dashMsg" role="status"></p>
     <ol id="cards" class="adm-cards"></ol>
 
+    <!-- Archive nocturne du mur (bucket privé « archive », une nuit par dossier) : aperçu, téléchargement, suppression -->
+    <section id="archive" class="adm-archive" hidden>
+      <p class="adm-meta" id="archiveInfo"></p>
+      <ol id="nights" class="adm-nights"></ol>
+    </section>
     <!-- Journal de modération résumé (aucune donnée personnelle) : par mois (heure de Tokyo) et par consigne -->
     <section id="stats" class="adm-stats" hidden></section>
 
@@ -70,6 +76,6 @@
   </section>
 </main>
 
-<script type="module" src="admin.js?v=6cb982a914"></script>
+<script type="module" src="admin.js?v=cc76f0bd63"></script>
 </body>
 </html>
