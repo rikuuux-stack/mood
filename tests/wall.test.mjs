@@ -75,8 +75,8 @@ check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
     Math.abs(negative(0) - 0.76) < 0.002 && negative(1) === 0 && Array.from({ length: 101 }, (_, i) => negative(i / 100)).every((v, i, a) => i === 0 || v <= a[i - 1] + 1e-9));
   const fmt = x => String(+x.toFixed(4));
   const alphaRow = e => `0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  ${fmt(e.k)} 0 0 0 ${fmt(1 - e.k * e.t)}"`;   // alpha = k × gris + (1 − k × t)
-  check('noir transparent dès le dépôt : écran (#tone) et export (BASE) identiques', filter('tone').includes(alphaRow(BASE))
-    && alphaOf(0, BASE) === 0 && alphaOf(0.25, BASE) === 1 && alphaOf(0.76, BASE) === 1);
+  check('noir transparent dès le dépôt (sous 30 % de gris, fondu jusqu’à 45 %) : écran (#tone) et export (BASE) identiques', filter('tone').includes(alphaRow(BASE))
+    && alphaOf(0, BASE) === 0 && alphaOf(0.3, BASE) < 0.01 && alphaOf(0.45, BASE) === 1 && alphaOf(0.76, BASE) === 1);
   check('paliers d’érosion identiques : écran (#erode1…4) et export (ERODE)', ERODE.every((e, i) => {
     const f = filter(`erode${i + 1}`);
     const grain = e.g ? f.includes(`values="${fmt(e.g)} 0 0 0 ${fmt(0.5 - e.g * 0.5)}`) && f.includes('feTurbulence') : !f.includes('feTurbulence');

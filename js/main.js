@@ -14,7 +14,7 @@
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=7f7191e965';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME } from './wall.js?v=b7c207cd50';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, alphaOf } from './wall.js?v=10fdf5c535';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=4d6e44fae3';
 import * as captcha from './captcha.js?v=130a7987f8';
@@ -113,10 +113,30 @@ function photo(p, full) {
 }
 
 /*
- * Vidéo dans l'agrandissement : téléchargée seulement à l'ouverture, jouée muette, en boucle, neuve (noir et blanc
+ * Vidéo dans l'agrandissement : téléchargée seulement à l'ouverture, jouée muette, en boucle, neuve (négatif
  * déjà dans le fichier, aucune érosion). Avec « Réduire les animations » : pas de lecture automatique, un bouton ▶.
  * Arrêtée et libérée de la mémoire à la fermeture ou au passage à un autre dépôt (freeVideos).
+ * Noir transparent comme les photos : un MP4 ne porte pas de transparence, donc chaque image est redessinée dans
+ * un canvas (≤ 480 px) où les sombres deviennent transparents (BASE, même règle que #tone). La <video> reste
+ * dessous, invisible (elle décode et donne les images).
  */
+const ALPHA = new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, BASE) * 255));
+function paintFrames(v, c) {
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const draw = () => {
+    if (!v.videoWidth || !c.isConnected) return;
+    if (c.width !== v.videoWidth) { c.width = v.videoWidth; c.height = v.videoHeight; }
+    g.drawImage(v, 0, 0);
+    const im = g.getImageData(0, 0, c.width, c.height), d = im.data;
+    for (let o = 0; o < d.length; o += 4) d[o + 3] = ALPHA[d[o + 1]];      // image déjà en gris : R = V = B
+    g.putImageData(im, 0, 0);
+  };
+  const loop = () => { draw(); if (!v.paused && c.isConnected) next(); };
+  const next = () => (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(loop) : requestAnimationFrame(loop));
+  v.addEventListener('play', next);
+  v.addEventListener('loadeddata', draw);
+  v.addEventListener('seeked', draw);
+}
 function player(p) {
   const ph = document.createElement('span'); ph.className = 'photo is-video';
   const v = document.createElement('video');
@@ -127,7 +147,10 @@ function player(p) {
   v.poster = p.image.thumb;
   v.setAttribute('aria-label', label(p));
   v.addEventListener('loadeddata', () => ph.classList.add('is-loaded'), { once: true });
-  ph.append(v);
+  const c = document.createElement('canvas'); c.className = 'vcanvas'; c.width = p.image.w; c.height = p.image.h;
+  c.setAttribute('aria-hidden', 'true');
+  ph.append(v, c);
+  paintFrames(v, c);
   v.src = p.image.video;
   if (reducedMotion.matches) {
     const b = document.createElement('button');
@@ -143,6 +166,7 @@ function player(p) {
 /** Arrête et libère les vidéos sous `root` (l'image décodée et le fichier ne restent pas en mémoire). */
 function freeVideos(root) {
   root.querySelectorAll('video').forEach(v => { v.pause(); v.removeAttribute('src'); v.load(); });
+  root.querySelectorAll('canvas.vcanvas').forEach(c => { c.width = c.height = 0; });   // libère l'image du canvas
 }
 
 function content(p, { full = false, font, byline = false } = {}) {
@@ -425,7 +449,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=b2fc0fbaab');
+    const { makeFragment, today } = await import('./fragment.js?v=7078d3b6d9');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -512,7 +536,7 @@ let src = null, rendered = null, preparing = null, imageError = '';   // src : i
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
-const videoLib = () => import('./video.js?v=47444f7075');
+const videoLib = () => import('./video.js?v=b8358bd802');
 /** Message d'une erreur de lecture ou de conversion vidéo (js/video.js), avec la raison quand elle est connue. */
 const videoErrorText = err => { const { key, why } = videoError(err); return t(key, { why: t(`why_${why}`) }); };
 const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');

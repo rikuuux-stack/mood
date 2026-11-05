@@ -143,7 +143,9 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
    (négatif noir et blanc et courbe déjà DANS le fichier : aucun filtre pendant la lecture — Safari / iOS
    n'applique pas les filtres SVG aux vidéos, WebKit bug 184601) */
 .vmark { position: absolute; left: 6px; bottom: 5px; z-index: 1; font-size: 10px; line-height: 1; color: #fff; mix-blend-mode: difference; pointer-events: none; }
-.photo.is-video video { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; background: var(--photo-bg); }
+/* la <video> décode, invisible ; on voit le canvas où chaque image a son noir transparent (js/main.js, paintFrames) */
+.photo.is-video video { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+.photo.is-video .vcanvas { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; filter: none; }
 .vplay { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; font-size: 28px; color: #fff; mix-blend-mode: difference; }
 .vplay:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
 @media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
@@ -193,7 +195,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 
 @media (max-width: 639px) {
   .dlg { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; padding: 12px var(--gutter) calc(18px + var(--safe-b)); }
-  .viewer-body img, .viewer-body .photo.is-video video { max-height: 60dvh; }
+  .viewer-body img, .viewer-body .photo.is-video .vcanvas { max-height: 60dvh; }
 }
 
 /* panneau « à propos » */

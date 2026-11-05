@@ -390,6 +390,18 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     if (open.canPlay && !reduce) {
       const played = await vp.waitForFunction(() => document.querySelector('#viewer video').currentTime > 0.2, null, { timeout: 8000 }).then(() => true, () => false);
       ok(played, 'la vidéo joue vraiment (navigateur avec H.264)');
+      // noir transparent pendant la lecture : chaque image est redessinée dans un canvas, alpha = BASE (comme #tone)
+      await vp.waitForTimeout(300);
+      const cv = await vp.evaluate(async () => {
+        const { alphaOf, BASE } = await import('/js/wall.js');
+        const c = document.querySelector('#viewer canvas.vcanvas'), v = document.querySelector('#viewer video');
+        if (!c || !c.width) return { canvas: false };
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let bad = 0, clear = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4 * 97) { n++; const want = Math.round(alphaOf(d[i + 1] / 255, BASE) * 255); if (Math.abs(d[i + 3] - want) > 2) bad++; if (d[i + 3] === 0) clear++; }
+        return { canvas: true, n, bad, clear, filter: getComputedStyle(c).filter, videoOpacity: getComputedStyle(v).opacity };
+      });
+      ok(cv.canvas && cv.bad === 0 && cv.filter === 'none' && cv.videoOpacity === '0', `lecture : le noir de chaque image est transparent (canvas, ${cv.clear} / ${cv.n} points transparents, alpha conforme à BASE)`, JSON.stringify(cv));
     } else if (!open.canPlay) console.log('SAUTÉ  lecture réelle : ce Chromium de test ne lit pas le H.264 (vérifiée dans GitHub avec Google Chrome, puis sur iPhone)');
     await vp.keyboard.press('Escape');
     await vp.waitForSelector('#viewer:not([open])', { state: 'attached' });

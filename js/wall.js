@@ -91,8 +91,9 @@ export const STAGES = [0.08, 0.3, 0.55, 0.8];
  *   TONE  : courbe de tons du négatif (0 → 0 · 25 % → 24 % · … · 100 % → 76 %) : le plus clair du négatif
  *           s'arrête à 76 % de blanc, l'image ne se confond jamais avec le fond blanc. Dans index.html,
  *           inversion + courbe tiennent dans une seule table : TONE à l'envers (« 0.76 0.64 0.47 0.24 0 ») ;
- *   BASE  : NOIR TRANSPARENT DÈS LE DÉPÔT (décision de l'auteur) : alpha = 1 − k × (t − gris) ; le noir pur du
- *           négatif est transparent (on voit le fond blanc et les images du dessous), opaque dès 25 % de gris ;
+ *   BASE  : NOIR TRANSPARENT DÈS LE DÉPÔT (décision de l'auteur) : alpha = 1 − k × (t − gris) ; tout le sombre du
+ *           négatif (sous 30 % de gris) est transparent (on voit le fond blanc et les images du dessous), opaque
+ *           dès 45 % ; aussi pendant la lecture d'une vidéo (js/main.js, image par image) ;
  *   ERODE : par palier, même formule avec un seuil qui MONTE : l'image se désagrège avec le temps, des
  *           sombres vers les clairs, jusqu'à ne laisser que les parties claires ; force g du grain dans le
  *           filtre (0 : pas de grain). Paliers et dates inchangés (stageOf) ;
@@ -105,12 +106,15 @@ export function negative(lum) {
   const p = Math.min(3.999, (1 - lum) * 4), i = p | 0;
   return TONE[i] + (TONE[i + 1] - TONE[i]) * (p - i);
 }
-export const BASE = { t: 0.25, k: 4, g: 0 };
+/* Seuils mesurés sur les vraies photos du mur (diagnostic du 5 novembre 2026 : leurs gris, en négatif, sont
+   surtout entre 20 et 60 %) : sous 30 %, transparent ; fondu jusqu'à 45 %. Chaque palier repousse ce fondu de
+   7 points vers les clairs ; au palier 4, il ne reste que ce qui dépasse ≈ 58 %. */
+export const BASE = { t: 0.45, k: 6.6667, g: 0 };
 export const ERODE = [
-  { t: 0.33, k: 4, g: 0 },
-  { t: 0.41, k: 4, g: 0 },
-  { t: 0.49, k: 4, g: 0 },
-  { t: 0.57, k: 4, g: 0 },
+  { t: 0.52, k: 6.6667, g: 0 },
+  { t: 0.59, k: 6.6667, g: 0 },
+  { t: 0.66, k: 6.6667, g: 0 },
+  { t: 0.73, k: 6.6667, g: 0 },
 ];
 /** Opacité d'un pixel (gris du négatif, 0 … 0,76) selon le traitement (BASE ou un palier d'ERODE). */
 export const alphaOf = (gray, e) => Math.max(0, Math.min(1, 1 - e.k * (e.t - gray)));
