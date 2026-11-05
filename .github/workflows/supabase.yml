@@ -43,13 +43,28 @@ jobs:
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::Secret SUPABASE_DB_PASSWORD manquant (voir docs/INSTALLATION.md)"; exit 1; }
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Version figée : la 3.0.0 (2 nov. 2026) a changé « db push --password » (refusé sans --linked).
+          # Pour monter de version : la tester d'abord sur une branche (Actions ▸ Supabase ▸ Run workflow).
+          version: 2.122.1
       - name: Lier le projet
         run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Base de données
         run: supabase db push --password "$SUPABASE_DB_PASSWORD"
       - name: Fonctions serveur
         run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api
+      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
+      # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
+      - name: Alerte e-mail en cas d'échec
+        if: failure()
+        run: |
+          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
+          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   e2e:
     needs: deploy
     if: >-
@@ -73,6 +88,20 @@ jobs:
           node tests/prod.test.mjs
         env:
           PW_CHANNEL: chrome
+      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
+      # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
+      - name: Alerte e-mail en cas d'échec
+        if: failure()
+        run: |
+          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
+          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   archive:
     # une visite du site par vue (iPhone, ordinateur) et une lecture du mur public : rien n'est déposé ni modifié
     if: github.event.schedule == '0 18 * * *' || (github.event_name == 'workflow_dispatch' && inputs.task == 'archive')
@@ -87,7 +116,7 @@ jobs:
           node-version: 22
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1   # figée, comme le job deploy (voir plus haut)
       - name: Clé d'envoi (lue avec le jeton déjà présent, jamais écrite)
         run: |
           key=$(supabase projects api-keys --project-ref "$PROJECT_REF" -o json | jq -r '.[] | select(.name == "service_role") | .api_key' | head -n 1)
@@ -101,3 +130,16 @@ jobs:
           node tools/archive.mjs
         env:
           PW_CHANNEL: chrome
+      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
+      # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
+      - name: Alerte e-mail en cas d'échec
+        if: failure()
+        run: |
+          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
+          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

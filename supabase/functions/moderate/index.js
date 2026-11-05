@@ -69,14 +69,35 @@ async function archiveDelete(db, date) {
   return paths.length;
 }
 
+/**
+ * Chaque écriture est VÉRIFIÉE : une panne lève une erreur (StepError) et l'action répond 500, pour que
+ * /admin/ affiche « Failed — retry » au lieu de « Done » alors que rien (ou la moitié) n'a été fait.
+ * Incident possible sans ça : fichiers déjà passés dans « published », ligne restée « pending », et un
+ * second Approve impossible (les fichiers ne sont plus dans « pending »).
+ */
+class StepError extends Error { constructor(step, cause) { super(`${step}: ${cause?.message || cause}`); this.step = step; } }
+const must = async (step, promise) => { const r = await promise; if (r?.error) throw new StepError(step, r.error); return r; };
+
+/** Le fichier est-il déjà dans ce bucket ? (chemins plats : « <id>.ext » à la racine) */
+async function exists(db, bucket, path) {
+  const { data } = await db.storage.from(bucket).list('', { search: path, limit: 100 });
+  return !!data?.some(f => f.name === path);
+}
+
+/**
+ * Déplace les deux fichiers d'un dépôt. Reprise possible : un fichier déjà arrivé dans `to` (approve
+ * interrompu avant la mise à jour de la ligne) n'est pas une erreur, on continue avec le suivant.
+ */
 async function moveFiles(db, row, from, to) {
   for (const p of [row.image_path, row.thumb_path]) {
     const { data, error } = await db.storage.from(from).download(p);
-    if (error) throw error;
-    const up = await db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE });
-    if (up.error) throw up.error;
+    if (error) {
+      if (await exists(db, to, p)) continue;             // déjà déplacé lors d'un essai précédent
+      throw new StepError('storage', error);
+    }
+    await must('storage', db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE }));
   }
-  await db.storage.from(from).remove([row.image_path, row.thumb_path]);
+  await must('storage', db.storage.from(from).remove([row.image_path, row.thumb_path]));
 }
 
 Deno.serve(async req => {
@@ -144,28 +165,31 @@ Deno.serve(async req => {
   const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
   if (!row) return fail(req, 404, 'gone');
 
+  // Ordre : d'abord les fichiers, puis la ligne. Si les fichiers échouent, la ligne ne bouge pas (on réessaie) ;
+  // si la ligne échoue après les fichiers, moveFiles sait reprendre (approve) et remove/reject n'ont
+  // rien de plus à supprimer : dans tous les cas, un second essai termine le travail.
   try {
     if (action === 'approve' && row.status === 'pending') {
       if (row.image_path) await moveFiles(db, row, 'pending', 'published');
-      await db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id);
+      await must('db', db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id));
     } else if (action === 'reject' && row.status === 'pending') {
-      if (row.image_path) await db.storage.from('pending').remove([row.image_path, row.thumb_path]);
-      await db.from('posts').delete().eq('id', id);
+      if (row.image_path) await must('storage', db.storage.from('pending').remove([row.image_path, row.thumb_path]));
+      await must('db', db.from('posts').delete().eq('id', id));
     } else if (action === 'remove' && row.status !== 'pending') {
-      if (row.image_path) await db.storage.from('published').remove([row.image_path, row.thumb_path]);
-      await db.from('posts').delete().eq('id', id);
+      // demande de retrait : le fichier doit vraiment disparaître du bucket public avant qu'on dise « Done »
+      if (row.image_path) await must('storage', db.storage.from('published').remove([row.image_path, row.thumb_path]));
+      await must('db', db.from('posts').delete().eq('id', id));
     } else if (action === 'resize' && SIZES.includes(size)) {
-      const { error } = await db.from('posts').update({ size }).eq('id', id);
-      if (error) throw error;
+      await must('db', db.from('posts').update({ size }).eq('id', id));
     } else if (action === 'restore' && row.status === 'hidden') {
-      await db.from('reports').delete().eq('post_id', id);
-      await db.from('posts').update({ status: 'approved', report_count: 0 }).eq('id', id);
+      await must('db', db.from('reports').delete().eq('post_id', id));
+      await must('db', db.from('posts').update({ status: 'approved', report_count: 0 }).eq('id', id));
     } else {
       return fail(req, 400, 'action');
     }
   } catch (e) {
-    console.error(`[moderate] action « ${action} » impossible :`, e?.message || e);
-    return fail(req, 500, 'storage');
+    console.error(`[moderate] action « ${action} » impossible (${id}) :`, e?.message || e);
+    return fail(req, 500, e instanceof StepError ? e.step : 'storage');
   }
   return json(req, 200, { ok: true });
 });

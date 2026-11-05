@@ -7,6 +7,7 @@
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   fournis automatiquement par Supabase
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { clientIpFrom, bodyTooLarge } from './request.js';
 
 export const ADMIN_EMAIL = 'rikuuux@gmail.com';
 export const SITE_URL = 'https://moodwall.pages.dev/';
@@ -42,9 +43,11 @@ export const fail = (req, status, code, reason) => json(req, status, reason ? { 
 export const service = () =>
   createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
 
-/** Adresse IP du visiteur (jamais stockée telle quelle). */
-export const clientIp = req =>
-  (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || '').split(',')[0].trim();
+/** Adresse IP du visiteur (jamais stockée telle quelle) : règle dans _shared/request.js. */
+export const clientIp = req => clientIpFrom(req.headers.get('cf-connecting-ip'), req.headers.get('x-forwarded-for'));
+
+/** Corps annoncé trop gros pour cette fonction : refusé avant d'être lu (413). */
+export const tooLarge = (req, max) => bodyTooLarge(req.headers.get('content-length'), max);
 
 /** Empreinte non réversible de l'IP, salée avec la clé de service (qui n'est jamais publique). */
 export async function ipHash(req) {
