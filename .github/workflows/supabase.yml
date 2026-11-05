@@ -42,6 +42,19 @@ jobs:
         run: supabase db push --password "$SUPABASE_DB_PASSWORD"
       - name: Fonctions serveur
         run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api
+      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
+      # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
+      - name: Alerte e-mail en cas d'échec
+        if: failure()
+        run: |
+          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
+          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   e2e:
     needs: deploy
     if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
@@ -63,3 +76,16 @@ jobs:
           node tests/prod.test.mjs
         env:
           PW_CHANNEL: chrome
+      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
+      # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
+      - name: Alerte e-mail en cas d'échec
+        if: failure()
+        run: |
+          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
+          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
