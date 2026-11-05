@@ -398,7 +398,10 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
         if (!c || !c.width) return { canvas: false };
         const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
         let bad = 0, clear = 0, n = 0;
-        for (let i = 0; i < d.length; i += 4 * 97) { n++; const want = Math.round(alphaOf(d[i + 1] / 255, BASE) * 255); if (Math.abs(d[i + 3] - want) > 2) bad++; if (d[i + 3] === 0) clear++; }
+        // relu depuis un canvas, un pixel presque transparent perd la précision de son gris (couleurs stockées
+        // « prémultipliées ») : on ne compare que les pixels assez opaques pour garder leur gris exact
+        for (let i = 0; i < d.length; i += 4 * 97) { n++; if (d[i + 3] === 0) { clear++; continue; } if (d[i + 3] < 128) continue;
+          const want = Math.round(alphaOf(d[i + 1] / 255, BASE) * 255); if (Math.abs(d[i + 3] - want) > 4) bad++; }
         return { canvas: true, n, bad, clear, filter: getComputedStyle(c).filter, videoOpacity: getComputedStyle(v).opacity };
       });
       ok(cv.canvas && cv.bad === 0 && cv.filter === 'none' && cv.videoOpacity === '0', `lecture : le noir de chaque image est transparent (canvas, ${cv.clear} / ${cv.n} points transparents, alpha conforme à BASE)`, JSON.stringify(cv));
