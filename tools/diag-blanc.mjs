@@ -37,6 +37,8 @@ for (const [name, bt] of [['chromium', chromium], ['webkit', webkit]]) {
   console.log(`FILTRES ${name} (fond ROUGE : rouge = transparent) :`, JSON.stringify(px));
   await b.close();
 }
+// attendre que l'aperçu porte le nouveau réglage (seuil 0,45)
+for (let i = 0; i < 30; i++) { const h = await (await fetch('https://claude-blanc.moodwall.pages.dev/?' + Date.now())).text(); if (h.includes('6.6667')) { console.log('aperçu à jour'); break; } await new Promise(r => setTimeout(r, 10000)); }
 // page réelle en WebKit iPhone
 const b = await webkit.launch();
 const ctx = await b.newContext({ ...devices['iPhone 12'] });
