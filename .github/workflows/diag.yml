@@ -1,0 +1,20 @@
+# DIAGNOSTIC JETABLE (branche claude/diag-blanc, jamais fusionnée)
+name: Diagnostic blanc
+on:
+  push:
+    branches: [claude/diag-blanc]
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: claude/blanc }
+      - uses: actions/checkout@v4
+        with: { path: diag }
+      - run: |
+          cp diag/tools/diag-blanc.mjs tools/
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+          node tools/diag-blanc.mjs
+      - uses: actions/upload-artifact@v4
+        with: { name: diag, path: 'diag-*.png' }
