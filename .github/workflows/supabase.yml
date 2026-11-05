@@ -33,7 +33,9 @@ jobs:
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::Secret SUPABASE_DB_PASSWORD manquant (voir docs/INSTALLATION.md)"; exit 1; }
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Version figée : la 3.0.0 (2 nov. 2026) a changé « db push --password » (refusé sans --linked).
+          # Pour monter de version : la tester d'abord sur une branche (Actions ▸ Supabase ▸ Run workflow).
+          version: 2.122.1
       - name: Lier le projet
         run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Base de données
