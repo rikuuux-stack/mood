@@ -5,8 +5,10 @@ import { textBudget as serverBudget } from '../supabase/functions/_shared/budget
 import { textBudget as siteBudget } from '../js/budget.js';
 import { stripMetadata } from '../js/image.js';
 import { inspectMp4, checkVideo } from '../supabase/functions/_shared/mp4.js';
+import { summarize } from '../supabase/functions/_shared/stats.js';
 import { serverError, videoError, WHY } from '../js/errors.js';
 import { STRINGS } from '../js/strings.js';
+import { clientIpFrom, bodyTooLarge } from '../supabase/functions/_shared/request.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -63,6 +65,20 @@ const keys = ['eVideoUnsupported', 'eVideoStalled', 'eVideoEncode', 'eVideoOutpu
 check('messages vidéo présents en FR / JA / EN', ['fr', 'ja', 'en'].map(l => keys.filter(k => !STRINGS[l][k])), [[], [], []]);
 check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'].map(l => ['eVideoOutput', 'eVideoRejected'].every(k => STRINGS[l][k].includes('{why}'))), [true, true, true]);
 
+// journal de modération : chiffres par mois (heure de Tokyo) et par consigne
+{
+  const s = summarize([
+    { at: '2026-09-30T14:00:00Z', decision: 'approved', reason: null, prompt: 'trace' },     // 30 sept. 23 h à Tokyo → septembre
+    { at: '2026-09-30T15:00:00Z', decision: 'rejected', reason: 'spam', prompt: 'trace' },   // 1er oct. 0 h à Tokyo → octobre
+    { at: '2026-10-02T03:00:00Z', decision: 'rejected', reason: 'rights', prompt: 'light' },
+    { at: '2026-10-03T03:00:00Z', decision: 'rejected', reason: null, prompt: 'light' },     // ancienne page sans raison → other
+    { at: '2026-10-04T03:00:00Z', decision: 'removed', reason: null, prompt: 'trace' },
+  ]);
+  check('journal : mois à l’heure de Tokyo, du plus récent au plus ancien', s.months.map(m => [m.month, m.approved, m.rejected, m.removed]), [['2026-10', 0, 3, 1], ['2026-09', 1, 0, 0]]);
+  check('journal : refus par raison (sans raison → other)', s.months[0].reasons, { rights: 1, offensive: 0, private: 0, spam: 1, test: 0, other: 1 });
+  check('journal : dépôts par consigne (les retraits ne comptent pas comme dépôts)', s.prompts.map(p => [p.prompt, p.approved, p.rejected]), [['trace', 1, 1], ['light', 0, 2]].sort((a, b) => (b[1] + b[2]) - (a[1] + a[2])));
+}
+
 // page d'accueil : libellés en anglais même AVANT le JavaScript (aperçus de lien, traduction automatique, chargement lent)
 {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -75,4 +91,10 @@ check('messages avec raison : {why} présent en FR / JA / EN', ['fr', 'ja', 'en'
 // pseudos
 check('pseudo sans lien accepté', looksLikeLink('Léa K.'), false);
 check('pseudo avec lien refusé', ['http://x', 'www.spam', 'buy.com', '@insta'].map(looksLikeLink), [true, true, true, true]);
+// lecture prudente des requêtes (_shared/request.js)
+check('IP : cf-connecting-ip (posée par Cloudflare) prime sur tout', clientIpFrom(' 203.0.113.9 ', 'faux, 198.51.100.2'), '203.0.113.9');
+check('IP : sans cf-connecting-ip, le DERNIER élément de x-forwarded-for (ajouté par le relais), jamais le premier (écrit par le client)',
+  [clientIpFrom('', 'faux, 198.51.100.2'), clientIpFrom(null, '198.51.100.2'), clientIpFrom('', ''), clientIpFrom(undefined, undefined)], ['198.51.100.2', '198.51.100.2', '', '']);
+check('corps trop gros refusé avant lecture (content-length), inconnu accepté',
+  [bodyTooLarge('7000000', 6 * 1024 * 1024), bodyTooLarge('100', 6 * 1024 * 1024), bodyTooLarge(null, 1), bodyTooLarge('abc', 1)], [true, false, false, false]);
 process.exit(fail ? 1 : 0);

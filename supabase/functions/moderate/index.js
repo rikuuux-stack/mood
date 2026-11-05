@@ -4,11 +4,18 @@
  *   GET                                  → { pending, hidden, published, storage } (fichiers en attente : liens signés 1 h ;
  *                                          storage = place occupée, plafond 900 Mo, avertissement dès 700 Mo)
  *   POST { action: 'approve', id }       → fichiers déplacés du bucket privé vers le public, dépôt visible
- *   POST { action: 'reject',  id }       → dépôt en attente supprimé (fichiers + ligne)
+ *   POST { action: 'reject',  id, reason } → dépôt en attente supprimé (fichiers + ligne) ; raison en un mot
+ *                                          (rights, offensive, private, spam, test, other), gardée dans le journal
  *   POST { action: 'remove',  id }       → dépôt publié ou masqué supprimé (demande de retrait, etc.)
  *   POST { action: 'restore', id }       → dépôt masqué par signalements remis en ligne (signalements effacés)
  *   POST { action: 'resize', id, size }  → taille d'affichage changée (s / m / l), quel que soit le statut
  *   POST { action: 'prompt', text }      → consigne du mois (texte anglais, 60 caractères au plus ; vide = aucune)
+ *   GET ?archive                         → { nights: [{ date, files: [{ name, size }] }], total } : archive nocturne du mur
+ *                                          (bucket PRIVÉ « archive », un dossier AAAA-MM-JJ par nuit, tools/archive.mjs)
+ *   POST { action: 'archive-urls', date }   → liens signés 1 h (voir / télécharger) des fichiers d'une nuit
+ *   POST { action: 'archive-delete', date } → nuit supprimée (demande de retrait de contenu)
+ *   GET ?stats                           → journal de modération résumé : par mois (heure de Tokyo) et par consigne
+ *                                          (acceptés, refusés par raison, retirés). Aucune donnée personnelle.
  *   GET ?expiry                          → expiration à 180 jours, RAPPORT (simulation) : réglage (enabled, OFF par défaut),
  *                                          ce qui serait supprimé maintenant et dans les 30 jours, place libérée
  *   POST { action: 'expiry-run' }        → supprime vraiment les fichiers des dépôts expirés et ne garde que leur ligne,
@@ -18,9 +25,25 @@
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
 import { cors, json, fail, service, caller, CACHE } from '../_shared/http.js';
+import { summarize, REASONS } from '../_shared/stats.js';
 
 const COLS = 'id, kind, text, name, image_path, thumb_path, width, height, size, duration, is_author, status, report_count, created_at, approved_at, prompt';
 const SIZES = ['s', 'm', 'l'];
+
+/* ------------------------------------------------------------------ journal de modération (moderation_log)
+ * Une ligne par décision : heure arrondie (par la base), décision, raison d'un refus, consigne. Rien d'autre :
+ * ni dépôt, ni texte, ni fichier, ni IP. Une écriture ratée du journal ne bloque JAMAIS la modération. */
+async function logDecision(db, decision, prompt, reason = null) {
+  try {
+    const { error } = await db.from('moderation_log').insert({ decision, reason, prompt: prompt || '' });
+    if (error) console.error('[moderate] journal : écriture impossible :', error.code, error.message);
+  } catch (e) { console.error('[moderate] journal : écriture impossible :', e?.message || e); }   // jamais bloquant
+}
+async function stats(db) {
+  const { data, error } = await db.from('moderation_log').select('at, decision, reason, prompt').order('at', { ascending: true }).limit(100000);
+  if (error) { console.error('[moderate] journal illisible :', error.code, error.message); return { months: [], prompts: [], total: 0, missing: true }; }
+  return summarize(data);
+}
 const MB = 1024 * 1024, STORAGE = { cap: 900 * MB, warn: 700 * MB };    // offre gratuite : 1 Go (même plafond que submit)
 
 async function withUrls(db, rows, bucket) {
@@ -36,6 +59,53 @@ async function withUrls(db, rows, bucket) {
     image_url: r.image_path ? (bucket === 'pending' ? signed[r.image_path] : pub(r.image_path)) : null,
     thumb_url: r.thumb_path ? (bucket === 'pending' ? signed[r.thumb_path] : pub(r.thumb_path)) : null,
   }));
+}
+
+/* ------------------------------------------------------------------ archive nocturne (bucket privé « archive ») */
+const NIGHT = /^\d{4}-\d{2}-\d{2}$/;
+async function archiveNights(db) {
+  const bucket = db.storage.from('archive');
+  const { data: dirs, error } = await bucket.list('', { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
+  if (error) return { nights: [], total: 0, missing: true };   // bucket pas encore créé : aucune nuit
+  const nights = [];
+  for (const d of (dirs || []).filter(x => !x.id && NIGHT.test(x.name))) {
+    const { data: files } = await bucket.list(d.name, { limit: 100 });
+    nights.push({ date: d.name, files: (files || []).filter(f => f.id).map(f => ({ name: f.name, size: f.metadata?.size || 0 })) });
+  }
+  return { nights, total: nights.reduce((s, n) => s + n.files.reduce((a, f) => a + f.size, 0), 0) };
+}
+async function archiveUrls(db, date) {
+  const bucket = db.storage.from('archive');
+  const { data: files, error } = await bucket.list(date, { limit: 100 });
+  if (error) throw error;
+  const paths = (files || []).filter(f => f.id).map(f => `${date}/${f.name}`);
+  if (!paths.length) return [];
+  const { data, error: e2 } = await bucket.createSignedUrls(paths, 3600);
+  if (e2) throw e2;
+  return (data || []).map(x => ({ name: x.path.split('/').pop(), url: x.signedUrl, download: `${x.signedUrl}&download=mood-${date}-${x.path.split('/').pop()}` }));
+}
+async function archiveDelete(db, date) {
+  const bucket = db.storage.from('archive');
+  const { data: files, error } = await bucket.list(date, { limit: 100 });
+  if (error) throw error;
+  const paths = (files || []).filter(f => f.id).map(f => `${date}/${f.name}`);
+  if (paths.length) { const { error: e2 } = await bucket.remove(paths); if (e2) throw e2; }
+  return paths.length;
+}
+
+/**
+ * Chaque écriture est VÉRIFIÉE : une panne lève une erreur (StepError) et l'action répond 500, pour que
+ * /admin/ affiche « Failed — retry » au lieu de « Done » alors que rien (ou la moitié) n'a été fait.
+ * Incident possible sans ça : fichiers déjà passés dans « published », ligne restée « pending », et un
+ * second Approve impossible (les fichiers ne sont plus dans « pending »).
+ */
+class StepError extends Error { constructor(step, cause) { super(`${step}: ${cause?.message || cause}`); this.step = step; } }
+const must = async (step, promise) => { const r = await promise; if (r?.error) throw new StepError(step, r.error); return r; };
+
+/** Le fichier est-il déjà dans ce bucket ? (chemins plats : « <id>.ext » à la racine) */
+async function exists(db, bucket, path) {
+  const { data } = await db.storage.from(bucket).list('', { search: path, limit: 100 });
+  return !!data?.some(f => f.name === path);
 }
 
 /* ------------------------------------------------------------------ expiration à 180 jours (simulation par défaut) */
@@ -78,21 +148,27 @@ async function expiryRun(db) {
   return { done };
 }
 
+/**
+ * Déplace les deux fichiers d'un dépôt. Reprise possible : un fichier déjà arrivé dans `to` (approve
+ * interrompu avant la mise à jour de la ligne) n'est pas une erreur, on continue avec le suivant.
+ */
 async function moveFiles(db, row, from, to) {
   for (const p of [row.image_path, row.thumb_path]) {
     const { data, error } = await db.storage.from(from).download(p);
-    if (error) throw error;
-    const up = await db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE });
-    if (up.error) throw up.error;
+    if (error) {
+      if (await exists(db, to, p)) continue;             // déjà déplacé lors d'un essai précédent
+      throw new StepError('storage', error);
+    }
+    await must('storage', db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE }));
   }
-  await db.storage.from(from).remove([row.image_path, row.thumb_path]);
+  await must('storage', db.storage.from(from).remove([row.image_path, row.thumb_path]));
 }
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) });
   const db = service();
   if (req.method === 'GET' && new URL(req.url).searchParams.has('health')) {
-    const checks = await Promise.all(['posts', 'reports', 'admins'].map(async t => {
+    const checks = await Promise.all(['posts', 'reports', 'admins', 'moderation_log'].map(async t => {
       const { error } = await db.from(t).select('*', { count: 'exact', head: true });
       if (error) console.error(`[health] « ${t} » illisible :`, error.code, error.message);
       return [t, !error];
@@ -106,6 +182,8 @@ Deno.serve(async req => {
   if (who.status === 'notAdmin') return fail(req, 403, 'admin');                      // connecté, pas admin
   if (who.status !== 'admin') return fail(req, 500, 'server');                         // panne : voir les journaux
 
+  if (req.method === 'GET' && new URL(req.url).searchParams.has('archive')) return json(req, 200, await archiveNights(db));
+  if (req.method === 'GET' && new URL(req.url).searchParams.has('stats')) return json(req, 200, await stats(db));
   if (req.method === 'GET' && new URL(req.url).searchParams.has('expiry')) return json(req, 200, await expiryReport(db));
   if (req.method === 'GET') {
     const q = s => db.from('posts').select(COLS).eq('status', s);
@@ -137,6 +215,19 @@ Deno.serve(async req => {
     if (error) { console.error('[moderate] consigne impossible :', error.code, error.message); return fail(req, 500, 'db'); }
     return json(req, 200, { ok: true, prompt: text });
   }
+  if (action === 'archive-urls' || action === 'archive-delete') {
+    const date = String(body.date || '');
+    if (!NIGHT.test(date)) return fail(req, 400, 'bad');
+    try {
+      if (action === 'archive-urls') return json(req, 200, { files: await archiveUrls(db, date) });
+      const n = await archiveDelete(db, date);
+      console.log(`[moderate] archive : nuit ${date} supprimée (${n} fichier(s))`);
+      return json(req, 200, { ok: true, removed: n });
+    } catch (e) {
+      console.error(`[moderate] archive « ${action} » ${date} impossible :`, e?.message || e);
+      return fail(req, 500, 'storage');
+    }
+  }
   if (action === 'expiry-run') {
     try {
       const out = await expiryRun(db);
@@ -149,28 +240,36 @@ Deno.serve(async req => {
   const { data: row } = await db.from('posts').select(COLS).eq('id', id || '').maybeSingle();
   if (!row) return fail(req, 404, 'gone');
 
+  // Ordre : d'abord les fichiers, puis la ligne. Si les fichiers échouent, la ligne ne bouge pas (on réessaie) ;
+  // si la ligne échoue après les fichiers, moveFiles sait reprendre (approve) et remove/reject n'ont
+  // rien de plus à supprimer : dans tous les cas, un second essai termine le travail.
   try {
     if (action === 'approve' && row.status === 'pending') {
       if (row.image_path) await moveFiles(db, row, 'pending', 'published');
-      await db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id);
+      await must('db', db.from('posts').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', id));
+      await logDecision(db, 'approved', row.prompt);
     } else if (action === 'reject' && row.status === 'pending') {
-      if (row.image_path) await db.storage.from('pending').remove([row.image_path, row.thumb_path]);
-      await db.from('posts').delete().eq('id', id);
+      // raison en un mot ; une ancienne page /admin/ encore en cache n'en envoie pas : « other »
+      const reason = REASONS.includes(body.reason) ? body.reason : 'other';
+      if (row.image_path) await must('storage', db.storage.from('pending').remove([row.image_path, row.thumb_path]));
+      await must('db', db.from('posts').delete().eq('id', id));
+      await logDecision(db, 'rejected', row.prompt, reason);
     } else if (action === 'remove' && row.status !== 'pending') {
-      if (row.image_path) await db.storage.from('published').remove([row.image_path, row.thumb_path]);
-      await db.from('posts').delete().eq('id', id);
+      // demande de retrait : le fichier doit vraiment disparaître du bucket public avant qu'on dise « Done »
+      if (row.image_path) await must('storage', db.storage.from('published').remove([row.image_path, row.thumb_path]));
+      await must('db', db.from('posts').delete().eq('id', id));
+      await logDecision(db, 'removed', row.prompt);
     } else if (action === 'resize' && SIZES.includes(size)) {
-      const { error } = await db.from('posts').update({ size }).eq('id', id);
-      if (error) throw error;
+      await must('db', db.from('posts').update({ size }).eq('id', id));
     } else if (action === 'restore' && row.status === 'hidden') {
-      await db.from('reports').delete().eq('post_id', id);
-      await db.from('posts').update({ status: 'approved', report_count: 0 }).eq('id', id);
+      await must('db', db.from('reports').delete().eq('post_id', id));
+      await must('db', db.from('posts').update({ status: 'approved', report_count: 0 }).eq('id', id));
     } else {
       return fail(req, 400, 'action');
     }
   } catch (e) {
-    console.error(`[moderate] action « ${action} » impossible :`, e?.message || e);
-    return fail(req, 500, 'storage');
+    console.error(`[moderate] action « ${action} » impossible (${id}) :`, e?.message || e);
+    return fail(req, 500, e instanceof StepError ? e.step : 'storage');
   }
   return json(req, 200, { ok: true });
 });

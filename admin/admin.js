@@ -94,6 +94,8 @@ const ACTIONS = {
   published: [['remove', 'Remove', true]],
 };
 const SIZES = ['s', 'm', 'l'];
+// raison d'un refus, en un mot (gardée dans le journal de modération, sans aucune donnée personnelle)
+const REASONS = ['rights', 'offensive', 'private', 'spam', 'test', 'other'];
 
 /** Taille d'affichage S / M / L d'un dépôt : un toucher la change (en attente comme publié). */
 function sizePicker(r) {
@@ -131,9 +133,13 @@ const sizeOf = async url => {                         // poids réel du fichier 
 
 function render() {
   $('#mine').hidden = tab !== 'mine';
+  $('#archive').hidden = tab !== 'archive';
+  $('#stats').hidden = tab !== 'stats';
   $('#expiry').hidden = tab !== 'expiry';
   const list = $('#cards');
-  list.hidden = tab === 'mine' || tab === 'expiry';
+  list.hidden = tab === 'mine' || tab === 'archive' || tab === 'stats' || tab === 'expiry';
+  if (tab === 'archive') return renderArchive();
+  if (tab === 'stats') return renderStats();
   if (tab === 'expiry') return renderExpiry();
   if (tab === 'mine') return;
   const rows = data[tab] || [];
@@ -160,18 +166,119 @@ function render() {
     const bar = document.createElement('div'); bar.className = 'adm-actions';
     for (const [action, label, risky] of ACTIONS[tab]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label;
-      b.addEventListener('click', async () => {
-        // action irréversible : un second toucher pour confirmer
-        if (risky && !b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Sure?'; return; }
+      const send = async extra => {
         bar.querySelectorAll('button').forEach(x => { x.disabled = true; });
-        try { await moderate('POST', { action, id: r.id }); $('#dashMsg').textContent = 'Done'; await refresh(); }
+        try { await moderate('POST', { action, id: r.id, ...extra }); $('#dashMsg').textContent = 'Done'; await refresh(); }
         catch { $('#dashMsg').textContent = 'Failed — retry'; bar.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+      };
+      b.addEventListener('click', () => {
+        // Reject : la raison en un mot sert de confirmation (un toucher sur la raison = refus envoyé)
+        if (action === 'reject') {
+          if (bar.querySelector('.adm-reasons')) return;
+          const box = document.createElement('div'); box.className = 'adm-reasons'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', 'Reject: reason');
+          for (const reason of REASONS) {
+            const x = document.createElement('button'); x.type = 'button'; x.className = 'btn'; x.textContent = reason; x.dataset.reason = reason;
+            x.addEventListener('click', () => send({ reason }));
+            box.append(x);
+          }
+          b.classList.add('confirm'); b.textContent = 'Why?';
+          bar.append(box);
+          return;
+        }
+        // autre action irréversible : un second toucher pour confirmer
+        if (risky && !b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Sure?'; return; }
+        send({});
       });
       bar.append(b);
     }
     li.append(bar);
     return li;
   }));
+}
+
+/* ------------------------------------------------------------------ archive nocturne du mur
+ * Une nuit = un dossier du bucket privé « archive » (tools/archive.mjs, 03:00 heure de Tokyo) : capture iPhone,
+ * capture ordinateur, état en JSON. Les liens (aperçu, téléchargement) sont signés pour 1 h et demandés
+ * seulement à l'ouverture d'une nuit. Suppression d'une nuit : pour une demande de retrait de contenu.
+ */
+const kb = n => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
+async function renderArchive() {
+  const box = $('#nights'), info = $('#archiveInfo');
+  info.textContent = '…'; box.replaceChildren();
+  let out;
+  try { out = await moderate('GET', null, '?archive'); }
+  catch (e) { if (e.message !== 'auth') info.textContent = 'Archive unreadable — retry'; return; }
+  if (tab !== 'archive') return;
+  info.textContent = out.nights.length ? `${out.nights.length} night(s) · ${kb(out.total)} (archive limit 200 MB)` : 'No night archived yet (every night at 03:00, Tokyo time).';
+  box.replaceChildren(...out.nights.map(n => {
+    const li = document.createElement('li'); li.className = 'adm-night';
+    const d = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.textContent = `${n.date} · ${n.files.map(f => f.name.replace(/\.\w+$/, '')).join(', ')} · ${kb(n.files.reduce((s, f) => s + f.size, 0))}`;
+    const body = document.createElement('div'); body.className = 'adm-night-body';
+    d.append(sum, body);
+    d.addEventListener('toggle', async () => {
+      if (!d.open || body.dataset.loaded) return;
+      body.textContent = '…';
+      try {
+        const { files } = await moderate('POST', { action: 'archive-urls', date: n.date });
+        body.dataset.loaded = '1';
+        const links = document.createElement('p'); links.className = 'adm-actions';
+        const shots = document.createElement('div'); shots.className = 'adm-shots';
+        for (const f of files) {
+          if (f.name.endsWith('.jpg')) {
+            const img = document.createElement('img'); img.src = f.url; img.alt = `${n.date} ${f.name}`; img.loading = 'lazy';
+            shots.append(img);
+          }
+          const a = document.createElement('a'); a.className = 'btn'; a.href = f.download; a.textContent = f.name; a.setAttribute('download', '');
+          links.append(a);
+        }
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'btn'; del.textContent = 'Delete night';
+        del.addEventListener('click', async () => {
+          // irréversible : un second toucher pour confirmer
+          if (!del.classList.contains('confirm')) { del.classList.add('confirm'); del.textContent = 'Sure?'; return; }
+          del.disabled = true;
+          try { await moderate('POST', { action: 'archive-delete', date: n.date }); $('#dashMsg').textContent = `Night ${n.date} deleted`; renderArchive(); }
+          catch (e) { if (e.message !== 'auth') { $('#dashMsg').textContent = 'Failed — retry'; del.disabled = false; } }
+        });
+        links.append(del);
+        body.replaceChildren(shots, links);
+      } catch (e) { if (e.message !== 'auth') body.textContent = 'Links unavailable — retry'; }
+    });
+    li.append(d);
+    return li;
+  }));
+}
+
+/* ------------------------------------------------------------------ journal de modération (Stats)
+ * Par mois (heure de Tokyo) : acceptés, refusés (et par raison), retirés. Par consigne : dépôts acceptés / refusés.
+ * Aucune donnée personnelle : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne.
+ */
+function table(head, rows) {
+  const t = document.createElement('table'); t.className = 'adm-table';
+  const tr = (cells, tag) => { const r = document.createElement('tr'); for (const c of cells) { const x = document.createElement(tag); x.textContent = c; r.append(x); } return r; };
+  const th = document.createElement('thead'); th.append(tr(head, 'th'));
+  const tb = document.createElement('tbody'); rows.forEach(r => tb.append(tr(r, 'td')));
+  t.append(th, tb);
+  const wrap = document.createElement('div'); wrap.className = 'adm-table-wrap'; wrap.append(t);
+  return wrap;
+}
+async function renderStats() {
+  const box = $('#stats');
+  box.textContent = '…';
+  let s;
+  try { s = await moderate('GET', null, '?stats'); }
+  catch (e) { if (e.message !== 'auth') box.textContent = 'Stats unreadable — retry'; return; }
+  if (tab !== 'stats') return;
+  if (!s.total) { box.textContent = 'No decision logged yet.'; return; }
+  const why = o => REASONS.filter(r => o.reasons[r]).map(r => `${r} ${o.reasons[r]}`).join(' · ') || '—';
+  const h = t => { const x = document.createElement('h2'); x.className = 'adm-h'; x.textContent = t; return x; };
+  box.replaceChildren(
+    h('By month (Tokyo time)'),
+    table(['Month', 'Approved', 'Rejected', 'Why', 'Removed'], s.months.map(m => [m.month, m.approved, m.rejected, why(m), m.removed])),
+    h('By prompt'),
+    table(['Prompt', 'Posts', 'Approved', 'Rejected'], s.prompts.map(p => [p.prompt || '(none)', p.approved + p.rejected, p.approved, p.rejected])),
+  );
 }
 
 /* ------------------------------------------------------------------ expiration à 180 jours (rapport)
