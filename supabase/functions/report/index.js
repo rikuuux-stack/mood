@@ -5,7 +5,7 @@
  * Quand le dépôt vient d'être masqué, l'administrateur reçoit une alerte e-mail (Resend, comme pour un nouveau
  * dépôt) : son fichier reste dans le bucket public jusqu'à sa décision, il ne doit pas l'apprendre des jours plus tard.
  */
-import { cors, json, fail, service, ipHash, verifyCaptcha, notify, tooLarge, SITE_URL } from '../_shared/http.js';
+import { cors, json, fail, service, ipHash, verifyCaptcha, notify, later, tooLarge, SITE_URL } from '../_shared/http.js';
 
 const REASONS = ['rights', 'offensive', 'personal', 'spam', 'other'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,10 +36,10 @@ Deno.serve(async req => {
   if (!error) {
     const { data: after } = await db.from('posts').select('status, report_count').eq('id', post_id).maybeSingle();
     if (after?.status === 'hidden') {
-      await notify('Mood — dépôt masqué après 3 signalements',
+      await later(notify('Mood — dépôt masqué après 3 signalements',
         `Un dépôt publié vient d'être masqué (${after.report_count} signalements, dernier motif : ${reason}).\n` +
         `Il n'apparaît plus sur le mur, mais son fichier (s'il en a un) reste accessible par son adresse tant que tu n'as pas décidé : ` +
-        `Restore ou Delete dans l'onglet Reported.\n\n${SITE_URL}admin/`);
+        `Restore ou Delete dans l'onglet Reported.\n\n${SITE_URL}admin/`));
     }
   }
   return json(req, 201, { ok: true });

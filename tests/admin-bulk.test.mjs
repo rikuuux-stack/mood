@@ -98,6 +98,43 @@ const msg = page => page.textContent('#dashMsg');
   ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
   await ctx.close();
 }
+// 3. Une carte : miniature affichée (pas l'image entière), et la carte part tout de suite après Approve,
+//    sans attendre la relecture de la liste (rendue lente exprès : 3 s)
+{
+  const PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+  const img = { ...post('p-img', ''), kind: 'image', width: 800, height: 600, image_url: `${PX}#full`, thumb_url: `${PX}#thumb` };
+  const st = { pending: [img, post('p-2', 'deuxième faux dépôt')], posts: [], gets: 0, slow: false };
+  const ctx = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => localStorage.setItem('mood-admin-session', JSON.stringify({ access_token: 'faux', refresh_token: 'faux', expires_at: Date.now() + 3600e3 })));
+  await ctx.route(/supabase\.co\//, async route => {
+    const rq = route.request();
+    if (!new URL(rq.url()).pathname.endsWith('/functions/v1/moderate')) return route.fulfill({ status: 404, json: {} });
+    if (rq.method() === 'GET') {
+      st.gets++;
+      if (st.slow) await new Promise(r => setTimeout(r, 3000));
+      return route.fulfill({ json: { prompt: '', storage: { used: 0, cap: 900 * 1048576, warn: 700 * 1048576 }, pending: st.pending, hidden: [], published: [] } });
+    }
+    const body = JSON.parse(rq.postData() || '{}'); st.posts.push(body);
+    st.pending = st.pending.filter(p => p.id !== body.id);
+    return route.fulfill({ json: { ok: true } });
+  });
+  const page = await ctx.newPage();
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`${BASE}admin/`);
+  await page.waitForSelector('.adm-card img');
+  const shown = await page.$eval('.adm-card img', i => [i.getAttribute('src'), i.closest('a')?.getAttribute('href')]);
+  ok(shown[0].endsWith('#thumb') && shown[1].endsWith('#full'), 'carte : la miniature est affichée, l’image entière au toucher', JSON.stringify(shown));
+  st.slow = true;
+  const t0 = Date.now();
+  await page.click('.adm-card:first-child .adm-actions .btn >> text=Approve');
+  await page.waitForFunction(() => document.querySelectorAll('.adm-card').length === 1);
+  const ms = Date.now() - t0;
+  ok(ms < 2000 && await msg(page) === 'Done', `la carte part tout de suite (${ms} ms), « ${await msg(page)} », sans attendre la relecture (3 s)`);
+    await page.waitForTimeout(3500);
+  ok(await page.locator('.adm-card').count() === 1 && st.gets >= 2, 'liste relue ensuite en arrière-plan');
+  ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));
+  await ctx.close();
+}
 await browser.close(); server.close();
 if (failed) { console.log(`\n${failed} test(s) en échec.`); process.exit(1); }
 console.log('\nTous les tests « Approve all / Reject all » passent.');

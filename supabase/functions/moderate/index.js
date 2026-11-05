@@ -153,14 +153,15 @@ async function expiryRun(db) {
  * interrompu avant la mise à jour de la ligne) n'est pas une erreur, on continue avec le suivant.
  */
 async function moveFiles(db, row, from, to) {
-  for (const p of [row.image_path, row.thumb_path]) {
+  // les deux fichiers en même temps (chacun : copie vers `to`, ou déjà là) ; on ne retire de `from` qu'une fois les deux copiés
+  await Promise.all([row.image_path, row.thumb_path].map(async p => {
     const { data, error } = await db.storage.from(from).download(p);
     if (error) {
-      if (await exists(db, to, p)) continue;             // déjà déplacé lors d'un essai précédent
+      if (await exists(db, to, p)) return;               // déjà déplacé lors d'un essai précédent
       throw new StepError('storage', error);
     }
     await must('storage', db.storage.from(to).upload(p, data, { contentType: data.type, upsert: true, cacheControl: CACHE }));
-  }
+  }));
   await must('storage', db.storage.from(from).remove([row.image_path, row.thumb_path]));
 }
 
@@ -187,21 +188,19 @@ Deno.serve(async req => {
   if (req.method === 'GET' && new URL(req.url).searchParams.has('expiry')) return json(req, 200, await expiryReport(db));
   if (req.method === 'GET') {
     const q = s => db.from('posts').select(COLS).eq('status', s);
-    const [p, h, a] = await Promise.all([
+    // toutes les lectures en même temps (avant : la consigne et le stockage attendaient les listes)
+    const [p, h, a, pr, used] = await Promise.all([
       q('pending').order('created_at', { ascending: true }),
       q('hidden').order('created_at', { ascending: false }),
       q('approved').order('approved_at', { ascending: false }).limit(300),
+      db.from('prompt').select('text').eq('id', 1).maybeSingle(),
+      db.rpc('storage_used'),
     ]);
-    const pr = await db.from('prompt').select('text').eq('id', 1).maybeSingle();
-    const used = await db.rpc('storage_used');
     if (used.error) console.error('[moderate] stockage utilisé illisible :', used.error.message);
-    return json(req, 200, {
-      prompt: pr.data?.text || '',
-      storage: { used: Number(used.data) || 0, ...STORAGE },
-      pending: await withUrls(db, p.data || [], 'pending'),
-      hidden: await withUrls(db, h.data || [], 'published'),
-      published: await withUrls(db, a.data || [], 'published'),
-    });
+    const [pending, hidden, published] = await Promise.all([
+      withUrls(db, p.data || [], 'pending'), withUrls(db, h.data || [], 'published'), withUrls(db, a.data || [], 'published'),
+    ]);
+    return json(req, 200, { prompt: pr.data?.text || '', storage: { used: Number(used.data) || 0, ...STORAGE }, pending, hidden, published });
   }
   if (req.method !== 'POST') return fail(req, 405, 'method');
 

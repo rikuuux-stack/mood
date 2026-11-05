@@ -12,7 +12,7 @@
  * fichiers dans le bucket privé. Exception : si l'appelant est l'administrateur (connecté), son dépôt est publié
  * directement avec sa marque, sans captcha ni limite.
  */
-import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, tooLarge, SITE_URL, CACHE } from '../_shared/http.js';
+import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, later, tooLarge, SITE_URL, CACHE } from '../_shared/http.js';
 import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../_shared/image.js';
 import { textBudget, textLength } from '../_shared/budget.js';
 import { inspectMp4, checkVideo } from '../_shared/mp4.js';
@@ -100,12 +100,14 @@ Deno.serve(async req => {
   // 2. captcha et 3. limite de fréquence (pas pour l'administrateur)
   let hash = null;
   if (!isAuthor) {
-    if (!(await verifyCaptcha(req, form.get('captcha')))) return fail(req, 403, 'captcha');
-    hash = await ipHash(req);
+    // en même temps : vérification du captcha (Cloudflare) et lecture des dépôts récents (base)
     const since = h => new Date(Date.now() - h * 3600e3).toISOString();
     const count = async h => (await db.from('posts').select('id', { count: 'exact', head: true })
       .eq('ip_hash', hash).gte('created_at', since(h))).count ?? 0;
-    if ((await count(1)) >= PER_HOUR || (await count(24)) >= PER_DAY) return fail(req, 429, 'rate');
+    hash = await ipHash(req);
+    const [human, hour, day] = await Promise.all([verifyCaptcha(req, form.get('captcha')), count(1), count(24)]);
+    if (!human) return fail(req, 403, 'captcha');
+    if (hour >= PER_HOUR || day >= PER_DAY) return fail(req, 429, 'rate');
   }
 
   // plafond de stockage (offre gratuite : 1 Go) : au-delà de 900 Mo, plus de nouvelles vidéos
@@ -120,17 +122,23 @@ Deno.serve(async req => {
   const kind = hasVideo ? 'video' : hasImage ? 'image' : 'text';
   const bucket = isAuthor ? 'published' : 'pending';
   let image_path = null, thumb_path = null;
+  const promptRead = db.from('prompt').select('text').eq('id', 1).maybeSingle();   // lue pendant l'envoi des fichiers
   if (full) {
     image_path = `${id}.${hasVideo ? 'mp4' : EXT[full.type]}`;
     thumb_path = `${id}-${hasVideo ? 'poster' : 'thumb'}.${EXT[thumb.type]}`;
-    for (const [path, f] of [[image_path, full], [thumb_path, thumb]]) {
-      const { error } = await db.storage.from(bucket).upload(path, f.bytes, { contentType: f.type, upsert: false, cacheControl: CACHE });
-      if (error) { console.error('[submit] stockage impossible :', error.message); return fail(req, 500, 'storage'); }
+    // les deux fichiers en même temps ; si l'un échoue, l'autre est retiré (aucun fichier orphelin)
+    const results = await Promise.all([[image_path, full], [thumb_path, thumb]].map(([path, f]) =>
+      db.storage.from(bucket).upload(path, f.bytes, { contentType: f.type, upsert: false, cacheControl: CACHE })));
+    const failed = results.find(r => r.error);
+    if (failed) {
+      console.error('[submit] stockage impossible :', failed.error.message);
+      await db.storage.from(bucket).remove([image_path, thumb_path]);
+      return fail(req, 500, 'storage');
     }
   }
 
   // 5. enregistrement, avec la consigne du mois en vigueur (strates du mur)
-  const { data: current } = await db.from('prompt').select('text').eq('id', 1).maybeSingle();
+  const { data: current } = await promptRead;
   const { error } = await db.from('posts').insert({
     id, kind, text, name: isAuthor ? '' : name, lang, size, prompt: current?.text || '',
     image_path, thumb_path, width: full?.width ?? null, height: full?.height ?? null,
@@ -146,9 +154,9 @@ Deno.serve(async req => {
 
   // 6. alerte e-mail à l'administrateur (pas pour ses propres dépôts)
   if (!isAuthor) {
-    await notify('Mood — nouveau dépôt à valider',
+    await later(notify('Mood — nouveau dépôt à valider',
       `${hasVideo ? `Vidéo ${full.width} × ${full.height} px, ${full.duration.toFixed(1)} s, ${(full.bytes.length / 1048576).toFixed(2)} Mo` : hasImage ? `Image ${full.width} × ${full.height} px` : 'Texte'}${name ? ` de « ${name} »` : ''}.\n\n` +
-      `${text ? `« ${text.slice(0, 300)} »\n\n` : ''}Valider ou refuser : ${SITE_URL}admin/`);
+      `${text ? `« ${text.slice(0, 300)} »\n\n` : ''}Valider ou refuser : ${SITE_URL}admin/`));     // envoyé après la réponse : le visiteur n'attend pas l'e-mail
   }
   // id : le navigateur du visiteur garde une copie « en attente » de son dépôt, qu'il retire dès qu'il est validé
   return json(req, 201, { ok: true, id, status: isAuthor ? 'approved' : 'pending', kind });

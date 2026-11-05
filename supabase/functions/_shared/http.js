@@ -66,7 +66,7 @@ export async function verifyCaptcha(req, token) {
   const ip = clientIp(req);
   if (ip) body.append('remoteip', ip);
   try {
-    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body, signal: AbortSignal.timeout(10000) });
     const out = await r.json();
     return out.success === true;
   } catch {
@@ -120,6 +120,17 @@ export async function notify(subject, text) {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'Mood <onboarding@resend.dev>', to: [ADMIN_EMAIL], subject, text }),
+      signal: AbortSignal.timeout(8000),               // Resend lent ou injoignable : on abandonne
     });
   } catch { /* l'alerte est un confort, pas une condition */ }
+}
+
+/**
+ * Lance une tâche APRÈS la réponse (Supabase : EdgeRuntime.waitUntil), pour que le visiteur n'attende pas
+ * l'e-mail d'alerte (Mumbai → Resend : ≈ 0,5 à 1 s). Hors Supabase (tests dans Node) : attendue normalement.
+ */
+export function later(promise) {
+  const rt = globalThis.EdgeRuntime;
+  if (rt?.waitUntil) { rt.waitUntil(promise); return Promise.resolve(); }
+  return promise;
 }
