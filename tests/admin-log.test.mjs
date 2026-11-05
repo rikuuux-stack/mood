@@ -59,7 +59,7 @@ await page.goto(`${BASE}admin/`);
 await page.waitForSelector('.adm-card');
 
 // refus : un premier toucher propose la raison (rien n'est envoyé), un toucher sur la raison envoie le refus
-await page.click('.adm-actions .btn >> text=Reject');
+await page.click('#cards .adm-actions .btn >> text=Reject');
 const reasons = await page.$$eval('.adm-reasons button', bs => bs.map(b => b.textContent));
 ok(JSON.stringify(reasons) === JSON.stringify(['rights', 'offensive', 'private', 'spam', 'test', 'other']), 'Reject propose la raison en un mot (6 choix)', JSON.stringify(reasons));
 ok(!posts.length, 'rien n’est envoyé avant le choix de la raison');

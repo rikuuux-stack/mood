@@ -38,6 +38,9 @@
 .adm-card video { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; background: #000; }
 .adm-storage { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin: 8px 0; }
 .adm-storage.warn { color: var(--fg); text-decoration: underline; }
+/* Pending : tout valider / tout refuser */
+.adm-bulk { margin: 0 0 20px; }
+.adm-bulk .btn.confirm { background: var(--fg); color: var(--bg); }
 /* archive nocturne du mur : une ligne par nuit, aperçu à l'ouverture */
 .adm-nights { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .adm-night { border-bottom: var(--line) solid var(--rule); }

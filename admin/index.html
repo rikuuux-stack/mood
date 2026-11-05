@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0b0b">
 <link rel="stylesheet" href="../css/fonts.css?v=4a16f2367f">
 <link rel="stylesheet" href="../css/site.css?v=310c5738c1">
-<link rel="stylesheet" href="admin.css?v=414cb732d7">
+<link rel="stylesheet" href="admin.css?v=6ef1df23f0">
 </head>
 <body>
 <header class="bar">
@@ -47,6 +47,11 @@
       <button type="button" class="link" id="promptClear">Clear</button>
     </form>
     <p class="form-msg" id="dashMsg" role="status"></p>
+    <!-- Pending : tout valider / tout refuser, dépôt par dépôt (2ᵉ toucher « Sure? » avec le nombre de dépôts) -->
+    <div class="adm-actions adm-bulk" id="bulk" hidden>
+      <button type="button" class="btn" data-bulk="approve">Approve all</button>
+      <button type="button" class="btn" data-bulk="reject">Reject all</button>
+    </div>
     <ol id="cards" class="adm-cards"></ol>
 
     <!-- Archive nocturne du mur (bucket privé « archive », une nuit par dossier) : aperçu, téléchargement, suppression -->
@@ -79,6 +84,6 @@
   </section>
 </main>
 
-<script type="module" src="admin.js?v=58afbfa67a"></script>
+<script type="module" src="admin.js?v=551bbadfd6"></script>
 </body>
 </html>

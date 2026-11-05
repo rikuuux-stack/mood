@@ -15,6 +15,16 @@ La page est en anglais, avec des mots très courts (choix validé).
 | Onglet | Ce qu'il contient | Boutons |
 |---|---|---|
 | **Pending** (en attente) | les nouveaux dépôts, du plus ancien au plus récent | **Approve** : il apparaît sur le mur. **Reject** : choisis la raison en un mot (rights, offensive, private, spam, test, other) ; le toucher sur la raison supprime le dépôt définitivement. |
+
+**Tout valider / tout refuser** (onglet Pending, au-dessus des cartes) : **Approve all** et **Reject all**.
+1. Premier toucher : le bouton affiche le nombre de dépôts concernés, par exemple « Sure? Reject 7 ». Rien n'est encore fait.
+2. Second toucher : chaque dépôt affiché est traité, un par un, exactement comme avec son propre bouton.
+   - Seuls les dépôts **affichés au moment du toucher** sont traités : un dépôt arrivé entre-temps, que tu n'as pas
+     encore vu, reste en attente.
+   - Au premier échec, tout s'arrête et le message dit lequel (« Stopped: 2 / 7 done. Failed on #3 (…) — retry ») ;
+     la liste est relue. Retoucher le bouton reprend avec ce qui reste.
+   - **Reject all est définitif** (fichiers et texte supprimés). Regarde la liste avant ; en cas de doute, refuse un par un.
+     Reject all ne demande pas de raison : le journal (Stats) la note « other ».
 | **Reported** (signalés) | les dépôts masqués automatiquement après 3 signalements | **Restore** (les signalements sont effacés) ou **Delete** |
 | **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
 | **Stats** | le journal de modération résumé : par mois (heure de Tokyo) acceptés / refusés (par raison) / retirés, et dépôts par consigne. **Aucune donnée personnelle** : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne. | — |
