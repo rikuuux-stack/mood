@@ -1,6 +1,6 @@
 // Règles du mur : node tests/wall.test.mjs  → code de sortie 0 si tout est respecté.
 // Le mur est immobile ; c'est le temps qui le transforme (érosion, strates).
-import { layout, createLayout, coverage, sizeFor, SIZES, visibility, stageOf, onWall, strataKey, TIME, TONE, ERODE } from '../js/wall.js';
+import { layout, createLayout, coverage, sizeFor, SIZES, visibility, stageOf, onWall, strataKey, TIME, TONE, BASE, ERODE, GRAIN, PAGE_GRAIN, negative, alphaOf } from '../js/wall.js';
 import { readFileSync } from 'node:fs';
 import { CONFIG } from '../js/config.js';
 import { SAMPLE_POSTS } from './fixtures.mjs';
@@ -67,13 +67,28 @@ check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
   // l'écran (filtres SVG de index.html) et l'export « Keep » (js/fragment.js, en pixels) utilisent les mêmes valeurs
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const filter = id => html.match(new RegExp(`<filter id="${id}"[\\s\\S]*?</filter>`))?.[0] || '';
-  const tone = TONE.join(' ');
-  check('courbe de tons identique : écran (#tone, #erode1…4) et export', ['tone', 'erode1', 'erode2', 'erode3', 'erode4']
-    .every(id => (filter(id).match(/tableValues="([^"]+)"/g) || []).length === 3 && filter(id).includes(`tableValues="${tone}"`)));
+  const neg = [...TONE].reverse().join(' ');            // inversion + courbe dans une seule table
+  check('négatif identique : écran (#tone, #erode1…4 : table « TONE à l’envers ») et export / vidéo (negative)', ['tone', 'erode1', 'erode2', 'erode3', 'erode4']
+    .every(id => (filter(id).match(/tableValues="([^"]+)"/g) || []).length === 3 && filter(id).includes(`tableValues="${neg}"`))
+    && [0, 0.25, 0.5, 0.75, 1].every((x, i) => Math.abs(negative(x) - TONE[4 - i]) < 0.002));
+  check('négatif : le plus clair s’arrête à 76 % (jamais confondu avec le fond blanc), le noir du négatif vaut 0 (puis transparent : BASE)',
+    Math.abs(negative(0) - 0.76) < 0.002 && negative(1) === 0 && Array.from({ length: 101 }, (_, i) => negative(i / 100)).every((v, i, a) => i === 0 || v <= a[i - 1] + 1e-9));
+  const fmt = x => String(+x.toFixed(4));
+  const alphaRow = e => `0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  ${fmt(e.k)} 0 0 0 ${fmt(1 - e.k * e.t)}"`;   // alpha = k × gris + (1 − k × t)
+  check('noir transparent dès le dépôt (sous 30 % de gris, fondu jusqu’à 45 %) : écran (#tone) et export (BASE) identiques', filter('tone').includes(alphaRow(BASE))
+    && alphaOf(0, BASE) === 0 && alphaOf(0.3, BASE) < 0.01 && alphaOf(0.45, BASE) === 1 && alphaOf(0.76, BASE) === 1);
   check('paliers d’érosion identiques : écran (#erode1…4) et export (ERODE)', ERODE.every((e, i) => {
-    const f = filter(`erode${i + 1}`), off = +(0.5 - e.g * 0.5).toFixed(4), c = +(1 + e.k * e.t).toFixed(4);
-    return f.includes(`values="${e.g} 0 0 0 ${off}`) && f.includes(`-${e.k} 0 0 0 ${c}"`);
+    const f = filter(`erode${i + 1}`);
+    const grain = e.g ? f.includes(`values="${fmt(e.g)} 0 0 0 ${fmt(0.5 - e.g * 0.5)}`) && f.includes('feTurbulence') : !f.includes('feTurbulence');
+    return f.includes(alphaRow(e)) && grain;
   }));
+  check('l’image se désagrège avec le temps : à chaque palier, plus de gris deviennent transparents ; le plus clair (76 %) reste',
+    [BASE, ...ERODE].every((e, i, all) => alphaOf(0.76, e) === 1
+      && (i === 0 || [0.1, 0.2, 0.3, 0.4, 0.5].every(g => alphaOf(g, e) <= alphaOf(g, all[i - 1]))) && (i === 0 || alphaOf(0.3, e) < alphaOf(0.3, all[i - 1]) || alphaOf(0.3, all[i - 1]) === 0)));
+  // grain : aucun dans la direction « blanc » (ni fond de page ni photos) — même valeur à l'écran et à l'export
+  const css = readFileSync(new URL('../css/site.css', import.meta.url), 'utf8');
+  check('grain : même réglage à l’écran (css/site.css) et à l’export (GRAIN, PAGE_GRAIN)',
+    (GRAIN === 0) === !/\.photo::after\s*\{/.test(css) && (PAGE_GRAIN === 0) === !/body::before\s*\{/.test(css));
 }
 {
   // strates : fuseau de référence du mur = Asia/Tokyo, quel que soit le fuseau du visiteur.

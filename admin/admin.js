@@ -394,7 +394,7 @@ $('#promptForm').addEventListener('submit', e => { e.preventDefault(); savePromp
 $('#promptClear').addEventListener('click', () => { $('#promptText').value = ''; savePrompt(''); });
 
 /* ------------------------------------------------------------------ dépôt de l'auteur du site (publié directement, avec la marque) */
-// Même formulaire que le site : taille S / M / L. Pas de grain réglable : le grain est une règle globale du site.
+// Même formulaire que le site : taille S / M / L. Aucun grain sur le site.
 let src = null, preparing = null, imageError = '', sending = false;
 const budget = () => src ? textBudget(src.width, src.height) : textBudget();
 const IMAGE_ERRORS = { eType: 'Image refused: format', eTooBig: 'Image refused: too heavy', eMeta: 'Image refused: metadata', eDecode: 'Image refused: unreadable' };

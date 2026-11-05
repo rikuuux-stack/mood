@@ -2,23 +2,25 @@
  * « Keep » — un FRAGMENT DU MUR, prélevé à cet instant, comme un morceau d'affiches arraché.
  *
  * Le dépôt au centre, ses voisins tels qu'ils sont placés et superposés sur le mur (positions, ordre,
- * tailles), coupés par le bord du cadre ; le fond et son grain ; l'érosion RÉELLE de chaque élément
+ * tailles), coupés par le bord du cadre ; le fond blanc ; l'érosion RÉELLE de chaque élément
  * (même le dépôt central, qui paraît neuf dans l'agrandissement) ; les textes avec la même typo ;
  * en bas, une seule petite ligne : « moodwall.pages.dev — JJ.MM.AAAA — consigne ». Aucun nom.
  *
  * Tout se fait sur l'appareil, sans serveur, à partir des images déjà chargées (chargées avec
  * crossOrigin : le canvas reste lisible). Les filtres CSS / SVG ne passent pas dans un canvas : le
- * traitement des photos (gris + courbe, grain, transparence des clairs) est refait ici en pixels,
- * avec les mêmes valeurs (TONE, ERODE dans js/wall.js).
+ * traitement des photos (négatif : gris, inversion, courbe ; transparence des sombres ; grain s'il y en a)
+ * est refait ici en pixels, avec les mêmes valeurs (negative, ERODE, GRAIN dans js/wall.js).
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
-import { TONE, ERODE } from './wall.js?v=8906cf420f';
+import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=10fdf5c535';
 import { stripMetadata } from './image.js?v=0bde9bbfaf';
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
-const BG = [11, 11, 11];
+const BG = [255, 255, 255];      // fond : blanc pur (--bg)
 const BAND = 92;                 // bande du bas (px de l'image), pour la ligne de légende
-const RULE = '#3a3a3a';          // filets des strates (--rule)
+const RULE = '#d9d9d9';          // filets des strates (--rule)
+const FRAME = '#f0f0f0';         // cadre d'une image introuvable (--photo-bg)
+const INK = '#111111';           // ligne du bas : noir doux (--fg)
 
 /* ------------------------------------------------------------------ bruit
  * Bruit « fractal » simplifié : une valeur par pixel CSS (comme le grain du site, qui suit les pixels
@@ -35,17 +37,12 @@ function sample(g, x, y) {                     // bilinéaire, x / y en cellules
   return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
 }
 
-/** Courbe de tons (TONE) : interpolation linéaire entre 5 points. */
-function tone(v) {
-  const p = Math.min(3.999, v * 4), i = p | 0;
-  return TONE[i] + (TONE[i + 1] - TONE[i]) * (p - i);
-}
 const overlay = (b, s) => (b <= 0.5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s));
 
 /**
  * Photo traitée comme à l'écran, à la taille voulue (px de l'image) :
- *   palier 0 : gris + courbe, grain habituel (overlay ≈ 30 %) ;
- *   palier N : gris + courbe, grain plus fort, les clairs deviennent transparents.
+ *   palier 0 : négatif (gris, inversion, courbe), NOIR transparent (BASE), grain habituel s'il y en a (GRAIN) ;
+ *   palier N : négatif, grain du palier s'il y en a, transparence qui gagne les gris plus clairs (ERODE).
  */
 function processPhoto(source, dw, dh, stage, scale) {
   const c = document.createElement('canvas');
@@ -53,18 +50,19 @@ function processPhoto(source, dw, dh, stage, scale) {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(source, 0, 0, dw, dh);
   const img = ctx.getImageData(0, 0, dw, dh), d = img.data;
-  const g = noiseGrid(Math.ceil(dw / scale) + 1, Math.ceil(dh / scale) + 1);
   const e = stage ? ERODE[stage - 1] : null;
+  const grain = e ? e.g : GRAIN;
+  const g = grain ? noiseGrid(Math.ceil(dw / scale) + 1, Math.ceil(dh / scale) + 1) : null;
   for (let y = 0, i = 0; y < dh; y++) {
     for (let x = 0; x < dw; x++, i += 4) {
-      const t = tone((0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255);
-      const n = sample(g, x / scale, y / scale);
-      let v, a = 1;
+      const t = negative((0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255);
+      const n = g ? sample(g, x / scale, y / scale) : 0.5;
+      let v = t;
+      const a = alphaOf(t, e || BASE);                                 // alpha = 1 − k × (t − gris)
       if (e) {
-        v = overlay(t, e.g * n + 0.5 - e.g * 0.5);
-        a = Math.max(0, Math.min(1, 1 + e.k * e.t - e.k * t));
-      } else {
-        v = t + (overlay(t, n) - t) * 0.3;
+        if (e.g) v = overlay(t, e.g * n + 0.5 - e.g * 0.5);
+      } else if (GRAIN) {
+        v = t + (overlay(t, n) - t) * GRAIN;
       }
       d[i] = d[i + 1] = d[i + 2] = v * 255;
       d[i + 3] = a * 255;
@@ -155,13 +153,13 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  // fond : noir + grain clair (comme --noise : blanc, jusqu'à 16 %), qui suit les pixels CSS
+  // fond : blanc ; grain sombre s'il y en a sur la page (PAGE_GRAIN), qui suit les pixels CSS
   ctx.fillStyle = `rgb(${BG})`; ctx.fillRect(0, 0, W, H);
-  {
+  if (PAGE_GRAIN) {
     const gw = Math.ceil(W / scale) + 1, gh = Math.ceil(H / scale) + 1, g = noiseGrid(gw, gh);
     const nc = document.createElement('canvas'); nc.width = gw; nc.height = gh;
     const nctx = nc.getContext('2d'), im = nctx.createImageData(gw, gh);
-    for (let i = 0; i < g.n.length; i++) { const k = i * 4; im.data[k] = im.data[k + 1] = im.data[k + 2] = 255; im.data[k + 3] = 0.16 * 255 * g.n[i]; }
+    for (let i = 0; i < g.n.length; i++) { const k = i * 4; im.data[k] = im.data[k + 1] = im.data[k + 2] = 0; im.data[k + 3] = PAGE_GRAIN * 255 * g.n[i]; }
     nctx.putImageData(im, 0, 0);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(nc, 0, 0, gw * scale, gh * scale);
@@ -194,7 +192,7 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
     if (ph) {
       const r = rectIn(ph, el), dw = Math.max(1, Math.round(r.w * scale)), dh = Math.max(1, Math.round(r.h * scale));
       if (sources[i]) { ctx.drawImage(processPhoto(sources[i], dw, dh, stage, scale), Math.round(X(bx + r.x)), Math.round(Y(by + r.y))); drawn++; }
-      else { ctx.fillStyle = '#1d1d1d'; ctx.fillRect(X(bx + r.x), Y(by + r.y), dw, dh); missing++; }   // image introuvable : son cadre
+      else { ctx.fillStyle = FRAME; ctx.fillRect(X(bx + r.x), Y(by + r.y), dw, dh); missing++; }   // image introuvable : son cadre
     }
     const tx = el.querySelector('.caption-text, .sticker-text');
     if (tx && tx.textContent) {
@@ -208,7 +206,7 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
   const footer = `moodwall.pages.dev — ${today(date)}${prompt ? ` — ${prompt}` : ''}`;
   const font = '200 24px "IBM Plex Mono"';
   try { await document.fonts.load(font, footer); } catch {}
-  ctx.font = font; ctx.fillStyle = '#bdbdbd'; ctx.textBaseline = 'middle';
+  ctx.font = font; ctx.fillStyle = INK; ctx.textBaseline = 'middle';
   ctx.fillText(footer, 48, H - BAND / 2);
 
   const raw = await new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('toBlob'))), 'image/jpeg', 0.92));

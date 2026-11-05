@@ -62,7 +62,7 @@ const convert = (url, opts = {}) => page.evaluate(async ({ url, opts }) => {
     const out = await m.convert({ start: opts.start ?? m.defaultStart, signal: ctl.signal });
     const ms = Math.round(performance.now() - t0);
     const info = inspectMp4(new Uint8Array(await out.video.arrayBuffer()));
-    // première image décodée : noir et blanc (R = V = B) et hautes lumières assombries (courbe de tons : ≤ 76 %)
+    // première image décodée : noir et blanc (R = V = B), négatif, courbe de tons (le plus clair ≤ 76 %)
     const v = document.createElement('video'); v.muted = true; v.src = URL.createObjectURL(out.video);
     await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error('lecture impossible')); });
     await new Promise(r => { v.onseeked = r; v.currentTime = Math.min(0.5, v.duration / 2); });   // une image bien affichée
@@ -71,20 +71,37 @@ const convert = (url, opts = {}) => page.evaluate(async ({ url, opts }) => {
     const d = g.getImageData(0, 0, c.width, c.height).data;
     let maxChroma = 0, maxLuma = 0;
     for (let i = 0; i < d.length; i += 4) { maxChroma = Math.max(maxChroma, Math.abs(d[i] - d[i + 1]), Math.abs(d[i + 1] - d[i + 2])); maxLuma = Math.max(maxLuma, d[i + 1]); }
+    // négatif : la même image de la SOURCE, au même instant, doit être « à l'envers » (corrélation des luminosités < 0)
+    let corr = null;
+    if (opts.compare) {
+      const s = document.createElement('video'); s.muted = true; s.src = url;
+      await new Promise((res, rej) => { s.onloadeddata = res; s.onerror = () => rej(new Error('source illisible')); });
+      await new Promise(r => { s.onseeked = r; s.currentTime = (opts.start ?? 0) + v.currentTime; });
+      const sc = document.createElement('canvas'); sc.width = c.width; sc.height = c.height;
+      const sg = sc.getContext('2d'); sg.drawImage(s, 0, 0, c.width, c.height);
+      const sd = sg.getImageData(0, 0, c.width, c.height).data;
+      let n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+      for (let i = 0; i < d.length; i += 16) {
+        const x = 0.2126 * sd[i] + 0.7152 * sd[i + 1] + 0.0722 * sd[i + 2], y = d[i + 1];
+        n++; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+      }
+      corr = (n * sxy - sx * sy) / Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
+    }
     return { ok: true, ms, info, bytes: out.video.size, kbps: Math.round(out.video.size * 8 / info.duration / 1000), poster: { type: out.poster.type, meta: await hasMetadata(out.poster), size: out.poster.size },
-      maxChroma, maxLuma, kind: m.kind, width: out.width, height: out.height };
+      maxChroma, maxLuma, corr, kind: m.kind, width: out.width, height: out.height };
   } catch (e) { return { ok: false, code: e.code || e.message, detail: e.detail }; }
 }, { url, opts });
 
 // 1. vidéo avec son + GPS, 640 × 360, 3 s, départ à 1 s
-const a = await convert('/tests/fixtures-img/src-640.mp4', { start: 1 });
+const a = await convert('/tests/fixtures-img/src-640.mp4', { start: 1, compare: true });
 ok(a.ok, 'conversion d’une vidéo (son + GPS, 640 × 360, 3 s)', JSON.stringify(a));
 if (a.ok) {
   ok(a.info.codec === 'avc1' && a.info.width === 480 && a.info.height === 270, `MP4 H.264 480 × 270 (${a.info.codec} ${a.info.width} × ${a.info.height})`);
   ok(!a.info.hasAudio && !a.info.hasLocation, 'sans son ni coordonnées GPS', JSON.stringify(a.info));
   ok(Math.abs(a.info.duration - 2) < 0.2, `départ au curseur « Start » : 3 s − 1 s = ${a.info.duration} s`);
   ok(a.maxChroma <= 6, `noir et blanc intégré dans le fichier (écart de couleur max ${a.maxChroma})`);
-  ok(a.maxLuma > 40 && a.maxLuma <= 0.76 * 255 + 8, `courbe de tons intégrée : hautes lumières assombries (max ${a.maxLuma} / 255)`);
+  ok(a.maxLuma > 40 && a.maxLuma <= 0.76 * 255 + 8, `courbe de tons intégrée : le plus clair s'arrête à 76 % (max ${a.maxLuma} / 255)`);
+  ok(a.corr !== null && a.corr < -0.5, `négatif intégré dans le fichier : luminosités inversées par rapport à la source (corrélation ${a.corr?.toFixed(2)})`);
   ok(a.poster.type === 'image/jpeg' && !a.poster.meta, 'image fixe JPEG sans métadonnées', JSON.stringify(a.poster));
 }
 // 1 bis. pistes en plus dans le fichier d'ENTRÉE (jamais une raison de refuser) : timecode (DaVinci Resolve,
