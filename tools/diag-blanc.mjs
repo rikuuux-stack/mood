@@ -45,5 +45,30 @@ await p.goto('https://claude-blanc.moodwall.pages.dev/', { waitUntil: 'networkid
 await p.waitForTimeout(4000);
 const info = await p.evaluate(() => [...document.querySelectorAll('#wall .photo img')].slice(0, 12).map(i => ({ f: getComputedStyle(i).filter, loaded: i.complete && i.naturalWidth > 0 })));
 console.log('APERÇU claude-blanc (WebKit iPhone) : images', info.length, JSON.stringify(info.slice(0, 3)));
-await p.screenshot({ path: 'diag-apercu-webkit.png' });
+// pour chaque photo du mur : répartition des gris du NÉGATIF (avant transparence), et ce qu'on voit à l'écran
+const stats = await p.evaluate(async () => {
+  const out = [];
+  for (const img of [...document.querySelectorAll('#wall .photo img')]) {
+    const c = document.createElement('canvas'), w = 64, h = Math.max(1, Math.round(64 * img.naturalHeight / img.naturalWidth));
+    c.width = w; c.height = h; const g = c.getContext('2d'); g.drawImage(img, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data, TONE = [0, 0.24, 0.47, 0.64, 0.76];
+    const neg = l => { const q = Math.min(3.999, (1 - l) * 4), i = q | 0; return TONE[i] + (TONE[i + 1] - TONE[i]) * (q - i); };
+    const bins = [0, 0, 0, 0, 0, 0, 0, 0];                // négatif : 0-0.1, 0.1-0.2, … 0.7-0.8
+    for (let k = 0; k < d.length; k += 4) { const v = neg((0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2]) / 255); bins[Math.min(7, Math.floor(v * 10))]++; }
+    const n = d.length / 4;
+    out.push({ stage: img.closest('.item')?.className.match(/age-(\d)/)?.[1] || '0', neg: bins.map(b => Math.round(100 * b / n)) });
+  }
+  return out;
+});
+for (const x of stats) console.log('PHOTO palier', x.stage, '— négatif, % de pixels par tranche 0-0.1 … 0.7-0.8 :', x.neg.join(' '));
+const sh = await p.screenshot({ fullPage: true });
+const rects = await p.evaluate(() => [...document.querySelectorAll('#wall .photo img')].map(i => { const r = i.getBoundingClientRect(); return [r.left + scrollX, r.top + scrollY, r.width, r.height].map(Math.round); }));
+const seen = await p.evaluate(async ({ b64, rects }) => {
+  const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode();
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+  const k = im.width / innerWidth;
+  return rects.map(([x, y, w, h]) => { const d = g.getImageData(x * k, y * k, Math.max(1, w * k), Math.max(1, h * k)).data; let white = 0, dark = 0; const n = d.length / 4;
+    for (let i = 0; i < d.length; i += 4) { const v = d[i]; if (v >= 245) white++; else if (v < 90) dark++; } return [Math.round(100 * white / n), Math.round(100 * dark / n)]; });
+}, { b64: sh.toString('base64'), rects });
+console.log('À L\'ÉCRAN (WebKit iPhone), par photo [% blanc (transparent ou presque), % sombre (< 90/255)] :', JSON.stringify(seen));
 await b.close();
