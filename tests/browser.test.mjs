@@ -10,8 +10,8 @@
  *   - plus de bandeau : « Mood » et « Drop » flottent sans fond (mix-blend-mode: difference) ;
  *   - au défilement (bas puis haut), vue Wall et vue List, avec la barre d'adresse simulée
  *     (hauteur 844 → 750 → 844) : Mood et Drop restent à leur place et AUCUNE image ne passe dessus ;
- *   - le fond et son grain sont une couche fixe (ne défile pas) ;
- *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les clairs deviennent
+ *   - fond blanc uni, sans grain (ni couche body::before, ni grain sur les photos) ;
+ *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les sombres du négatif deviennent
  *     transparents), aucune opacité, rien ne change au survol, l'agrandissement montre l'image neuve ;
  *     textes lisibles à tout âge (≥ 7:1) ;
  *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
@@ -178,10 +178,12 @@ await pg.evaluate(() => document.querySelector('#viewBtn').click());
 await pg.waitForTimeout(400);
 
 const bg = await pg.evaluate(() => {
-  const s = getComputedStyle(document.body, '::before'), b = getComputedStyle(document.body);
-  return { pos: s.position, img: s.backgroundImage !== 'none', bodyImg: b.backgroundImage };
+  const s = getComputedStyle(document.body, '::before'), b = getComputedStyle(document.body), h = getComputedStyle(document.documentElement);
+  const ph = document.querySelector('#wall .photo');
+  return { before: s.content, body: b.backgroundColor, html: h.backgroundColor, img: b.backgroundImage, photoAfter: ph ? getComputedStyle(ph, '::after').content : 'none' };
 });
-ok(bg.pos === 'fixed' && bg.img && bg.bodyImg === 'none', 'fond + grain : couche fixe (ne défile pas avec la page)', JSON.stringify(bg));
+ok(bg.body === 'rgb(255, 255, 255)' && bg.html === 'rgb(255, 255, 255)' && bg.img === 'none' && bg.before === 'none' && bg.photoAfter === 'none',
+  'fond blanc pur, sans grain (ni couche de fond, ni grain sur les photos)', JSON.stringify(bg));
 
 /* érosion */
 const ages = await pg.evaluate(() => [...document.querySelectorAll('#wall .item:not(.is-pending)')].map(li => {
@@ -191,13 +193,16 @@ const ages = await pg.evaluate(() => [...document.querySelectorAll('#wall .item:
 }));
 // « rgb(232, 232, 232) » ou « color(srgb 0.9 0.9 0.9) » (couleur issue de color-mix)
 const lum = c => { const k = c.startsWith('color(') ? 1 : 255; const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map(Number).map(x => x / k).map(x => (x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4)); return .2126 * r + .7152 * g + .0722 * b; };
-const bgL = lum('rgb(11, 11, 11)');
+const bgL = lum('rgb(255, 255, 255)');
+const ratio = c => { const l = lum(c); return (Math.max(l, bgL) + .05) / (Math.min(l, bgL) + .05); };
 const photos = ages.filter(a => a.filter);
 ok(new Set(ages.map(a => a.stage)).size === 5, `les cinq paliers d'âge sont présents (0 à 4)`, [...new Set(ages.map(a => a.stage))].join());
 ok(photos.every(a => a.filter.includes(a.stage ? `#erode${a.stage}` : '#tone')), 'chaque image porte le filtre de son palier (#tone neuve, #erode1 … #erode4)',
   photos.filter(a => !a.filter.includes(a.stage ? `#erode${a.stage}` : '#tone')).slice(0, 2).map(a => `${a.stage} ${a.filter}`).join(' ; '));
-ok(ages.every(a => a.opacity === 1), 'aucun dépôt ne s\'efface par opacité : seuls les clairs deviennent transparents');
-const worst = Math.min(...ages.filter(a => a.color).map(a => (lum(a.color) + .05) / (bgL + .05)));
+ok(ages.every(a => a.opacity === 1), 'aucun dépôt ne s\'efface par opacité : seuls les sombres du négatif deviennent transparents');
+const worst = Math.min(...ages.filter(a => a.color).map(a => ratio(a.color)));
+const perStage = [0, 1, 2, 3, 4].map(st => { const r = ages.filter(a => a.color && a.stage === st).map(a => ratio(a.color)); return r.length ? Math.min(...r).toFixed(1) : '—'; });
+console.log(`      contraste mini des textes par palier (0 → 4) : ${perStage.join(' · ')} :1`);
 ok(worst >= 7, `textes et commentaires lisibles à tout âge (contraste mini ${worst.toFixed(1)}:1 ≥ 7:1)`);
 const filters = await pg.evaluate(() => [1, 2, 3, 4].every(i => document.getElementById(`erode${i}`)));
 ok(filters, 'quatre filtres partagés #erode1 … #erode4 dans la page');
@@ -223,11 +228,12 @@ const imageInfo = (page, bytes) => page.evaluate(async arr => {
   const bmp = await createImageBitmap(blob);
   const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
   const ctx = c.getContext('2d'); ctx.drawImage(bmp, 0, 0);
-  // ligne du bas : des pixels clairs (texte) dans la bande du bas, à gauche ; le fond seul reste très sombre
+  // ligne du bas : des pixels sombres (texte noir) dans la bande du bas, à gauche ; le fond seul reste blanc
   const band = ctx.getImageData(40, c.height - 70, 700, 50).data;
-  let bright = 0; for (let i = 0; i < band.length; i += 4) if (band[i] > 120) bright++;
+  let bright = 0; for (let i = 0; i < band.length; i += 4) if (band[i] < 135) bright++;
+  const corner = ctx.getImageData(c.width - 6, c.height - 6, 1, 1).data[0];   // coin du bas à droite : le fond
   const { hasMetadata } = await import('/js/image.js');
-  return { w: bmp.width, h: bmp.height, bright, meta: await hasMetadata(blob), jpeg: arr[0] === 0xff && arr[1] === 0xd8 };
+  return { w: bmp.width, h: bmp.height, bright, corner, meta: await hasMetadata(blob), jpeg: arr[0] === 0xff && arr[1] === 0xd8 };
 }, [...bytes]);
 
 await dp.keyboard.press('Escape'); await dp.waitForSelector('#viewer:not([open])', { state: 'attached' });
@@ -245,7 +251,8 @@ for (const [format, H] of [['4:5', 1350], ['9:16', 1920]]) {
   const info = await imageInfo(dp, bytes);
   ok(info.jpeg && info.w === 1080 && info.h === H, `Keep ${format} : fichier JPEG ${info.w} × ${info.h} (téléchargé : ${dl.suggestedFilename()})`, JSON.stringify(info));
   ok(!info.meta, `Keep ${format} : aucune métadonnée (EXIF…)`);
-  ok(info.bright > 150, `Keep ${format} : ligne du bas présente (${info.bright} pixels de texte)`);
+  ok(info.bright > 150, `Keep ${format} : ligne du bas présente, en noir (${info.bright} pixels de texte)`);
+  ok(info.corner >= 250, `Keep ${format} : fond blanc (${info.corner} / 255)`);
   void t0;
 }
 const footer = await dp.evaluate(async () => {

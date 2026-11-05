@@ -14,83 +14,72 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Mood">
 <meta name="twitter:description" content="Images and words, left by anyone.">
-<meta name="theme-color" content="#0b0b0b">
+<meta name="theme-color" content="#ffffff">
 <!-- connexion au serveur de données ouverte tout de suite, pendant le chargement du reste.
      Une seule, avec crossorigin : fetch() comme les images et vidéos (crossOrigin="anonymous") passent toutes
      par la connexion CORS ; une seconde connexion sans crossorigin ne servirait à rien. -->
 <link rel="preconnect" href="https://ovvdtthnykqvgarrjina.supabase.co" crossorigin>
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=c87dd264cf" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css?v=4a16f2367f">
-<link rel="stylesheet" href="css/site.css?v=310c5738c1">
+<link rel="stylesheet" href="css/site.css?v=e7f974a38c">
 </head>
 <body>
-<!-- Traitement des photos : noir et blanc + courbe de tons (hautes lumières assombries).
-     Point d'entrée → sortie : 0 → 0 · 25 % → 24 % · 50 % → 47 % · 75 % → 64 % · 100 % → 76 %.
-     Utilisé par css/site.css (.photo img). -->
-<!-- Érosion des images du mur (js/wall.js → stageOf, classes .age-1 … .age-4) : même traitement, puis grain
-     un peu plus fort et TRANSPARENCE selon la luminosité (avant le grain, pour un passage doux) : alpha = 1 − pente × (gris − seuil).
-     Palier 1 : seuls les blancs pâlissent … palier 4 : il ne reste que les parties sombres.
-     Quatre filtres partagés par toutes les images (rien de calculé image par image). -->
+<!-- Traitement des photos : NÉGATIF noir et blanc. Gris (luminance), inversé, puis courbe de tons :
+     le plus clair du négatif s'arrête à 76 % de blanc (l'image ne se confond pas avec le fond blanc).
+     Négatif → sortie : 0 → 0 · 25 % → 24 % · 50 % → 47 % · 75 % → 64 % · 100 % → 76 % ; inversion + courbe
+     tiennent dans une seule table (« 0.76 0.64 0.47 0.24 0 »). Utilisé par css/site.css (.photo img).
+     Valeurs de js/wall.js (TONE, ERODE) ; ce bloc est écrit par tools/filters.py. -->
+<!-- Érosion des images du mur (js/wall.js → stageOf, classes .age-1 … .age-4) : même négatif, puis
+     TRANSPARENCE des SOMBRES : alpha = 1 − pente × (seuil − gris). Palier 1 : seuls les noirs pâlissent …
+     palier 4 : il ne reste que les parties claires. Quatre filtres partagés (rien de calculé image par image). -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <filter id="tone" color-interpolation-filters="sRGB">
     <feColorMatrix type="saturate" values="0"/>
     <feComponentTransfer>
-      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncR type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncG type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncB type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
     </feComponentTransfer>
   </filter>
   <filter id="erode1" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
     <feColorMatrix type="saturate" values="0"/>
     <feComponentTransfer result="t">
-      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncR type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncG type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncB type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
     </feComponentTransfer>
-    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
-    <feColorMatrix values="0.3 0 0 0 0.35  0.3 0 0 0 0.35  0.3 0 0 0 0.35  0 0 0 0 1"/>
-    <feBlend mode="overlay" in2="t" result="g"/>
-    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1.6 0 0 0 1.96" result="a"/>
-    <feComposite in="g" in2="a" operator="in"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.6 0 0 0 0.744" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
   </filter>
   <filter id="erode2" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
     <feColorMatrix type="saturate" values="0"/>
     <feComponentTransfer result="t">
-      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncR type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncG type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncB type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
     </feComponentTransfer>
-    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
-    <feColorMatrix values="0.36 0 0 0 0.32  0.36 0 0 0 0.32  0.36 0 0 0 0.32  0 0 0 0 1"/>
-    <feBlend mode="overlay" in2="t" result="g"/>
-    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.2 0 0 0 2.1" result="a"/>
-    <feComposite in="g" in2="a" operator="in"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.2 0 0 0 0.428" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
   </filter>
   <filter id="erode3" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
     <feColorMatrix type="saturate" values="0"/>
     <feComponentTransfer result="t">
-      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncR type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncG type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncB type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
     </feComponentTransfer>
-    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
-    <feColorMatrix values="0.42 0 0 0 0.29  0.42 0 0 0 0.29  0.42 0 0 0 0.29  0 0 0 0 1"/>
-    <feBlend mode="overlay" in2="t" result="g"/>
-    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.8 0 0 0 2.12" result="a"/>
-    <feComposite in="g" in2="a" operator="in"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.8 0 0 0 -0.008" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
   </filter>
   <filter id="erode4" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
     <feColorMatrix type="saturate" values="0"/>
     <feComponentTransfer result="t">
-      <feFuncR type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncG type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
-      <feFuncB type="table" tableValues="0 0.24 0.47 0.64 0.76"/>
+      <feFuncR type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncG type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
+      <feFuncB type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
     </feComponentTransfer>
-    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
-    <feColorMatrix values="0.48 0 0 0 0.26  0.48 0 0 0 0.26  0.48 0 0 0 0.26  0 0 0 0 1"/>
-    <feBlend mode="overlay" in2="t" result="g"/>
-    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -3.4 0 0 0 2.02" result="a"/>
-    <feComposite in="g" in2="a" operator="in"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  3.4 0 0 0 -0.564" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
   </filter>
 </svg>
 <a class="skip" href="#board" data-i18n="skip">Skip to content</a>
@@ -157,7 +146,7 @@
 </dialog>
 
 <!-- Dépôt : une image, des mots, ou les deux. Plus l'image a de pixels, moins il reste de mots (js/budget.js).
-     Le visiteur choisit la taille d'affichage (S / M / L). Le grain est une règle globale du site (pas de réglage). -->
+     Le visiteur choisit la taille d'affichage (S / M / L). Aucun grain (direction « blanc »). -->
 <dialog id="drop" class="dlg dlg--drop" aria-labelledby="dropTitle">
   <form id="dropForm" class="drop-form" novalidate>
     <div class="dlg-head">
@@ -224,6 +213,6 @@
   <p class="hint small" data-i18n="mentionsKeep"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=058c5733e7"></script>
+<script type="module" src="js/main.js?v=b5f0b83c4f"></script>
 </body>
 </html>

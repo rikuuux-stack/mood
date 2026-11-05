@@ -1,13 +1,13 @@
-/* Mood — moodboard ouvert. Direction brutaliste, fond noir.
+/* Mood — moodboard ouvert. Direction « blanc » : fond blanc pur, texte noir doux, aucun grain.
    Règle de couleur : UNIQUEMENT des gris neutres, du noir au blanc. Aucune teinte.
-   Toutes les photos déposées sont affichées en noir et blanc avec du grain (.photo). */
+   Toutes les photos déposées sont affichées en NÉGATIF noir et blanc (.photo, filtre #tone). */
 :root {
-  --bg: #0b0b0b;            /* fond de page : noir */
-  --fg: #e8e8e8;            /* texte : blanc cassé (contraste ≈ 16:1 sur le fond) */
-  --muted: #9a9a9a;         /* texte secondaire (≈ 7:1) */
-  --panel: #161616;         /* fenêtres (dépôt, agrandissement, panneau « à propos ») */
-  --rule: #3a3a3a;          /* filets et bordures discrets */
-  --photo-bg: #1d1d1d;      /* fond d'une photo pendant son chargement */
+  --bg: #ffffff;            /* fond de page : blanc pur */
+  --fg: #111111;            /* texte : noir doux (contraste ≈ 18,9:1 sur le fond) */
+  --muted: #555555;         /* texte secondaire (≈ 7,5:1 sur blanc, ≈ 7,1:1 sur --panel) */
+  --panel: #fafafa;         /* fenêtres (dépôt, agrandissement, panneau « à propos ») : gris très clair */
+  --rule: #d9d9d9;          /* filets et bordures discrets : gris clair */
+  --photo-bg: #f0f0f0;      /* fond d'une photo pendant son chargement */
   /* traits très fins partout : IBM Plex Sans JP ExtraLight (200), Thin (100) pour « Mood ».
      Repli : Hiragino Sans (iPhone/Mac) existe aussi en graisses fines. */
   --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
@@ -17,9 +17,7 @@
   --gutter: 24px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
-  /* grain marqué sur le noir (bruit blanc, 16 % d'opacité max) : fond de page ET bandeau */
-  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  color-scheme: dark;
+  color-scheme: light;
 }
 @media (max-width: 639px) { :root { --gutter: 16px; } }
 
@@ -29,18 +27,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(-
 html.modal, html.modal body { overflow: hidden; }
 body {
   margin: 0; min-height: 100dvh;
-  background: transparent;              /* le fond et son grain sont sur la couche fixe ci-dessous */
+  background: var(--bg);                /* blanc uni, sans grain : aucune couche à part */
   color: var(--fg);
   font: var(--light) 13px/1.65 var(--font);
   line-break: strict;
   overflow-wrap: anywhere;
-}
-/* fond + grain : une couche FIXE, à la taille du plus grand écran possible (100lvh : barre d'adresse
-   de l'iPhone repliée). Elle ne défile pas et ne change pas de taille quand la barre apparaît ou
-   disparaît : ni bande, ni saut. Pas de background-attachment: fixed (ignoré par l'iPhone). */
-body::before {
-  content: ''; position: fixed; top: 0; left: 0; right: 0; height: 100%; height: 100lvh; z-index: -1;
-  background: var(--bg) var(--noise); pointer-events: none;
 }
 button, input, textarea { font: inherit; color: inherit; }
 /* japonais : chasse proportionnelle (palt), plus serrée et plus lisible */
@@ -48,7 +39,7 @@ button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 
-/* focus : double anneau clair/noir, visible sur le fond, les fenêtres et les photos */
+/* focus : double anneau sombre/clair, visible sur le fond, les fenêtres et les photos */
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; box-shadow: 0 0 0 6px var(--bg); }
 
 .skip { position: absolute; left: 8px; top: -60px; z-index: 1001; background: var(--fg); color: var(--bg); padding: 8px 12px; }
@@ -58,7 +49,8 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* ------------------------------------------------------------------ Mood + Drop : flottants, sans bandeau
  * Deux éléments fixes posés directement sur le mur : AUCUN fond, aucune bordure de barre. Le mur défile
  * dessous. Toujours au-dessus des images (le mur et la liste sont isolés : isolation, z-index enfermés)
- * et toujours lisibles grâce à mix-blend-mode: difference (clair sur le sombre, sombre sur le clair).
+ * et toujours lisibles grâce à mix-blend-mode: difference + blanc pur : noir sur le fond blanc, clair sur
+ * les parties sombres d'une image (le contraire de ce qui est dessous).
  * Aucun parent ne doit porter de transform / filter (sinon position: fixed casse).
  */
 .bar {
@@ -114,18 +106,16 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   --w: calc((1 - var(--v, 1)) / .7);
   transition: opacity .2s ease, transform .14s ease;
 }
-/* images : les pixels clairs deviennent transparents par paliers (.age-1 … .age-4 → filtres #erode1 … #erode4,
-   index.html) ; il finit par ne rester que les parties sombres, on voit à travers. Le grain est alors
-   dans le filtre (plus fort à chaque palier) : le grain habituel (::after) s'efface, sinon il voilerait
-   les parties devenues transparentes. Aucun retour à neuf au survol : seulement à l'ouverture en grand. */
+/* images (négatif) : les pixels SOMBRES deviennent transparents par paliers (.age-1 … .age-4 → filtres
+   #erode1 … #erode4, index.html) ; il finit par ne rester que les parties claires, on voit à travers.
+   Aucun retour à neuf au survol : seulement à l'ouverture en grand. */
 .photo.is-loaded { background: transparent; }
 .item.age-1 .photo img { filter: url(#erode1); }
 .item.age-2 .photo img { filter: url(#erode2); }
 .item.age-3 .photo img { filter: url(#erode3); }
 .item.age-4 .photo img { filter: url(#erode4); }
-.item:is(.age-1, .age-2, .age-3, .age-4) .photo.is-loaded::after { display: none; }
-/* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (contraste ≥ 10:1 au plancher) */
-.item .sticker, .item .caption { color: color-mix(in srgb, #bdbdbd calc(100% * var(--w)), var(--fg)); }
+/* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (#111 → #4a4a4a : contraste ≥ 8,8:1 sur blanc) */
+.item .sticker, .item .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
 /* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */
 @media (hover: hover) {
   .item:hover, .item:focus-within { z-index: 100000 !important; transform: translateY(-6px) scale(1.015); }
@@ -143,24 +133,20 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .fig { display: block; }
 .item--image .photo img { width: 100%; height: 100%; object-fit: cover; }
 
-/* photos : noir et blanc + grain, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
+/* photos : NÉGATIF noir et blanc, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
    Appliqué à l'affichage : les fichiers restent intacts, le traitement est le même pour tous. */
 .photo { position: relative; display: block; overflow: hidden; background: var(--photo-bg); }
-.photo img { display: block; filter: url(#tone); opacity: 0; transition: opacity .22s ease; }   /* N&B + hautes lumières assombries (filtre SVG dans index.html) */
+.photo img { display: block; filter: url(#tone); opacity: 0; transition: opacity .22s ease; }   /* négatif N&B + courbe (filtre SVG dans index.html) */
 /* le cadre (aux bonnes proportions) est là tout de suite ; l'image y apparaît en fondu quand elle est prête */
 .photo.is-loaded img { opacity: 1; }
 /* vidéo : sur le mur et dans la liste, l'image fixe + un petit ▶ discret ; dans l'agrandissement, la vidéo
-   (noir et blanc et courbe de tons déjà dans le fichier : aucun filtre pendant la lecture) */
+   (négatif noir et blanc et courbe déjà DANS le fichier : aucun filtre pendant la lecture — Safari / iOS
+   n'applique pas les filtres SVG aux vidéos, WebKit bug 184601) */
 .vmark { position: absolute; left: 6px; bottom: 5px; z-index: 1; font-size: 10px; line-height: 1; color: #fff; mix-blend-mode: difference; pointer-events: none; }
 .photo.is-video video { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; background: var(--photo-bg); }
 .vplay { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; font-size: 28px; color: #fff; mix-blend-mode: difference; }
 .vplay:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
 @media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
-.photo::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay; opacity: .55;
-}
 
 /* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
 .sticker {
@@ -193,7 +179,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   width: min(920px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;
   overscroll-behavior: contain;
 }
-.dlg::backdrop { background: rgba(0,0,0,.86); }
+.dlg::backdrop { background: rgba(255,255,255,.9); }
 .dlg--drop, .dlg--about { width: min(520px, calc(100vw - 24px)); }
 .dlg h2 { margin: 0; font-size: 1.15rem; font-weight: var(--light); letter-spacing: .06em; }
 #aboutTitle { font-weight: 100; letter-spacing: .32em; }
@@ -252,7 +238,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .preview { margin: 0; }
 .preview .photo { display: inline-block; }
 .preview img, .preview canvas { display: block; max-width: 100%; max-height: 36dvh; width: auto; height: auto; }
-.photo canvas { filter: url(#tone); }   /* aperçu du grain : même traitement N&B que les photos */
+.photo canvas { filter: url(#tone); }   /* aperçu dans Drop : même négatif que les photos */
 /* taille d'affichage S / M / L : trois cases à filet fin, la case choisie est pleine */
 .sizes { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
 .sizes legend { float: left; margin-right: 8px; font-size: 12px; color: var(--muted); padding: 0; }

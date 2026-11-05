@@ -3,11 +3,12 @@
  *
  * Résultat, quelle que soit la source (vidéo de la galerie ou de la caméra, GIF perso) :
  *   - un MP4 H.264 de 480 px de grand côté, 24 images/s au plus, ≈ 300 kb/s (≈ 2,2 Mo pour 60 s) ;
- *   - noir et blanc ET courbe de tons du site intégrés dans le fichier (aucun filtre à la lecture) ;
+ *   - NÉGATIF noir et blanc (gris, inversion, courbe de tons du site) intégré dans le fichier, aucun filtre
+ *     à la lecture : Safari / iOS n'applique pas les filtres SVG aux vidéos (WebKit bug 184601) ;
  *   - sans son, sans aucune métadonnée (GPS, date, appareil) : chaque image est redessinée ;
  *   - 60 s au plus, à partir du point choisi avec le curseur « Start » ;
  *   - une image fixe (poster) prise au point de départ, 800 px, sans métadonnées, traitée à l'affichage
- *     exactement comme une photo (noir et blanc, érosion, grain du site).
+ *     exactement comme une photo (négatif noir et blanc, érosion).
  *
  * Trois chemins, du plus rapide au plus lent (choisis automatiquement) :
  *   A. décodage + encodage par WebCodecs (Mediabunny), débit constant : plus rapide que la lecture ;
@@ -19,7 +20,7 @@
  *
  * js/vendor/mediabunny.js et js/vendor/omggif.js ne sont chargés qu'au choix d'une vidéo ou d'un GIF.
  */
-import { TONE } from './wall.js?v=8906cf420f';
+import { negative } from './wall.js?v=a03ea7e996';
 import { inspectMp4, checkVideo } from './mp4.js?v=53a1dd24ca';
 import { stripMetadata } from './image.js?v=0bde9bbfaf';
 
@@ -31,13 +32,11 @@ const lib = () => import('./vendor/mediabunny.js?v=d7b3a90e82');
 export const isGif = file => file.type === 'image/gif' || /\.gif$/i.test(file.name || '');
 export const isVideo = file => file.type.startsWith('video/') || /\.(mov|mp4|m4v|webm)$/i.test(file.name || '');
 
-/* ------------------------------------------------------------------ noir et blanc + courbe de tons
- * Même courbe que les photos à l'écran (TONE, js/wall.js) : gris (luminance), puis 0→0, 25→24, … 100→76 %. */
+/* ------------------------------------------------------------------ négatif noir et blanc
+ * Même traitement que les photos à l'écran (negative, js/wall.js) : gris (luminance), inversé, puis la
+ * courbe 0→0, 25→24, … 100→76 %. */
 const LUT = new Uint8ClampedArray(256);
-for (let v = 0; v < 256; v++) {
-  const p = Math.min(3.999, (v / 255) * 4), i = p | 0;
-  LUT[v] = Math.round((TONE[i] + (TONE[i + 1] - TONE[i]) * (p - i)) * 255);
-}
+for (let v = 0; v < 256; v++) LUT[v] = Math.round(negative(v / 255) * 255);
 function toneCanvas(g, w, h) {
   const im = g.getImageData(0, 0, w, h), d = im.data;
   for (let o = 0; o < d.length; o += 4) {
@@ -185,7 +184,7 @@ async function openDecodable(MB, input, track, file) {
       const work = canvas(width, height);
       let fps = VIDEO.fps;
       try { const st = await track.computePacketStats(120); if (st.averagePacketRate > 0) fps = Math.min(VIDEO.fps, Math.round(st.averagePacketRate)); } catch {}
-      // chaque image décodée (dans le bon sens), redessinée en noir et blanc + courbe, encodée ; ≤ 24 i/s
+      // chaque image décodée (dans le bon sens), redessinée en négatif noir et blanc (gris, inversion, courbe), encodée ; ≤ 24 i/s
       const pass = async (bitrate, keep) => {
         const rate = Math.max(1, Math.round(fps * keep)), step = 1 / rate;
         const enc = await webcodecsEncoder(work.c, bitrate, rate);
@@ -262,7 +261,7 @@ async function openPlayable(file) {
   };
 }
 
-/** Lecture de la vidéo, chaque image redessinée (noir et blanc + courbe) et encodée. Dure autant que l'extrait. */
+/** Lecture de la vidéo, chaque image redessinée (négatif noir et blanc + courbe) et encodée. Dure autant que l'extrait. */
 async function playbackConvert(file, { start, len, width, height, poster, onProgress, signal, video }) {
   let url = null, v = video;
   if (!v) { url = URL.createObjectURL(file); v = await loadVideo(url); }
@@ -338,7 +337,7 @@ async function openGif(file) {
     async convert({ onProgress, signal } = {}) {
       const [pw, ph] = posterSize(W, H);
       const pc = canvas(pw, ph);
-      pc.g.fillStyle = '#0b0b0b'; pc.g.fillRect(0, 0, pw, ph);
+      pc.g.fillStyle = '#000'; pc.g.fillRect(0, 0, pw, ph);   // transparence → noir : le plus clair une fois en négatif
       const work = canvas(width, height);
       let poster = null;
       const pass = async bitrate => {
@@ -351,7 +350,7 @@ async function openGif(file) {
             paint(px);
             if (i === 0 && !poster) { pc.g.drawImage(full.c, 0, 0, pw, ph); poster = await jpeg(pc.c); }   // poster : la première image
             const d = Math.min(delays[i], VIDEO.maxDuration - t);
-            work.g.fillStyle = '#0b0b0b'; work.g.fillRect(0, 0, width, height);   // transparence → fond du site
+            work.g.fillStyle = '#000'; work.g.fillRect(0, 0, width, height);   // transparence → noir : en négatif, le plus clair (76 %), au plus près du fond blanc
             work.g.drawImage(full.c, 0, 0, width, height);
             toneCanvas(work.g, width, height);
             if (enc.realtime) await new Promise(r => setTimeout(r, d * 1000)); else await enc.add(t, d);

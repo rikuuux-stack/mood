@@ -64,9 +64,10 @@ export function sizeFor(post, W, mobile) {
  * sa validation) — intact 7 jours, puis de plus en plus pâle, de plus en plus lentement, sans jamais
  * descendre sous 30 % : ≈ 70 % à 30 jours, ≈ 39 % à 90 jours, ≈ 31 % à 180 jours.
  * Au-delà de 180 jours, il quitte le mur et ne vit plus que dans la vue List (toujours à 100 %).
- * Images : les pixels CLAIRS deviennent transparents avec l'âge (on voit à travers), par paliers fixes
- * (stageOf → classes .age-1 … .age-4, filtres SVG #erode1 … #erode4 dans index.html) : quatre filtres
- * partagés par toutes les images, rien de calculé image par image. L'image ne redevient neuve
+ * Images : affichées en NÉGATIF noir et blanc sur fond blanc ; avec l'âge, les pixels SOMBRES du négatif
+ * deviennent transparents (on voit à travers), par paliers fixes (stageOf → classes .age-1 … .age-4,
+ * filtres SVG #erode1 … #erode4 dans index.html) : quatre filtres partagés par toutes les images, rien de
+ * calculé image par image. Il finit par ne rester que les parties claires. L'image ne redevient neuve
  * qu'à l'ouverture en grand. Textes : à peine adoucis, toujours lisibles (css/site.css).
  */
 export const TIME = { fresh: 7, floor: 0.3, k: 41, wallDays: 180 };
@@ -78,25 +79,39 @@ export function visibility(days) {
   return TIME.floor + (1 - TIME.floor) * Math.exp(-(days - TIME.fresh) / TIME.k);
 }
 /**
- * Palier d'érosion d'une image (0 = neuve … 4 = il ne reste que les parties sombres), selon sa visibilité.
+ * Palier d'érosion d'une image (0 = neuve … 4 = il ne reste que les parties claires), selon sa visibilité.
  * Usure w = (1 − v) / 0,7 : palier 1 dès w ≥ 0,08 (≈ 10 j), 2 dès 0,3 (≈ 22 j), 3 dès 0,55 (≈ 40 j), 4 dès 0,8 (≈ 73 j).
  */
 export const STAGES = [0.08, 0.3, 0.55, 0.8];
 /*
- * Traitement des images, partagé par l'écran (filtres SVG de index.html : #tone, #erode1 … #erode4) et
- * par l'export d'un fragment (js/fragment.js, en pixels). tests/wall.test.mjs vérifie que index.html
- * porte exactement ces valeurs.
- *   TONE  : courbe de tons après passage en gris (0 → 0 · 25 % → 24 % · … · 100 % → 76 %) ;
- *   ERODE : par palier, seuil t et pente k de la transparence (alpha = 1 − k × (gris − t)),
- *           force g du grain (bruit gris en « overlay »).
+ * Traitement des images, partagé par l'écran (filtres SVG de index.html : #tone, #erode1 … #erode4), par
+ * l'export d'un fragment (js/fragment.js, en pixels) et par la conversion des vidéos (js/video.js, intégré au
+ * fichier). tests/wall.test.mjs vérifie que index.html porte exactement ces valeurs.
+ *   NÉGATIF : gris (luminance), puis inversé (1 − gris), puis la courbe TONE ;
+ *   TONE  : courbe de tons du négatif (0 → 0 · 25 % → 24 % · … · 100 % → 76 %) : le plus clair du négatif
+ *           s'arrête à 76 % de blanc, l'image ne se confond jamais avec le fond blanc. Dans index.html,
+ *           inversion + courbe tiennent dans une seule table : TONE à l'envers (« 0.76 0.64 0.47 0.24 0 ») ;
+ *   ERODE : par palier, seuil t et pente k de la transparence des SOMBRES (alpha = 1 − k × (t − gris)),
+ *           force g du grain dans le filtre (0 : pas de grain). Seuils = miroir des anciens (fond noir) dans
+ *           l'étendue 0 … 0,76 du négatif (t = 0,76 − ancien seuil), pentes inchangées ;
+ *   GRAIN : grain des photos neuves (0 : aucun) — même valeur que l'écran (css/site.css, .photo::after) ;
+ *   PAGE_GRAIN : grain du fond de page (0 : aucun).
  */
 export const TONE = [0, 0.24, 0.47, 0.64, 0.76];
+/** Négatif d'une luminance (0 … 1) : inversion puis courbe TONE. */
+export function negative(lum) {
+  const p = Math.min(3.999, (1 - lum) * 4), i = p | 0;
+  return TONE[i] + (TONE[i + 1] - TONE[i]) * (p - i);
+}
 export const ERODE = [
-  { t: 0.6, k: 1.6, g: 0.30 },
-  { t: 0.5, k: 2.2, g: 0.36 },
-  { t: 0.4, k: 2.8, g: 0.42 },
-  { t: 0.3, k: 3.4, g: 0.48 },
+  { t: 0.16, k: 1.6, g: 0 },
+  { t: 0.26, k: 2.2, g: 0 },
+  { t: 0.36, k: 2.8, g: 0 },
+  { t: 0.46, k: 3.4, g: 0 },
 ];
+export const GRAIN = 0;
+/** Grain du fond de page (0 : aucun) — même valeur que l'écran (css/site.css, body::before). */
+export const PAGE_GRAIN = 0;
 export function stageOf(v) {
   const w = (1 - v) / (1 - TIME.floor);
   return STAGES.filter(s => w >= s - 1e-9).length;

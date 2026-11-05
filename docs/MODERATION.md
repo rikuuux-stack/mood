@@ -38,10 +38,10 @@ La page est en anglais, avec des mots très courts (choix validé).
 Un toucher la change aussitôt, avant ou après validation.
 
 Les photos s'affichent ici **en couleur et telles qu'envoyées**, pour que tu juges le vrai contenu.
-Sur le mur, elles passent en noir et blanc avec du grain (le même pour tous), puis pâlissent lentement avec le temps.
+Sur le mur, elles s'affichent en négatif noir et blanc (le même pour tous), puis pâlissent lentement avec le temps. Ici, dans /admin/, tu vois le vrai fichier, en couleur.
 
 **Vidéos et GIF** : une vidéo apparaît avec un lecteur (▶) et son image fixe ; touche-la pour la voir **avant de valider**.
-Elle est déjà en noir et blanc (convertie sur le téléphone du visiteur), muette, 60 s au plus. Sous la carte : sa durée et son poids réel.
+Elle est déjà en négatif noir et blanc (convertie sur le téléphone du visiteur), muette, 60 s au plus. Sous la carte : sa durée et son poids réel.
 Un refus supprime la vidéo et son image fixe ; la validation les publie toutes les deux.
 
 **Stockage** : en haut, « Storage … MB / 1 GB ». Dès 700 Mo, la ligne est soulignée (avertissement) ; à 900 Mo,
@@ -51,7 +51,7 @@ les nouvelles vidéos sont refusées (« Wall full — come back later. »). Pou
 
 - vérification anti-robot (Turnstile), 3 dépôts par heure et 10 par jour par connexion ;
 - toute image est convertie sur le téléphone du visiteur : stockée en 2000 px maximum, 5 Mo maximum, **aucune métadonnée** (GPS, appareil) ;
-- vidéos et GIF convertis sur le téléphone : MP4 noir et blanc, 480 px, muet, 60 s et 4 Mo maximum, sans métadonnées ;
+- vidéos et GIF convertis sur le téléphone : MP4 en négatif noir et blanc, 480 px, muet, 60 s et 4 Mo maximum, sans métadonnées ;
 - texte limité par la règle « pixels contre mots » ; pseudo sans lien ;
 - un visiteur a coché qu'il détient les droits et accepte la modération.
 
