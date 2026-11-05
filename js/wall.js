@@ -64,8 +64,8 @@ export function sizeFor(post, W, mobile) {
  * sa validation) — intact 7 jours, puis de plus en plus pâle, de plus en plus lentement, sans jamais
  * descendre sous 30 % : ≈ 70 % à 30 jours, ≈ 39 % à 90 jours, ≈ 31 % à 180 jours.
  * Au-delà de 180 jours, il quitte le mur et ne vit plus que dans la vue List (toujours à 100 %).
- * Images : affichées en NÉGATIF noir et blanc sur fond blanc ; avec l'âge, les pixels SOMBRES du négatif
- * deviennent transparents (on voit à travers), par paliers fixes (stageOf → classes .age-1 … .age-4,
+ * Images : affichées en NÉGATIF noir et blanc sur fond blanc, le NOIR TRANSPARENT dès le dépôt ; avec l'âge,
+ * la transparence gagne les gris de plus en plus clairs (l'image se désagrège), par paliers fixes (stageOf → classes .age-1 … .age-4,
  * filtres SVG #erode1 … #erode4 dans index.html) : quatre filtres partagés par toutes les images, rien de
  * calculé image par image. Il finit par ne rester que les parties claires. L'image ne redevient neuve
  * qu'à l'ouverture en grand. Textes : à peine adoucis, toujours lisibles (css/site.css).
@@ -91,9 +91,11 @@ export const STAGES = [0.08, 0.3, 0.55, 0.8];
  *   TONE  : courbe de tons du négatif (0 → 0 · 25 % → 24 % · … · 100 % → 76 %) : le plus clair du négatif
  *           s'arrête à 76 % de blanc, l'image ne se confond jamais avec le fond blanc. Dans index.html,
  *           inversion + courbe tiennent dans une seule table : TONE à l'envers (« 0.76 0.64 0.47 0.24 0 ») ;
- *   ERODE : par palier, seuil t et pente k de la transparence des SOMBRES (alpha = 1 − k × (t − gris)),
- *           force g du grain dans le filtre (0 : pas de grain). Seuils = miroir des anciens (fond noir) dans
- *           l'étendue 0 … 0,76 du négatif (t = 0,76 − ancien seuil), pentes inchangées ;
+ *   BASE  : NOIR TRANSPARENT DÈS LE DÉPÔT (décision de l'auteur) : alpha = 1 − k × (t − gris) ; le noir pur du
+ *           négatif est transparent (on voit le fond blanc et les images du dessous), opaque dès 25 % de gris ;
+ *   ERODE : par palier, même formule avec un seuil qui MONTE : l'image se désagrège avec le temps, des
+ *           sombres vers les clairs, jusqu'à ne laisser que les parties claires ; force g du grain dans le
+ *           filtre (0 : pas de grain). Paliers et dates inchangés (stageOf) ;
  *   GRAIN : grain des photos neuves (0 : aucun) — même valeur que l'écran (css/site.css, .photo::after) ;
  *   PAGE_GRAIN : grain du fond de page (0 : aucun).
  */
@@ -103,12 +105,15 @@ export function negative(lum) {
   const p = Math.min(3.999, (1 - lum) * 4), i = p | 0;
   return TONE[i] + (TONE[i + 1] - TONE[i]) * (p - i);
 }
+export const BASE = { t: 0.25, k: 4, g: 0 };
 export const ERODE = [
-  { t: 0.16, k: 1.6, g: 0 },
-  { t: 0.26, k: 2.2, g: 0 },
-  { t: 0.36, k: 2.8, g: 0 },
-  { t: 0.46, k: 3.4, g: 0 },
+  { t: 0.33, k: 4, g: 0 },
+  { t: 0.41, k: 4, g: 0 },
+  { t: 0.49, k: 4, g: 0 },
+  { t: 0.57, k: 4, g: 0 },
 ];
+/** Opacité d'un pixel (gris du négatif, 0 … 0,76) selon le traitement (BASE ou un palier d'ERODE). */
+export const alphaOf = (gray, e) => Math.max(0, Math.min(1, 1 - e.k * (e.t - gray)));
 export const GRAIN = 0;
 /** Grain du fond de page (0 : aucun) — même valeur que l'écran (css/site.css, body::before). */
 export const PAGE_GRAIN = 0;

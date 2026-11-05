@@ -20,7 +20,7 @@
  *
  * js/vendor/mediabunny.js et js/vendor/omggif.js ne sont chargés qu'au choix d'une vidéo ou d'un GIF.
  */
-import { negative } from './wall.js?v=a03ea7e996';
+import { negative } from './wall.js?v=b7c207cd50';
 import { inspectMp4, checkVideo } from './mp4.js?v=53a1dd24ca';
 import { stripMetadata } from './image.js?v=0bde9bbfaf';
 
