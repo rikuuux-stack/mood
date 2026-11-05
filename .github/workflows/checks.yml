@@ -25,6 +25,8 @@ jobs:
         run: node tests/server.test.mjs
       - name: Alerte e-mail en cas d'échec (script testé contre un faux serveur Resend)
         run: node tests/ci-alert.test.mjs
+      - name: Modération (enchaînement des étapes, reprise après panne — base et stockage factices)
+        run: node tests/moderate.test.mjs
       - name: Navigateur (bandeau, fond, érosion)
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
