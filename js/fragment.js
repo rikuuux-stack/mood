@@ -12,7 +12,7 @@
  * est refait ici en pixels, avec les mêmes valeurs (negative, ERODE, GRAIN dans js/wall.js).
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
-import { negative, ERODE, GRAIN, PAGE_GRAIN } from './wall.js?v=cc20739a7c';
+import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=e9e3f6d62f';
 import { stripMetadata } from './image.js?v=0bde9bbfaf';
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
@@ -41,8 +41,8 @@ const overlay = (b, s) => (b <= 0.5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s));
 
 /**
  * Photo traitée comme à l'écran, à la taille voulue (px de l'image) :
- *   palier 0 : négatif (gris, inversion, courbe), grain habituel s'il y en a (GRAIN) ;
- *   palier N : négatif, grain du palier s'il y en a, les SOMBRES deviennent transparents.
+ *   palier 0 : négatif (gris, inversion, courbe), NOIR transparent (BASE), grain habituel s'il y en a (GRAIN) ;
+ *   palier N : négatif, grain du palier s'il y en a, transparence qui gagne les gris plus clairs (ERODE).
  */
 function processPhoto(source, dw, dh, stage, scale) {
   const c = document.createElement('canvas');
@@ -57,10 +57,10 @@ function processPhoto(source, dw, dh, stage, scale) {
     for (let x = 0; x < dw; x++, i += 4) {
       const t = negative((0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255);
       const n = g ? sample(g, x / scale, y / scale) : 0.5;
-      let v = t, a = 1;
+      let v = t;
+      const a = alphaOf(t, e || BASE);                                 // alpha = 1 − k × (t − gris)
       if (e) {
         if (e.g) v = overlay(t, e.g * n + 0.5 - e.g * 0.5);
-        a = Math.max(0, Math.min(1, 1 - e.k * e.t + e.k * t));        // alpha = 1 − k × (t − gris)
       } else if (GRAIN) {
         v = t + (overlay(t, n) - t) * GRAIN;
       }
