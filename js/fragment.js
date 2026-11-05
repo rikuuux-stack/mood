@@ -12,7 +12,7 @@
  * est refait ici en pixels, avec les mêmes valeurs (negative, ERODE, GRAIN dans js/wall.js).
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
-import { negative, ERODE, GRAIN, PAGE_GRAIN } from './wall.js?v=a03ea7e996';
+import { negative, ERODE, GRAIN, PAGE_GRAIN } from './wall.js?v=cc20739a7c';
 import { stripMetadata } from './image.js?v=0bde9bbfaf';
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };

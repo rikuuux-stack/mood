@@ -14,7 +14,7 @@
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=7f7191e965';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME } from './wall.js?v=a03ea7e996';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME } from './wall.js?v=cc20739a7c';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=4d6e44fae3';
 import * as captcha from './captcha.js?v=130a7987f8';
@@ -425,7 +425,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=bffd58a97d');
+    const { makeFragment, today } = await import('./fragment.js?v=1d0f2f6fbe');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -512,7 +512,7 @@ let src = null, rendered = null, preparing = null, imageError = '';   // src : i
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
-const videoLib = () => import('./video.js?v=b77cd64515');
+const videoLib = () => import('./video.js?v=b5f342493b');
 /** Message d'une erreur de lecture ou de conversion vidéo (js/video.js), avec la raison quand elle est connue. */
 const videoErrorText = err => { const { key, why } = videoError(err); return t(key, { why: t(`why_${why}`) }); };
 const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');

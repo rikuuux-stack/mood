@@ -104,14 +104,15 @@ export function negative(lum) {
   return TONE[i] + (TONE[i + 1] - TONE[i]) * (p - i);
 }
 export const ERODE = [
-  { t: 0.16, k: 1.6, g: 0 },
-  { t: 0.26, k: 2.2, g: 0 },
-  { t: 0.36, k: 2.8, g: 0 },
-  { t: 0.46, k: 3.4, g: 0 },
+  { t: 0.16, k: 1.6, g: 0.12 },
+  { t: 0.26, k: 2.2, g: 0.14 },
+  { t: 0.36, k: 2.8, g: 0.16 },
+  { t: 0.46, k: 3.4, g: 0.18 },
 ];
-export const GRAIN = 0;
+/* VARIANTE « grain très léger » (branche claude/blanc-grain) : grain ≈ 2,5 fois plus discret que sur fond noir. */
+export const GRAIN = 0.12;
 /** Grain du fond de page (0 : aucun) — même valeur que l'écran (css/site.css, body::before). */
-export const PAGE_GRAIN = 0;
+export const PAGE_GRAIN = 0.06;
 export function stageOf(v) {
   const w = (1 - v) / (1 - TIME.floor);
   return STAGES.filter(s => w >= s - 1e-9).length;

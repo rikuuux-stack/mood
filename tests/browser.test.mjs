@@ -182,8 +182,9 @@ const bg = await pg.evaluate(() => {
   const ph = document.querySelector('#wall .photo');
   return { before: s.content, body: b.backgroundColor, html: h.backgroundColor, img: b.backgroundImage, photoAfter: ph ? getComputedStyle(ph, '::after').content : 'none' };
 });
-ok(bg.body === 'rgb(255, 255, 255)' && bg.html === 'rgb(255, 255, 255)' && bg.img === 'none' && bg.before === 'none' && bg.photoAfter === 'none',
-  'fond blanc pur, sans grain (ni couche de fond, ni grain sur les photos)', JSON.stringify(bg));
+// VARIANTE « grain très léger » : couche fixe body::before (blanc + bruit noir léger), grain léger sur les photos
+ok(bg.html === 'rgb(255, 255, 255)' && bg.img === 'none' && bg.before !== 'none' && bg.photoAfter !== 'none',
+  'fond blanc + grain très léger (couche fixe et photos)', JSON.stringify(bg));
 
 /* érosion */
 const ages = await pg.evaluate(() => [...document.querySelectorAll('#wall .item:not(.is-pending)')].map(li => {
@@ -252,7 +253,7 @@ for (const [format, H] of [['4:5', 1350], ['9:16', 1920]]) {
   ok(info.jpeg && info.w === 1080 && info.h === H, `Keep ${format} : fichier JPEG ${info.w} × ${info.h} (téléchargé : ${dl.suggestedFilename()})`, JSON.stringify(info));
   ok(!info.meta, `Keep ${format} : aucune métadonnée (EXIF…)`);
   ok(info.bright > 150, `Keep ${format} : ligne du bas présente, en noir (${info.bright} pixels de texte)`);
-  ok(info.corner >= 250, `Keep ${format} : fond blanc (${info.corner} / 255)`);
+  ok(info.corner >= 235, `Keep ${format} : fond blanc + grain très léger (${info.corner} / 255)`);   // VARIANTE grain
   void t0;
 }
 const footer = await dp.evaluate(async () => {

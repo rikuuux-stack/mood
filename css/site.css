@@ -1,4 +1,4 @@
-/* Mood — moodboard ouvert. Direction « blanc » : fond blanc pur, texte noir doux, aucun grain.
+/* Mood — moodboard ouvert. Direction « blanc », VARIANTE grain très léger (branche claude/blanc-grain) : fond blanc pur, texte noir doux.
    Règle de couleur : UNIQUEMENT des gris neutres, du noir au blanc. Aucune teinte.
    Toutes les photos déposées sont affichées en NÉGATIF noir et blanc (.photo, filtre #tone). */
 :root {
@@ -17,6 +17,8 @@
   --gutter: 24px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  /* VARIANTE « grain très léger » : bruit NOIR, 6 % d'opacité au plus (sur fond noir : bruit blanc à 16 %) */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   color-scheme: light;
 }
 @media (max-width: 639px) { :root { --gutter: 16px; } }
@@ -27,11 +29,17 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(-
 html.modal, html.modal body { overflow: hidden; }
 body {
   margin: 0; min-height: 100dvh;
-  background: var(--bg);                /* blanc uni, sans grain : aucune couche à part */
+  background: transparent;              /* le fond et son grain léger sont sur la couche fixe ci-dessous */
   color: var(--fg);
   font: var(--light) 13px/1.65 var(--font);
   line-break: strict;
   overflow-wrap: anywhere;
+}
+/* fond + grain léger : une couche FIXE, à la taille du plus grand écran possible (100lvh : barre d'adresse
+   de l'iPhone repliée). Pas de background-attachment: fixed (ignoré par l'iPhone). */
+body::before {
+  content: ''; position: fixed; top: 0; left: 0; right: 0; height: 100%; height: 100lvh; z-index: -1;
+  background: var(--bg) var(--noise); pointer-events: none;
 }
 button, input, textarea { font: inherit; color: inherit; }
 /* japonais : chasse proportionnelle (palt), plus serrée et plus lisible */
@@ -114,6 +122,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .item.age-2 .photo img { filter: url(#erode2); }
 .item.age-3 .photo img { filter: url(#erode3); }
 .item.age-4 .photo img { filter: url(#erode4); }
+.item:is(.age-1, .age-2, .age-3, .age-4) .photo.is-loaded::after { display: none; }   /* le grain du palier est dans le filtre */
 /* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (#111 → #4a4a4a : contraste ≥ 8,8:1 sur blanc) */
 .item .sticker, .item .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
 /* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */
@@ -147,6 +156,12 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .vplay { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; font-size: 28px; color: #fff; mix-blend-mode: difference; }
 .vplay:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
 @media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
+/* VARIANTE « grain très léger » sur les photos neuves (sur fond noir : .55) */
+.photo::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: .22;
+}
 
 /* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
 .sticker {
