@@ -53,7 +53,8 @@ const PROMPTS = ['trace', 'light', '', 'window', 'hands', 'dust', ''];
 // 520 dépôts (donc deux paquets de lecture) : les 60 premiers de 0 à 200 jours, les autres plus vieux (liste seulement)
 const rows = Array.from({ length: 520 }, (_, i) => {
   const p = SAMPLE_POSTS[i % SAMPLE_POSTS.length];
-  const days = i < 60 ? (i / 59) * 200 : 200 + i;
+  // les 10 plus récents de 0 à 7,2 jours (désagrégation en une semaine : paliers à 1, 2, 4, 7 j), puis jusqu'à 200 jours
+  const days = i < 60 ? (i < 10 ? i * 0.8 : 10 + ((i - 10) / 49) * 190) : 200 + i;
   const approved = new Date(now - days * DAY), created = new Date(approved - 3600e3);
   const monthsAgo = (new Date(now).getFullYear() - created.getFullYear()) * 12 + new Date(now).getMonth() - created.getMonth();
   return {

@@ -56,10 +56,10 @@ check('strates : nouvelle consigne ou nouveau mois = nouvelle strate',
   strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: 'trace.' }) !== strataKey({ createdAt: '2026-10-03T10:00:00Z', prompt: 'light.' })
   && strataKey({ createdAt: '2026-10-02T10:00:00Z', prompt: '' }) !== strataKey({ createdAt: '2026-11-02T10:00:00Z', prompt: '' }));
 {
-  const st = d => stageOf(visibility(d));
+  const st = d => stageOf(d);
   const days = Array.from({ length: 181 }, (_, d) => st(d));
-  check('érosion par paliers : neuve jusqu’à 10 j, 4 paliers fixes, palier 4 dès ≈ 73 j',
-    st(0) === 0 && st(10) === 0 && st(11) === 1 && st(23) === 2 && st(41) === 3 && st(74) === 4 && st(179) === 4);
+  check('désagrégation en une semaine : neuve < 1 j, paliers à 1, 2, 4 et 7 jours, puis le dernier jusqu’à 180 j',
+    st(0) === 0 && st(0.99) === 0 && st(1) === 1 && st(1.9) === 1 && st(2) === 2 && st(3.9) === 2 && st(4) === 3 && st(6.9) === 3 && st(7) === 4 && st(179) === 4);
   check('paliers : jamais de retour en arrière avec l’âge', days.every((s, i) => i === 0 || s >= days[i - 1]));
   check('paliers : seulement 0 à 4 (cinq classes CSS, quatre filtres)', new Set(days).size === 5 && Math.max(...days) === 4);
 }

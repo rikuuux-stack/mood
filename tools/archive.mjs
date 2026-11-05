@@ -69,7 +69,7 @@ function wallState(rows, prompt, now = Date.now()) {
     const approvedAt = p.approved_at || p.created_at, days = ageDays(approvedAt, now);
     return {
       id: p.id, kind: p.kind, size: p.size || 'm', created: p.created_at, approved: approvedAt,
-      age_days: Math.round(days * 10) / 10, stage: stageOf(visibility(days)),
+      age_days: Math.round(days * 10) / 10, stage: stageOf(days),
       stratum: strataKey({ createdAt: p.created_at, prompt: p.prompt }), on_wall: onWall(days),
     };
   });

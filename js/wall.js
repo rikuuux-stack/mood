@@ -79,10 +79,12 @@ export function visibility(days) {
   return TIME.floor + (1 - TIME.floor) * Math.exp(-(days - TIME.fresh) / TIME.k);
 }
 /**
- * Palier d'érosion d'une image (0 = neuve … 4 = il ne reste que les parties claires), selon sa visibilité.
- * Usure w = (1 − v) / 0,7 : palier 1 dès w ≥ 0,08 (≈ 10 j), 2 dès 0,3 (≈ 22 j), 3 dès 0,55 (≈ 40 j), 4 dès 0,8 (≈ 73 j).
+ * Palier de désagrégation d'une image (0 = neuve … 4 = il ne reste que les parties claires), selon son âge sur
+ * le mur, en jours. DÉSAGRÉGATION EN UNE SEMAINE (décision de l'auteur, novembre 2026) : palier 1 dès 1 jour,
+ * 2 dès 2 jours, 3 dès 4 jours, 4 dès 7 jours (avant : ≈ 10 / 22 / 40 / 73 jours). Les textes, eux, suivent
+ * toujours la courbe « Saison » (visibility) ; le départ du mur reste à 180 jours.
  */
-export const STAGES = [0.08, 0.3, 0.55, 0.8];
+export const STAGES = [1, 2, 4, 7];
 /*
  * Traitement des images, partagé par l'écran (filtres SVG de index.html : #tone, #erode1 … #erode4), par
  * l'export d'un fragment (js/fragment.js, en pixels) et par la conversion des vidéos (js/video.js, intégré au
@@ -96,7 +98,7 @@ export const STAGES = [0.08, 0.3, 0.55, 0.8];
  *           dès 45 % ; aussi pendant la lecture d'une vidéo (js/main.js, image par image) ;
  *   ERODE : par palier, même formule avec un seuil qui MONTE : l'image se désagrège avec le temps, des
  *           sombres vers les clairs, jusqu'à ne laisser que les parties claires ; force g du grain dans le
- *           filtre (0 : pas de grain). Paliers et dates inchangés (stageOf) ;
+ *           filtre (0 : pas de grain). Paliers à 1, 2, 4 et 7 jours (stageOf) ;
  *   GRAIN : grain des photos neuves (0 : aucun) — même valeur que l'écran (css/site.css, .photo::after) ;
  *   PAGE_GRAIN : grain du fond de page (0 : aucun).
  */
@@ -121,9 +123,8 @@ export const alphaOf = (gray, e) => Math.max(0, Math.min(1, 1 - e.k * (e.t - gra
 export const GRAIN = 0;
 /** Grain du fond de page (0 : aucun) — même valeur que l'écran (css/site.css, body::before). */
 export const PAGE_GRAIN = 0;
-export function stageOf(v) {
-  const w = (1 - v) / (1 - TIME.floor);
-  return STAGES.filter(s => w >= s - 1e-9).length;
+export function stageOf(days) {
+  return STAGES.filter(d => days >= d).length;
 }
 /** Un dépôt reste sur le mur pendant 180 jours ; ensuite, seulement dans la vue List. */
 export const onWall = days => days < TIME.wallDays;
