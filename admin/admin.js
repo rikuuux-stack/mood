@@ -135,10 +135,12 @@ function render() {
   $('#mine').hidden = tab !== 'mine';
   $('#archive').hidden = tab !== 'archive';
   $('#stats').hidden = tab !== 'stats';
+  $('#expiry').hidden = tab !== 'expiry';
   const list = $('#cards');
-  list.hidden = tab === 'mine' || tab === 'archive' || tab === 'stats';
+  list.hidden = tab === 'mine' || tab === 'archive' || tab === 'stats' || tab === 'expiry';
   if (tab === 'archive') return renderArchive();
   if (tab === 'stats') return renderStats();
+  if (tab === 'expiry') return renderExpiry();
   if (tab === 'mine') return;
   const rows = data[tab] || [];
   if (!rows.length) {
@@ -277,6 +279,44 @@ async function renderStats() {
     h('By prompt'),
     table(['Prompt', 'Posts', 'Approved', 'Rejected'], s.prompts.map(p => [p.prompt || '(none)', p.approved + p.rejected, p.approved, p.rejected])),
   );
+}
+
+/* ------------------------------------------------------------------ expiration à 180 jours (rapport)
+ * Par défaut : SIMULATION. Rien n'est supprimé ; la liste dit ce qui le serait, et la place libérée.
+ * Le réglage ne s'active que dans Supabase (éditeur SQL, voir docs/MODERATION.md) : aucun bouton ici ne le peut.
+ * Une fois activé par l'auteur, un bouton « Run » apparaît (2ᵉ toucher pour confirmer).
+ */
+const mb = n => `${(n / 1048576).toFixed(1)} MB`;
+async function renderExpiry() {
+  const box = $('#expiry');
+  box.textContent = '…';
+  let r;
+  try { r = await moderate('GET', null, '?expiry'); }
+  catch (e) { if (e.message !== 'auth') box.textContent = 'Report unreadable — retry'; return; }
+  if (tab !== 'expiry') return;
+  const p = (t, cls) => { const x = document.createElement('p'); if (cls) x.className = cls; x.textContent = t; return x; };
+  const parts = [
+    p(r.enabled ? `ON — files of posts older than ${r.days} days are deleted when you press Run.` : `Simulation — OFF: nothing is deleted. Posts older than ${r.days} days would lose their files and keep only their line in the List.`, r.enabled ? 'adm-storage warn' : 'adm-storage'),
+    p(`Now: ${r.now.count} post(s) · ${mb(r.now.bytes)} would be freed`),
+    p(`Next 30 days: ${r.next30.count} more · ${mb(r.next30.bytes)}`),
+  ];
+  if (r.now.posts.length) {
+    const fmtDay = iso => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'Asia/Tokyo' }).format(new Date(iso));
+    const ol = document.createElement('ol'); ol.className = 'adm-expiry-list';
+    for (const x of r.now.posts) ol.append(p(`${fmtDay(x.approved_at)} · ${x.kind} · ${x.prompt || '—'} · ${mb(x.bytes)}`));
+    parts.push(ol);
+  }
+  if (r.enabled) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Run';
+    b.addEventListener('click', async () => {
+      if (!b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Sure? Files are deleted'; return; }
+      b.disabled = true;
+      try { const out = await moderate('POST', { action: 'expiry-run' }); $('#dashMsg').textContent = `${out.done} post(s) expired`; renderExpiry(); }
+      catch (e) { if (e.message !== 'auth') { $('#dashMsg').textContent = e.message === 'disabled' ? 'Expiry is OFF' : 'Failed — retry'; b.disabled = false; } }
+    });
+    parts.push(b);
+  }
+  box.replaceChildren(...parts);
 }
 
 /* ------------------------------------------------------------------ consigne du mois

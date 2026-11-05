@@ -34,6 +34,7 @@ jobs:
           node tests/browser.test.mjs
           node tests/admin.test.mjs
           node tests/admin-log.test.mjs
+          node tests/admin-expiry.test.mjs
         env:
           PW_CHANNEL: chrome          # Google Chrome du runner GitHub : lit le H.264 (lecture réelle des vidéos)
       - name: Conversion vidéo et GIF (Google Chrome, H.264 ; poids réels sur 60 s)

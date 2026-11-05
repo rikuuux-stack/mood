@@ -56,3 +56,8 @@
 .adm-table { border-collapse: collapse; font: var(--light) 12px/1.5 var(--mono); min-width: 100%; }
 .adm-table th, .adm-table td { text-align: left; padding: 6px 12px 6px 0; border-bottom: var(--line) solid var(--rule); white-space: nowrap; }
 .adm-table th { color: var(--muted); font-weight: var(--light); }
+/* expiration à 180 jours (rapport) */
+.adm-expiry { display: grid; gap: 6px; font: var(--light) 12px/1.5 var(--mono); }
+.adm-expiry-list { margin: 8px 0 0; padding-left: 1.4em; color: var(--muted); }
+.adm-expiry-list p { margin: 2px 0; }
+.adm-expiry .btn.confirm { background: var(--fg); color: var(--bg); }

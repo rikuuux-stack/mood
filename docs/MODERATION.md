@@ -18,6 +18,7 @@ La page est en anglais, avec des mots très courts (choix validé).
 | **Reported** (signalés) | les dépôts masqués automatiquement après 3 signalements | **Restore** (les signalements sont effacés) ou **Delete** |
 | **Live** (publiés) | ce qui est sur le mur | **Remove** (suppression définitive) |
 | **Stats** | le journal de modération résumé : par mois (heure de Tokyo) acceptés / refusés (par raison) / retirés, et dépôts par consigne. **Aucune donnée personnelle** : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne. | — |
+| **Expiry** | expiration à 180 jours, **en simulation** : ce qui serait supprimé maintenant et dans les 30 jours, et la place libérée. **Rien n'est supprimé.** | aucun bouton tant que l'expiration n'est pas activée (voir plus bas) |
 | **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L | publié tout de suite, comme n'importe quel dépôt (aucune marque visible ; « me » ici seulement) |
 | **Archive** | une ligne par nuit : le mur entier capturé chaque nuit à 03:00 (heure de Tokyo), vue iPhone + vue ordinateur + état (dépôts, paliers, strates, consigne) | toucher une nuit : aperçu et téléchargement ; **Delete night** (2ᵉ toucher) pour une demande de retrait |
 
@@ -51,6 +52,18 @@ Le fichier et le texte sont supprimés du serveur (pas seulement cachés).
 Le contenu reste visible dans les **captures d'archive** des nuits où il était sur le mur : onglet **Archive** ▸
 touche chaque nuit concernée ▸ **Delete night** (les captures sont privées : personne d'autre ne les voit, mais
 une demande de retrait concerne aussi elles).
+
+## Expiration à 180 jours (désactivée)
+
+Par défaut, l'expiration est une **simulation** : l'onglet **Expiry** dit ce qui serait supprimé, rien ne l'est.
+Si un jour tu décides de l'activer (à toi seul : aucun bouton ni programme du site ne peut le faire) :
+
+1. supabase.com ▸ projet ▸ **SQL Editor** ▸ colle `update public.expiry_settings set enabled = true where id = 1;` ▸ **Run** ;
+2. /admin/ ▸ **Expiry** : un bouton **Run** apparaît (2ᵉ toucher pour confirmer). Il supprime les fichiers (image, vidéo,
+   image fixe) des dépôts publiés depuis plus de 180 jours, ainsi que leur légende et leur pseudo ; il ne reste que leur
+   ligne dans la vue List : date, type, « 180 days », consigne.
+
+Pour revenir en simulation : même chose avec `enabled = false`. Une suppression faite est **définitive**.
 
 ## Alerte e-mail
 
