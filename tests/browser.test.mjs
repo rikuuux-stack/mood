@@ -401,7 +401,9 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
         // relu depuis un canvas, un pixel presque transparent perd la précision de son gris (couleurs stockées
         // « prémultipliées ») : on ne compare que les pixels assez opaques pour garder leur gris exact
         for (let i = 0; i < d.length; i += 4 * 97) { n++; if (d[i + 3] === 0) { clear++; continue; } if (d[i + 3] < 128) continue;
-          const want = Math.round(alphaOf(d[i + 1] / 255, BASE) * 255); if (Math.abs(d[i + 3] - want) > 4) bad++; }
+          // gris relu à ± 255 / alpha près, multiplié par la pente du fondu (BASE.k) : tolérance en conséquence
+          const want = Math.round(alphaOf(d[i + 1] / 255, BASE) * 255), tol = Math.ceil(BASE.k * 255 / d[i + 3]) + 3;
+          if (Math.abs(d[i + 3] - want) > tol) bad++; }
         return { canvas: true, n, bad, clear, filter: getComputedStyle(c).filter, videoOpacity: getComputedStyle(v).opacity };
       });
       ok(cv.canvas && cv.bad === 0 && cv.filter === 'none' && cv.videoOpacity === '0', `lecture : le noir de chaque image est transparent (canvas, ${cv.clear} / ${cv.n} points transparents, alpha conforme à BASE)`, JSON.stringify(cv));
