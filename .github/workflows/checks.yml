@@ -9,7 +9,9 @@ on:
   pull_request:
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04 et non ubuntu-latest : depuis fin octobre 2026, « latest » = 26.04, que Playwright 1.56 ne sait pas
+    # équiper (« Playwright does not support chromium on ubuntu26.04 ») : toutes les vérifications tombaient.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,6 +23,8 @@ jobs:
         run: node tests/wall.test.mjs
       - name: Contrôles serveur (formats, métadonnées, budget)
         run: node tests/server.test.mjs
+      - name: Modération (enchaînement des étapes, reprise après panne — base et stockage factices)
+        run: node tests/moderate.test.mjs
       - name: Navigateur (bandeau, fond, érosion)
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1

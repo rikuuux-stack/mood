@@ -50,9 +50,14 @@ Le fichier et le texte sont supprimés du serveur (pas seulement cachés).
 ## Alerte e-mail
 
 Si l'étape 4 de `docs/INSTALLATION.md` est faite, tu reçois un e-mail « Mood — nouveau dépôt à valider »
-avec le texte et un lien vers cette page.
+avec le texte et un lien vers cette page, et un e-mail « Mood — dépôt masqué après 3 signalements » quand un dépôt
+publié vient d'être masqué : il n'est plus sur le mur, mais son fichier reste accessible par son adresse jusqu'à
+ta décision (**Reported** ▸ **Restore** ou **Delete**).
 
 ## Si quelque chose ne marche pas
+
+- « Failed — retry » après Approve, Reject, Remove ou Restore : l'action n'est pas terminée (panne passagère de la
+  base ou du stockage). Rien n'est perdu : touche à nouveau le bouton, le second essai reprend là où ça s'est arrêté.
 
 - « Ce compte n'est pas administrateur » : le compte n'est pas `rikuuux@gmail.com`.
 - « Impossible de charger les dépôts » : le projet Supabase est peut-être en pause (offre gratuite, après
