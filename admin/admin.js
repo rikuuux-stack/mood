@@ -66,11 +66,11 @@ $('#login').addEventListener('submit', async e => {
 });
 $('#logout').addEventListener('click', () => { save(null); show(); });
 
-async function refresh() {
-  $('#dashMsg').textContent = '…';
+async function refresh(quiet = false) {           // quiet : relecture en arrière-plan, le message en cours reste
+  if (!quiet) $('#dashMsg').textContent = '…';
   try {
     data = await moderate('GET');
-    $('#dashMsg').textContent = '';
+    if (!quiet) $('#dashMsg').textContent = '';
   } catch (e) {
     if (e.message === 'auth') return;                       // déjà renvoyé à l'écran de connexion
     $('#dashMsg').textContent = e.message === 'admin' ? 'Not admin' : 'Server error — retry';
@@ -157,7 +157,12 @@ function render() {
       v.controls = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'none';
       v.poster = r.thumb_url || ''; v.src = r.image_url;
       li.append(v);
-    } else if (r.image_url) { const img = document.createElement('img'); img.src = r.image_url; img.alt = ''; img.loading = 'lazy'; li.append(img); }
+    } else if (r.image_url) {
+      // la miniature (≈ 800 px, ~100 Ko) plutôt que l'image entière (jusqu'à 5 Mo) ; toucher : l'image entière
+      const a = document.createElement('a'); a.href = r.image_url; a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('aria-label', 'Full image');
+      const img = document.createElement('img'); img.src = r.thumb_url || r.image_url; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+      a.append(img); li.append(a);
+    }
     if (r.text) { const t = document.createElement('p'); t.className = 'adm-text'; t.textContent = r.text; li.append(t); }
     const meta = document.createElement('p'); meta.className = 'adm-meta';
     meta.textContent = [r.is_author ? 'me' : (r.name || 'anon'), fmt(r.created_at),
@@ -169,7 +174,14 @@ function render() {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label;
       const send = async extra => {
         bar.querySelectorAll('button').forEach(x => { x.disabled = true; });
-        try { await moderate('POST', { action, id: r.id, ...extra }); $('#dashMsg').textContent = 'Done'; await refresh(); }
+        try {
+          await moderate('POST', { action, id: r.id, ...extra });
+          // la carte part tout de suite ; la liste complète est relue ensuite, sans faire attendre
+          for (const k of ['pending', 'hidden', 'published']) data[k] = (data[k] || []).filter(x => x.id !== r.id);
+          li.remove();
+          $('#dashMsg').textContent = 'Done';
+          refresh(true);
+        }
         catch { $('#dashMsg').textContent = 'Failed — retry'; bar.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
       };
       b.addEventListener('click', () => {

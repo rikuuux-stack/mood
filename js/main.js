@@ -508,7 +508,7 @@ function errorText(err) {
 // Le visiteur choisit la taille d'affichage (S / M / L). Le grain est une règle globale du site.
 const form = $('#dropForm'), fileIn = $('#file'), textIn = $('#text'), msgEl = $('#dropMsg');
 const canvas = $('#preview canvas');
-let src = null, preparing = null, imageError = '';   // src : image lue ; imageError : image refusée, bloque l'envoi
+let src = null, rendered = null, preparing = null, imageError = '';   // src : image lue ; imageError : image refusée, bloque l'envoi
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
@@ -553,7 +553,7 @@ $('#convCancel').addEventListener('click', () => converting?.abort());
 
 fileIn.addEventListener('change', async () => {
   const file = fileIn.files[0];
-  src = null; imageError = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  src = null; rendered = null; imageError = ''; $('#preview').hidden = true; msgEl.textContent = '';
   dropMedia();
   if (!file) { preparing = null; $('#send').disabled = false; return refreshDropTexts(); }
   msgEl.textContent = t('processing');
@@ -586,6 +586,9 @@ fileIn.addEventListener('change', async () => {
     const d = await job;
     if (job !== preparing) return;                     // une autre image a été choisie entre-temps
     src = d;
+    // l'image finale (réduite, sans métadonnées) est préparée tout de suite, pendant que le visiteur écrit :
+    // « Send » n'attend plus ce calcul (plusieurs secondes pour une grande photo d'iPhone)
+    rendered = renderImage(d); rendered.catch(() => {});
     drawPreview(canvas, src, 0);
     $('#preview').hidden = false;
     msgEl.textContent = '';
@@ -599,13 +602,13 @@ fileIn.addEventListener('change', async () => {
 });
 $('#removeImage').addEventListener('click', () => {
   dropMedia();
-  src = null; preparing = null; imageError = ''; $('#send').disabled = false; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
+  src = null; rendered = null; preparing = null; imageError = ''; $('#send').disabled = false; fileIn.value = ''; $('#preview').hidden = true; msgEl.textContent = '';
   refreshDropTexts();
 });
 
 function resetDrop() {
   dropMedia();
-  form.reset(); src = null; preparing = null; imageError = '';
+  form.reset(); src = null; rendered = null; preparing = null; imageError = '';
   $('#preview').hidden = true; msgEl.textContent = '';
   $('#send').disabled = false;
   refreshDropTexts();
@@ -638,8 +641,8 @@ form.addEventListener('submit', async e => {
   send.disabled = true; msgEl.textContent = t('sending');
   let image = null, video = null;
   if (src) {
-    try { image = await renderImage(src); }            // image finale : réduite, métadonnées retirées
-    catch (err) { msgEl.textContent = err instanceof ImageError ? t(err.code) : t('eDecode'); send.disabled = false; return; }
+    try { image = await (rendered || (rendered = renderImage(src))); }   // image finale (préparée au choix de l'image)
+    catch (err) { rendered = null; msgEl.textContent = err instanceof ImageError ? t(err.code) : t('eDecode'); send.disabled = false; return; }
   }
   if (media) {                                         // conversion sur l'appareil (jusqu'à ≈ 60 s) : progression, annulable
     const ctl = converting = new AbortController();

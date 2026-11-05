@@ -64,3 +64,4 @@
 .adm-expiry-list { margin: 8px 0 0; padding-left: 1.4em; color: var(--muted); }
 .adm-expiry-list p { margin: 2px 0; }
 .adm-expiry .btn.confirm { background: var(--fg); color: var(--bg); }
+.adm-card > a { display: block; width: fit-content; max-width: 100%; }
