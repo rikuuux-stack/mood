@@ -41,3 +41,26 @@
 /* Pending : tout valider / tout refuser */
 .adm-bulk { margin: 0 0 20px; }
 .adm-bulk .btn.confirm { background: var(--fg); color: var(--bg); }
+/* archive nocturne du mur : une ligne par nuit, aperçu à l'ouverture */
+.adm-nights { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.adm-night { border-bottom: var(--line) solid var(--rule); }
+.adm-night summary { cursor: pointer; padding: 12px 0; font: var(--light) 13px/1.4 var(--mono); }
+.adm-night summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.adm-night-body { display: grid; gap: 12px; padding: 0 0 16px; }
+.adm-shots { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; }
+.adm-shots img { display: block; width: auto; max-height: 50dvh; max-width: 100%; border: var(--line) solid var(--rule); }
+.adm-night .btn.confirm { background: var(--fg); color: var(--bg); }
+/* refus : la raison en un mot */
+.adm-reasons { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.adm-reasons .btn { min-width: 0; padding-inline: 12px; font-family: var(--mono); font-size: 13px; }
+/* journal de modération (Stats) */
+.adm-h { font-weight: var(--light); font-size: .95rem; margin: 20px 0 8px; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-table { border-collapse: collapse; font: var(--light) 12px/1.5 var(--mono); min-width: 100%; }
+.adm-table th, .adm-table td { text-align: left; padding: 6px 12px 6px 0; border-bottom: var(--line) solid var(--rule); white-space: nowrap; }
+.adm-table th { color: var(--muted); font-weight: var(--light); }
+/* expiration à 180 jours (rapport) */
+.adm-expiry { display: grid; gap: 6px; font: var(--light) 12px/1.5 var(--mono); }
+.adm-expiry-list { margin: 8px 0 0; padding-left: 1.4em; color: var(--muted); }
+.adm-expiry-list p { margin: 2px 0; }
+.adm-expiry .btn.confirm { background: var(--fg); color: var(--bg); }
