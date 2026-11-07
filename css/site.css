@@ -307,8 +307,6 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 .prompt { margin: 0; font: var(--w-mono) var(--fs-meta)/1.5 var(--mono); color: var(--fg); }
 .drop-form .prompt { margin: 0; }
 /* séparateur de strates : un filet fin et le mot de la consigne de ce mois-là (rien s'il n'y en avait pas) */
-.stratum { position: absolute; list-style: none; height: 64px; border-top: var(--line) solid var(--rule); pointer-events: none; }
-.stratum span { display: block; padding-top: 8px; font: var(--w-mono) var(--fs-meta)/1.4 var(--mono); color: var(--muted); letter-spacing: .04em; }
 
 /* mon dépôt en attente (chez moi seulement) */
 .item.is-pending { opacity: .55; }
@@ -343,3 +341,12 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 /* les mots restés après l'image : lisibles, comme un texte de la liste, sous leur ligne */
 .kawara-entry { display: grid; gap: 4px; }
 .kawara-words { margin: 0 0 6px; font-size: 14px; line-height: 1.55; color: var(--fg); white-space: pre-line; }
+
+/* ------------------------------------------------------------------ Mur fixe (js/stack.js)
+ * Un seul écran : la page ne défile pas en vue Wall (la liste, elle, défile). */
+html.stack, html.stack body { overflow: hidden; height: 100dvh; }
+html.stack .wall { overflow: hidden; }
+.stack-month {
+  position: absolute; list-style: none; z-index: 2500; pointer-events: none;
+  font: var(--w-mono) var(--fs-micro)/1 var(--mono); letter-spacing: .04em; color: var(--muted);
+}

@@ -20,9 +20,9 @@
  *
  * js/vendor/mediabunny.js et js/vendor/omggif.js ne sont chargés qu'au choix d'une vidéo ou d'un GIF.
  */
-import { negative } from './wall.js?v=10fdf5c535';
+import { negative } from './wall.js?v=e2142ccd51';
 import { inspectMp4, checkVideo } from './mp4.js?v=53a1dd24ca';
-import { stripMetadata, toNegative } from './image.js?v=4cbe9f94a9';
+import { stripMetadata, toNegative } from './image.js?v=6870828c6e';
 
 export const VIDEO = { side: 480, fps: 24, bitrate: 300_000, maxDuration: 60, maxBytes: 4 * 1024 * 1024, posterSide: 800 };
 export class VideoError extends Error {

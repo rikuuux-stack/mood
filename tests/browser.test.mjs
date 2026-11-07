@@ -8,18 +8,23 @@
  *
  * Vérifie :
  *   - plus de bandeau : « Mood » et « Drop » sont deux capsules de verre (docs/mood-da.md) ;
- *   - au défilement (bas puis haut), vue Wall et vue List, avec la barre d'adresse simulée
- *     (hauteur 844 → 750 → 844) : Mood et Drop restent à leur place et AUCUNE image ne passe dessus ;
+ *   - mur FIXE (js/stack.js) : un seul écran, sans défilement, les 16 (iPhone) / 40 (ordinateur) dépôts les plus
+ *     récents, textes au-dessus des images, mois en bandes ; les plus anciens ne sont que dans la liste ;
+ *   - bords rongés (js/edge.js) : chaque photo a son contour, le même sur le mur, dans la liste et dans l'agrandissement ;
+ *   - ?demo et ?future : sans le paramètre, rien n'est chargé (js/demo.js jamais demandé) ;
+ *   - dépôt complet (Drop → Send) : seul le négatif part, « Under review » sur le mur de la personne ;
+ *   - vue Wall et vue List, avec la barre d'adresse simulée (hauteur 844 → 750 → 844) et le défilement de la
+ *     liste : Mood et Drop restent à leur place et AUCUNE image ne passe dessus ;
  *   - fond blanc uni, sans grain (ni couche body::before, ni grain sur les photos) ;
  *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les sombres du négatif deviennent
  *     transparents), aucune opacité, rien ne change au survol ni à l'agrandissement, la liste montre le même âge ;
  *     textes lisibles à tout âge (≥ 7:1) ;
  *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
  *     sans métadonnées, ligne du bas présente ; partage natif sur iPhone, téléchargement sur ordinateur ;
- *   - fuseaux : le mur (strates) est le même pour tous, à l'heure de Tokyo (visiteurs à Tokyo, Paris,
+ *   - fuseaux : le mur (mois) est le même pour tous, à l'heure de Tokyo (visiteurs à Tokyo, Paris,
  *     Los Angeles) ; la date du fragment suit le téléphone (Paris, 30.09 à 17 h 30 → « 30.09.2026 ») ;
- *   - tout le mur sans « More » : paquets lus en arrière-plan, images chargées à l'approche de l'écran,
- *     libérées au-delà de 3 écrans puis rechargées au retour, sans que la composition bouge.
+ *   - tout sans « More » : paquets lus en arrière-plan ; dans la liste, images chargées à l'approche de l'écran,
+ *     libérées au-delà de 3 écrans puis rechargées au retour, sans que rien ne bouge.
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -51,10 +56,12 @@ const BASE = `http://127.0.0.1:${server.address().port}/`;
 /* ------------------------------------------------------------------ données factices */
 const DAY = 86400e3, now = Date.now();
 const PROMPTS = ['trace', 'light', '', 'window', 'hands', 'dust', ''];
-// 520 dépôts (donc deux paquets de lecture) : les 60 premiers de 0 à 200 jours, les autres plus vieux (liste seulement)
+// 520 dépôts (donc deux paquets de lecture) : les 40 premiers de 0 à 175 jours (les 16 premiers couvrent les cinq paliers
+// d'usure), les autres de plus de 180 jours (liste seulement)
+const EARLY = [0, 1, 3, 5, 11, 14, 18, 24, 28, 35, 42, 50, 60, 75, 90, 120];
 const rows = Array.from({ length: 520 }, (_, i) => {
   const p = SAMPLE_POSTS[i % SAMPLE_POSTS.length];
-  const days = i < 60 ? (i / 59) * 200 : 200 + i;
+  const days = i < 16 ? EARLY[i] : i < 40 ? 120 + (i - 15) * 2.3 : 200 + i;
   const approved = new Date(now - days * DAY), created = new Date(approved - 3600e3);
   const monthsAgo = (new Date(now).getFullYear() - created.getFullYear()) * 12 + new Date(now).getMonth() - created.getMonth();
   return {
@@ -94,50 +101,61 @@ async function fakeServer(ctx, data = rows, current = 'trace') {
 let failed = 0;
 const ok = (cond, label, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL'}  ${label}${cond ? '' : `  ${extra}`}`); if (!cond) failed++; };
 const onWallRows = rows.filter(r => now - Date.parse(r.approved_at) < 180 * DAY).length;
+// un élément du mur visible en son centre (le mur est empilé : un dépôt peut en recouvrir un autre)
+const hittable = (page, sel) => page.evaluate(sel => {
+  document.querySelectorAll('[data-hit]').forEach(e => e.removeAttribute('data-hit'));
+  for (const li of document.querySelectorAll(sel)) {
+    const r = li.getBoundingClientRect();
+    for (const [fx, fy] of [[.5, .5], [.25, .25], [.75, .25], [.25, .75], [.75, .75], [.5, .1], [.5, .9], [.1, .5], [.9, .5]]) {
+      const x = r.left + r.width * fx, y = r.top + r.height * fy, h = document.elementFromPoint(x, y);
+      if (h && li.contains(h)) { li.dataset.hit = '1'; return { x, y }; }
+    }
+  }
+  return null;
+}, sel);
+const requested = [];
 
 // PW_CHANNEL=chrome : Google Chrome (lit le H.264, comme un iPhone) ; sinon le Chromium de test
 const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
 const ctx = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
 await fakeServer(ctx);
+ctx.on('request', r => requested.push(r.url()));
 const pg = await ctx.newPage();
 const errors = [];
 pg.on('pageerror', e => errors.push(e.message));
 await pg.goto(BASE);
 await pg.waitForSelector('#wall .item');
-await pg.waitForFunction(n => document.querySelectorAll('#wall .item').length === n
-  && [...document.querySelectorAll('#wall .item')].every(li => li.style.top), onWallRows, { timeout: 20000 }).catch(() => {});
+await pg.waitForFunction(() => document.querySelectorAll('#wall .item').length === 16
+  && [...document.querySelectorAll('#wall .item')].every(li => li.style.top), null, { timeout: 20000 }).catch(() => {});
+await pg.waitForFunction(() => [...document.querySelectorAll('#wall .photo')].every(ph => ph.classList.contains('is-loaded')), null, { timeout: 10000 }).catch(() => {});
 
-/* chargement : tout le mur, sans bouton, images à l'approche de l'écran */
-const load = await pg.evaluate(() => ({
-  more: !!document.querySelector('#more'), items: document.querySelectorAll('#wall .item').length,
-  imgs: document.querySelectorAll('#wall .photo img').length,
-  waiting: document.querySelectorAll('#wall .photo img[data-src]').length,
-  placeholders: [...document.querySelectorAll('#wall .photo')].every(ph => ph.offsetHeight > 0),
-}));
+/* mur fixe : un seul écran, les 16 plus récents, tout dans l'écran, rien ne défile */
+const load = await pg.evaluate(() => {
+  const items = [...document.querySelectorAll('#wall .item')], vw = innerWidth, vh = innerHeight;
+  const rects = items.map(li => li.getBoundingClientRect());
+  return {
+    more: !!document.querySelector('#more'), items: items.length, scroll: document.scrollingElement.scrollHeight - vh,
+    outside: rects.filter(r => r.left < 0 || r.right > vw + 0.5 || r.top < 0 || r.top > vh).length,
+    imgs: document.querySelectorAll('#wall .photo img').length, loaded: document.querySelectorAll('#wall .photo img[src]').length,
+    textAbove: items.filter(li => li.classList.contains('item--text')).every(t => items.filter(li => !li.classList.contains('item--text')).every(i => +t.style.zIndex > +i.style.zIndex)),
+    newestOnTop: items.filter(li => !li.classList.contains('item--text')).every((li, k, a) => !k || +a[k - 1].style.zIndex > +li.style.zIndex),
+    months: [...document.querySelectorAll('#wall .stack-month')].map(m => m.textContent),
+  };
+});
 ok(!load.more, 'plus de bouton « More »');
 ok(offsets.join() === '0,500', `liste lue par paquets en arrière-plan (offsets ${offsets.join(', ')})`);
-ok(load.items === onWallRows, `le mur contient tous les dépôts de moins de 180 jours (${load.items} / ${onWallRows})`);
-ok(load.waiting > 0 && load.waiting < load.imgs, `images loin de l'écran pas encore téléchargées (${load.waiting} / ${load.imgs} en attente)`);
-ok(load.placeholders, 'chaque image en attente garde sa place (cadre à la bonne hauteur)');
-
-// mémoire : loin de l'écran (au-delà de 3 écrans), les images sont libérées, puis reviennent ; rien ne bouge
-const layoutOf = () => pg.evaluate(() => [...document.querySelectorAll('#wall .item')].map(li => `${li.style.top}|${li.style.left}|${li.offsetHeight}`).join());
-const before = await layoutOf();
-const H = await pg.evaluate(() => document.body.scrollHeight);
-for (let y = 0; y <= H; y += 400) { await pg.evaluate(y => scrollTo(0, y), y); await pg.waitForTimeout(30); }
-await pg.waitForTimeout(400);
-const freed = await pg.evaluate(() => {
-  const imgs = [...document.querySelectorAll('#wall .photo img')], far = innerHeight * 3;
-  const top = imgs.filter(img => img.getBoundingClientRect().bottom < -far - 50);
-  return { top: top.length, freed: top.filter(img => !img.getAttribute('src') && img.dataset.src).length, loaded: imgs.filter(img => img.getAttribute('src')).length, total: imgs.length };
-});
-ok(freed.top > 0 && freed.freed === freed.top, `images à plus de 3 écrans libérées (${freed.freed} / ${freed.top}) ; en mémoire : ${freed.loaded} / ${freed.total}`);
-await pg.evaluate(() => scrollTo(0, 0)); await pg.waitForTimeout(600);
-const back = await pg.evaluate(() => [...document.querySelectorAll('#wall .photo')]
-  .filter(ph => { const r = ph.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; })
-  .every(ph => ph.classList.contains('is-loaded') && ph.querySelector('img').getAttribute('src')));
-ok(back, 'en revenant, les images libérées sont rechargées');
-ok(before === await layoutOf(), 'libérer / recharger ne déplace rien (composition identique)');
+ok(load.items === 16 && onWallRows === 40, `iPhone : les 16 dépôts les plus récents sur le mur, les autres enfouis (${load.items} / ${onWallRows} de moins de 180 jours)`);
+ok(load.scroll <= 0 && load.outside === 0, `mur fixe : la page ne défile pas, tout est dans l'écran (dépasse de ${load.scroll} px, ${load.outside} hors écran)`, JSON.stringify(load));
+ok(load.loaded === load.imgs, `toutes les images du mur chargées (${load.loaded} / ${load.imgs} en mémoire)`);
+ok(load.textAbove && load.newestOnTop, 'empilement : le plus récent au-dessus, les textes au-dessus des images', JSON.stringify(load));
+ok(load.months.length >= 2 && load.months.every(m => /^[A-Z]{3,5}\.\d{4}$/.test(m)), `mois en bandes, leur mot en petit : ${load.months.join(' ')}`);
+// bords rongés : chaque photo a un contour (clip-path) ; le même pour un dépôt dans la liste et l'agrandissement
+const edges = await pg.evaluate(() => [...document.querySelectorAll('#wall .item .photo')].map(ph => ({ clip: ph.style.clipPath, age: +(ph.closest('.item').className.match(/age-(\d)/)?.[1] || 0) })));
+ok(edges.length > 0 && edges.every(e => e.clip.startsWith('polygon(')) && new Set(edges.map(e => e.clip)).size === edges.length, `bords rongés : un contour propre à chaque photo (${edges.length})`);
+// sans ?demo ni ?future : rien n'est chargé pour eux
+const ownJs = requested.filter(u => u.startsWith(BASE) && /\.js/.test(u)).map(u => u.slice(BASE.length));
+ok(!ownJs.some(u => u.includes('demo.js')) && ownJs.some(u => /^js\/edge\.js\?v=/.test(u)) && ownJs.some(u => /^js\/stack\.js\?v=/.test(u)),
+  'sans paramètre : js/demo.js jamais téléchargé ; edge.js et stack.js chargés dès le départ, avec leur empreinte', ownJs.join(' '));
 
 /* Mood et Drop : flottants, sans fond, au-dessus de tout */
 const bar = await pg.evaluate(() => {
@@ -190,6 +208,32 @@ for (const view of ['wall', 'list']) {
   }
   ok(!problems.length, `vue ${view} : Mood et Drop restent en place et au-dessus de toutes les images (défilement + barre d'adresse)`, problems.slice(0, 3).join(' ; '));
 }
+// liste : tout y est (les dépôts enfouis aussi) ; images libérées au-delà de 3 écrans, puis rechargées ; rien ne bouge
+{
+  await pg.evaluate(() => scrollTo(0, 0)); await pg.waitForTimeout(300);
+  const rowsIn = await pg.evaluate(() => document.querySelectorAll('#list .row').length);
+  ok(rowsIn === rows.length, `liste : tous les dépôts, enfouis compris (${rowsIn} / ${rows.length})`);
+  const layoutOf = () => pg.evaluate(() => [...document.querySelectorAll('#list .row')].slice(0, 80).map(li => `${li.offsetTop}|${li.offsetHeight}`).join());
+  const before = await layoutOf();
+  for (let y = 0; y <= 30000; y += 500) { await pg.evaluate(y => scrollTo(0, y), y); await pg.waitForTimeout(25); }
+  await pg.waitForTimeout(400);
+  const freed = await pg.evaluate(() => {
+    const imgs = [...document.querySelectorAll('#list .photo img')], far = innerHeight * 3;
+    const top = imgs.filter(img => img.getBoundingClientRect().bottom < -far - 50);
+    return { top: top.length, freed: top.filter(img => !img.getAttribute('src') && img.dataset.src).length, loaded: imgs.filter(img => img.getAttribute('src')).length, total: imgs.length };
+  });
+  ok(freed.top > 0 && freed.freed === freed.top, `liste : images à plus de 3 écrans libérées (${freed.freed} / ${freed.top}) ; en mémoire : ${freed.loaded} / ${freed.total}`);
+  await pg.evaluate(() => scrollTo(0, 0)); await pg.waitForTimeout(600);
+  const back = await pg.evaluate(() => [...document.querySelectorAll('#list .photo')]
+    .filter(ph => { const r = ph.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; })
+    .every(ph => ph.classList.contains('is-loaded') && ph.querySelector('img').getAttribute('src')));
+  ok(back && before === await layoutOf(), 'liste : en revenant, les images sont rechargées, rien n’a bougé');
+  const same = await pg.evaluate(() => {
+    const w = document.querySelector('#wall .item .photo')?.style.clipPath;
+    return !!w && [...document.querySelectorAll('#list .row .photo')].some(ph => ph.style.clipPath === w);
+  });
+  ok(same, 'liste : une photo garde le même contour rongé que sur le mur');
+}
 await pg.evaluate(() => document.querySelector('#viewBtn').click());
 await pg.waitForTimeout(400);
 
@@ -229,14 +273,19 @@ await fakeServer(desk);
 const dp = await desk.newPage();
 dp.on('pageerror', e => errors.push(e.message));
 await dp.goto(BASE); await dp.waitForSelector('#wall .item');
-await dp.waitForFunction(() => document.querySelector('#wall .age-4 .photo'), null, { timeout: 20000 });
-const target = dp.locator('#wall .item.age-4').filter({ has: dp.locator('.photo') }).first();
-await target.scrollIntoViewIfNeeded(); await target.hover(); await dp.waitForTimeout(300);
+await dp.waitForFunction(() => document.querySelector('#wall .age-4 .photo') && document.querySelectorAll('#wall .item').length === 40, null, { timeout: 20000 });
+ok(await dp.evaluate(() => document.querySelectorAll('#wall .item').length) === 40, 'ordinateur : les 40 dépôts les plus récents sur le mur');
+ok(await hittable(dp, '#wall .item.age-4:has(.photo)'), 'ordinateur : une image au dernier palier est visible sur le mur');
+const pt = await hittable(dp, '#wall .item.age-4:has(.photo)');
+const target = dp.locator('#wall [data-hit]');
+await dp.mouse.move(pt.x, pt.y); await dp.waitForTimeout(300);
 const hov = await target.evaluate(li => getComputedStyle(li.querySelector('.photo img')).filter);
 ok(hov.includes('#erode4'), 'survol : l\'image garde son âge (pas de retour à neuf)', hov);
-await target.click(); await dp.waitForSelector('#viewer[open] .photo img');
-const big = await dp.evaluate(() => getComputedStyle(document.querySelector('#viewer .photo img')).filter);
-ok(big.includes('#erode4'), 'agrandissement : l\'image garde son âge (jamais de retour à neuf, seul Keep fige un instant)', big);
+const wallClip = await target.evaluate(li => li.querySelector('.photo').style.clipPath);
+await dp.mouse.click(pt.x, pt.y); await dp.waitForSelector('#viewer[open] .photo img');
+const big = await dp.evaluate(() => ({ filter: getComputedStyle(document.querySelector('#viewer .photo img')).filter, clip: document.querySelector('#viewer .photo').style.clipPath }));
+ok(big.filter.includes('#erode4'), 'agrandissement : l\'image garde son âge (jamais de retour à neuf, seul Keep fige un instant)', big.filter);
+ok(big.clip === wallClip && big.clip.startsWith('polygon('), 'agrandissement : les bords restent rongés, le même contour que sur le mur');
 
 /* Keep : fragment du mur (ordinateur : téléchargement) */
 const imageInfo = (page, bytes) => page.evaluate(async arr => {
@@ -253,8 +302,7 @@ const imageInfo = (page, bytes) => page.evaluate(async arr => {
 }, [...bytes]);
 
 await dp.keyboard.press('Escape'); await dp.waitForSelector('#viewer:not([open])', { state: 'attached' });
-const center = dp.locator('#wall .item.item--image:not(.is-pending)').first();
-await center.scrollIntoViewIfNeeded(); await center.click();
+{ const p2 = await hittable(dp, '#wall .item.item--image:not(.is-pending)'); await dp.mouse.click(p2.x, p2.y); }
 await dp.waitForSelector('#viewer[open]');
 ok(await dp.isVisible('#keepBtn'), 'Keep : bouton présent dans l\'agrandissement d\'un dépôt du mur');
 await dp.click('#keepBtn');
@@ -298,8 +346,7 @@ const pp = await phone.newPage();
 pp.on('pageerror', e => errors.push(e.message));
 await pp.goto(BASE); await pp.waitForSelector('#wall .item.item--text');
 await pp.waitForTimeout(500);
-const txt = pp.locator('#wall .item.item--text').first();
-await txt.scrollIntoViewIfNeeded(); await txt.tap(); await pp.waitForSelector('#viewer[open]');
+{ const p3 = await hittable(pp, '#wall .item.item--text'); await pp.touchscreen.tap(p3.x, p3.y); } await pp.waitForSelector('#viewer[open]');
 await pp.tap('#keepBtn');
 await pp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
 ok(await pp.textContent('#keepGo') === 'Share', 'iPhone : le bouton propose « Share »');
@@ -392,7 +439,7 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
       ok(list.some(r => r.age === '4' && r.filter.includes('#erode4')), 'liste : une vieille image garde son usure (jamais neuve dans la liste)', JSON.stringify(list));
       await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
     }
-    await vp.locator('#wall .item--video').first().tap();
+    await vp.evaluate(() => document.querySelector('#wall .item--video .item-hit').click());
     await vp.waitForSelector('#viewer[open] video');
     await vp.waitForTimeout(800);
     const open = await vp.evaluate(() => {
@@ -460,6 +507,7 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     { zone: 'Europe/Paris', now: '2026-09-30T15:30:00Z', footer: '30.09.2026' },         // 30 sept. 17 h 30 à Paris (= 1er oct. 0 h 30 à Tokyo)
     { zone: 'America/Los_Angeles', now: '2026-10-09T15:30:00Z', footer: '09.10.2026' },  // 9 oct. 8 h 30 à Los Angeles
   ];
+  const tzPlaces = [];
   for (const { zone, now: at, footer } of cases) {
     const tk = await browser.newContext({ viewport: { width: 1280, height: 800 }, timezoneId: zone, acceptDownloads: true });
     await fakeServer(tk, tz, 'light');
@@ -469,15 +517,17 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     await tp.goto(BASE);
     await tp.waitForFunction(() => document.querySelectorAll('#wall .item').length === 3 && [...document.querySelectorAll('#wall .item')].every(li => li.style.top));
     const real = await tp.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
-    // a et c en octobre (heure de Tokyo, strate en cours : pas de filet au-dessus), b en septembre → un seul filet, entre c et b
+    // a et c en octobre (heure de Tokyo), b en septembre → deux bandes, OCT au-dessus de SEPT
     const st = await tp.evaluate(() => {
       const items = [...document.querySelectorAll('#wall .item')];
-      const img = id => items.find(li => (li.querySelector('img')?.dataset.src || li.querySelector('img')?.src || '').includes(id))?.offsetTop;
-      return { rules: [...document.querySelectorAll('#wall .stratum')].map(s => s.offsetTop), a: img('tz-a'), b: img('tz-b'), c: items.find(li => li.classList.contains('item--text'))?.offsetTop };
+      const month = id => items.find(li => (li.querySelector('img')?.dataset.src || li.querySelector('img')?.src || '').includes(id))?.dataset.month;
+      return { bands: [...document.querySelectorAll('#wall .stack-month')].map(m => m.textContent).join(' '), a: month('tz-a'), b: month('tz-b'), c: items.find(li => li.classList.contains('item--text'))?.dataset.month,
+        place: items.map(li => `${li.style.left},${li.style.top}`).join(' ') };
     });
-    ok(real === zone && st.rules.length === 1 && st.rules[0] > Math.max(st.a, st.c) && st.rules[0] < st.b,
-      `${zone} : le mur est le même partout (mois à l'heure de Tokyo : 1er oct. 0 h 20 en octobre, un seul filet)`, JSON.stringify({ real, ...st }));
-    await tp.locator('#wall .item.item--image').first().click(); await tp.waitForSelector('#viewer[open]');
+    tzPlaces.push(st.place);
+    ok(real === zone && st.bands === 'OCT.2026 SEPT.2026' && st.a === '2026-10' && st.c === '2026-10' && st.b === '2026-09',
+      `${zone} : le mur est le même partout (mois à l'heure de Tokyo : 1er oct. 0 h 20 en octobre)`, JSON.stringify({ real, ...st }));
+    { const p4 = await hittable(tp, '#wall .item.item--image'); await tp.mouse.click(p4.x, p4.y); } await tp.waitForSelector('#viewer[open]');
     await tp.click('#keepBtn'); await tp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
     const foot = await tp.evaluate(async () => {
       const { makeFragment } = await import('/js/fragment.js');
@@ -488,6 +538,7 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     ok(dl.suggestedFilename().includes(footer.replaceAll('.', '-')), `${zone} : nom du fichier à la date du téléphone : ${dl.suggestedFilename()}`);
     await tk.close();
   }
+  ok(new Set(tzPlaces).size === 1, 'les mêmes places pour tous, quel que soit le fuseau du visiteur', tzPlaces.join(' | '));
 }
 
 // dépôts EXPIRÉS (à 180 jours, quand l'auteur l'active) : dans la vue List, une ligne de texte façon On Kawara,
@@ -573,6 +624,66 @@ for (const [locale, mention] of [['fr-FR', /modérés/], ['ja-JP', /確認後に
   const kept = await np.waitForSelector('#keepPreview:not([hidden])', { timeout: 20000 }).then(() => true, () => false);
   ok(kept, 'Keep : le fragment se fabrique toujours avec des photos déjà en négatif');
   await nc.close();
+}
+
+// DÉPÔT complet (iPhone) : Drop → image + mots → Send ; seul le NÉGATIF part ; la copie « Under review » apparaît
+// sur le mur de la personne (et sur le sien seulement), au-dessus, sans rien déplacer d'autre
+{
+  const sc = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
+  await fakeServer(sc, rows.slice(0, 8));
+  // faux Turnstile (aucun réseau) : donne un jeton tout de suite
+  await sc.route(/challenges\.cloudflare\.com/, r => r.fulfill({ contentType: 'text/javascript',
+    body: 'window.turnstile = { render(el, o) { setTimeout(() => o.callback("tok"), 20); return 1; }, reset() {} };' }));
+  let sentForm = null;
+  await sc.route(/\/functions\/v1\/submit/, r => { sentForm = r.request().postDataBuffer(); return r.fulfill({ json: { ok: true, id: 'new-1', kind: 'image', status: 'pending' } }); });
+  const sp = await sc.newPage();
+  sp.on('pageerror', e => errors.push(e.message));
+  await sp.goto(BASE);
+  await sp.waitForFunction(() => document.querySelectorAll('#wall .item').length === 8 && [...document.querySelectorAll('#wall .item')].every(li => li.style.top));
+  const placesBefore = await sp.evaluate(() => [...document.querySelectorAll('#wall .item')].map(li => `${li.style.left},${li.style.top}`).join(' '));
+  await sp.tap('.bar .btn-drop'); await sp.waitForSelector('#drop[open]');
+  await sp.setInputFiles('#file', path.join(ROOT, 'tests/fixtures-img/clean.jpg'));
+  await sp.waitForSelector('#preview:not([hidden])');
+  await sp.fill('#text', 'a trace');
+  await sp.check('#rights');
+  await sp.waitForTimeout(300);
+  await sp.tap('#send');
+  await sp.waitForFunction(() => /Under review/.test(document.querySelector('#dropMsg').textContent) || document.querySelector('#wall .item.is-pending'), null, { timeout: 15000 }).catch(() => {});
+  await sp.waitForTimeout(500);
+  // la partie « image » du formulaire envoyé : un JPEG, que le contrôle du serveur reconnaît comme négatif
+  let img = null;
+  if (sentForm) {
+    const at = sentForm.indexOf('filename="image.jpg"'), start = at < 0 ? -1 : sentForm.indexOf('\r\n\r\n', at) + 4;
+    if (start > 3) img = sentForm.subarray(start, sentForm.indexOf('\r\n--', start));
+  }
+  const sent = { form: !!sentForm, image: img ? img.length : 0, negErr: img ? negativeError(new Uint8Array(img)) : 'absent' };
+  ok(sent.form && sent.image > 300 && sent.negErr === null, 'dépôt : envoyé ; la photo partie est le négatif (reconnu par le contrôle du serveur)', JSON.stringify(sent));
+  const after = await sp.evaluate(() => {
+    const pend = document.querySelector('#wall .item.is-pending');
+    const others = [...document.querySelectorAll('#wall .item:not(.is-pending)')];
+    return { pending: !!pend, tag: pend?.querySelector('.pending-tag')?.textContent || '', z: +(pend?.style.zIndex || 0),
+      maxImgZ: Math.max(...others.filter(li => !li.classList.contains('item--text')).map(li => +li.style.zIndex)),
+      places: others.map(li => `${li.style.left},${li.style.top}`).join(' '), dropOpen: document.querySelector('#drop').open };
+  });
+  ok(after.pending && after.tag === 'Under review' && after.z > after.maxImgZ, 'dépôt : « Under review » sur le mur de la personne, au-dessus des images', JSON.stringify(after));
+  ok(after.places === placesBefore, 'dépôt : les autres dépôts gardent leur place');
+  await sc.close();
+}
+
+// ?demo=1 et ?future=N : seulement avec le paramètre
+{
+  const dc = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
+  await fakeServer(dc);
+  const dpx = await dc.newPage();
+  dpx.on('pageerror', e => errors.push(e.message));
+  await dpx.goto(`${BASE}?demo=1`);
+  await dpx.waitForFunction(() => document.querySelectorAll('#wall .item').length === 16, null, { timeout: 20000 }).catch(() => {});
+  ok(await dpx.evaluate(() => document.querySelectorAll('#wall .item').length) === 16, '?demo=1 : faux mur rempli (16 dépôts sur iPhone)');
+  await dpx.goto(`${BASE}?future=200`);
+  await dpx.waitForFunction(() => document.querySelectorAll('#wall .item').length === 16, null, { timeout: 20000 }).catch(() => {});
+  const fut = await dpx.evaluate(() => [...document.querySelectorAll('#wall .item')].map(li => +(li.className.match(/age-(\d)/)?.[1] || 0)));
+  ok(fut.length === 16 && fut.every(a => a === 4), '?future=200 : le mur dans 200 jours, tout au dernier palier (affichage seulement)', fut.join());
+  await dc.close();
 }
 
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));

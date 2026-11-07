@@ -12,14 +12,24 @@
  *
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
-import { CONFIG } from './config.js?v=05f59e2af5';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=83d164e018';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, ERODE, alphaOf } from './wall.js?v=10fdf5c535';
-import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=4cbe9f94a9';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=6b46ec483c';
-import * as captcha from './captcha.js?v=e36d86ac83';
+import { CONFIG } from './config.js?v=b90e1cccbc';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=3f019c41a2';
+import { sizeFor, visibility, stageOf, ageDays, onWall, TIME, BASE, ERODE, alphaOf } from './wall.js?v=e2142ccd51';
+import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=6870828c6e';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=08b14cca51';
+import * as captcha from './captcha.js?v=83c39d113e';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 import { serverError, videoError } from './errors.js?v=51450bce30';
+
+import * as EDGE from './edge.js?v=19ea939b8a';       // bords rongés selon l'âge (contour tiré de l'identifiant du dépôt)
+import * as STACK from './stack.js?v=083ef4cbab';     // mur fixe : un seul écran, les N dépôts les plus récents empilés
+
+/* ?future=N : le mur tel qu'il sera dans N jours (usure, bords, placement, mois). AFFICHAGE SEULEMENT : aucune écriture,
+ * aucune expiration ; les dépôts qui dépasseraient 180 jours restent sur le mur, à leur dernier palier, pour l'essai.
+ * Sans le paramètre : FUTURE = null, l'heure réelle, rien d'autre ne change. (?demo=1 : voir js/data.js.) */
+const PARAMS = new URLSearchParams(location.search);
+const FUTURE = PARAMS.has('future') ? Math.max(0, Math.min(3650, Math.round(+PARAMS.get('future') || 0))) : null;
+const wallNow = () => Date.now() + (FUTURE || 0) * 86400e3;
 
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
@@ -50,7 +60,7 @@ onLangChange(() => { viewLabel(); showPrompt(); render(); refreshDropTexts(); })
  * Liste : tout, à 100 %.
  */
 const asPending = p => ({ ...p, pending: true });
-const wallItems = () => [...pending.map(asPending), ...posts.filter(p => !p.expired && onWall(ageDays(p.approvedAt)))];
+const wallItems = () => [...pending.map(asPending), ...posts.filter(p => !p.expired && (FUTURE !== null || onWall(ageDays(p.approvedAt))))];
 const listItems = () => [...pending.map(asPending), ...posts];
 const items = () => (view === 'wall' ? wallItems() : listItems());
 
@@ -137,11 +147,12 @@ document.addEventListener('dragstart', e => { if (guarded(e)) e.preventDefault()
 // une table d'opacité par palier (0 = neuf : BASE ; 1 … 4 : ERODE), mêmes valeurs que les filtres #tone / #erode1 … #erode4
 const ALPHAS = [BASE, ...ERODE].map(e => new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, e) * 255)));
 /** Âge affiché d'un dépôt, partout (mur, liste, agrandissement) : seul Keep fige un instant, rien ne rajeunit. */
-const ageOf = (p, now = Date.now()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
+const ageOf = (p, now = wallNow()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
 function setAge(el, p, now) {
   const { v, stage } = ageOf(p, now);
   el.style.setProperty('--v', v.toFixed(3));
   for (let s = 1; s <= ERODE.length; s++) el.classList.toggle(`age-${s}`, s === stage);
+  EDGE.wear(el, p, stage);                              // bords rongés selon le même palier
   return stage;
 }
 function paintFrames(v, c, ALPHA) {
@@ -219,21 +230,21 @@ function content(p, { full = false, font } = {}) {
 /* ------------------------------------------------------------------ rendu */
 let lastW = 0;
 function render() {
+  document.documentElement.classList.toggle('stack', view === 'wall');   // mur fixe : la page ne défile pas (la liste, si)
   const list = items();
   $('#empty').hidden = list.length > 0 || posts.length > 0;
   if (view === 'wall') renderWall(list); else renderList(list);
 }
 
 /*
- * Mur : les éléments déjà créés sont RÉUTILISÉS d'un rendu à l'autre (images déjà chargées, pas de
- * clignotement) ; le placement est PROGRESSIF (le premier écran tout de suite, le reste par morceaux,
- * sans bloquer la page) ; chaque strate (mois / consigne) est placée sous la précédente, séparée par
- * un filet et le mot de sa consigne. Après une mise à jour en arrière-plan, les éléments prennent leur
- * nouvelle place sans glisser (le mur ne bouge pas, docs/mood-da.md).
+ * Mur FIXE : un seul écran, sans défilement. Seuls les N dépôts les plus récents y sont (16 sur iPhone, 40 sur
+ * ordinateur, js/stack.js), empilés, le plus récent au-dessus, les textes toujours au-dessus des images ; les plus
+ * anciens sont enfouis : ils ne vivent plus que dans la liste. Placement déterministe (identifiant + mois à Tokyo),
+ * identique sur tous les écrans de même taille. Les mois : des bandes horizontales, leur mot en petit au bord gauche.
+ * Les éléments déjà créés sont RÉUTILISÉS d'un rendu à l'autre (images déjà chargées, pas de clignotement).
  */
 const nodeCache = new Map();          // identifiant → { li, key, p, w, photoH }
 let wallNodes = [], renderToken = 0;
-const STRATUM = 64;                   // hauteur d'un séparateur de strates (px)
 
 function nodeFor(p, w, font) {
   const key = `${w}|${font || 0}|${p.text}|${p.size}|${p.pending ? 1 : 0}`;
@@ -256,74 +267,39 @@ function nodeFor(p, w, font) {
   return n;
 }
 
-function divider(p, y, pad) {
-  const li = document.createElement('li');
-  li.className = 'stratum'; li.setAttribute('role', 'separator');
-  li.style.top = `${y}px`; li.style.left = li.style.right = `${pad}px`;
-  if (p.prompt) { const s = document.createElement('span'); s.textContent = p.prompt; li.append(s); }   // un mois sans consigne : le filet seul
-  return li;
-}
-
-function renderWall(list) {
-  const token = ++renderToken;
+function renderWall(all) {
+  ++renderToken;
   const W = wallEl.clientWidth || document.documentElement.clientWidth;
   lastW = W;
-  const mobile = W < CONFIG.wall.mobileBelow;
-  const pad = mobile ? 16 : 24;
-  const limit = mobile ? CONFIG.wall.overlapMobile : CONFIG.wall.overlap;
-  // 1. créer (ou reprendre) chaque élément à sa largeur, pour mesurer la hauteur des textes
+  const mobile = W < CONFIG.wall.mobileBelow, pad = mobile ? 16 : 24;
+  const list = all.slice(0, mobile ? STACK.STACK_N.mobile : STACK.STACK_N.desktop);
   const ids = new Set(list.map(p => p.id));
-  for (const [id, n] of nodeCache) if (!ids.has(id)) {          // retirés (ou partis dans la liste) : s'effacent
-    nodeCache.delete(id); n.li.classList.add('is-out');
-    setTimeout(() => n.li.remove(), reducedMotion.matches ? 0 : 450);
-  }
-  wallEl.querySelectorAll('.stratum').forEach(d => d.remove());
-  const now = Date.now();
+  for (const [id, n] of nodeCache) if (!ids.has(id)) { nodeCache.delete(id); n.li.remove(); }
+  wallEl.querySelectorAll('.stack-month').forEach(d => d.remove());
+  const now = wallNow();
   wallNodes = list.map((p, i) => {
     const { w, font } = sizeFor(p, W - 2 * pad, mobile);
     const n = nodeFor(p, w, font);
     n.li.dataset.i = i;
-    // érosion : selon le temps passé sur le mur (un dépôt en attente garde son propre aspect) ;
-    // images : palier fixe (classe age-N → filtre partagé), textes : --v
     n.stage = setAge(n.li, p, now);
     if (!n.li.isConnected) wallEl.append(n.li);
     return n;
   });
-  // hauteur réelle (image + commentaire éventuel) ; capH = bande du commentaire, que rien ne doit recouvrir
-  const boxes = wallNodes.map(n => {
-    const h = n.li.offsetHeight;
-    return { id: n.p.id, kind: n.p.kind, w: n.w, h, capH: n.photoH ? h - n.photoH : 0 };
+  // le mur occupe l'écran sous la consigne ; aucune page à faire défiler
+  const top = 0, H = Math.max(200, document.documentElement.clientHeight - wallEl.getBoundingClientRect().top);
+  wallEl.style.height = `${H}px`;
+  const { places, bands } = STACK.stackLayout(wallNodes.map(n => ({ p: n.p, w: n.w, h: n.li.offsetHeight })), W, H, { top, pad, now });
+  wallNodes.forEach((n, i) => {
+    const r = places[i];
+    Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, zIndex: String(r.z) });
+    n.li.dataset.month = r.month;                       // mois du dépôt à Tokyo (sa bande)
+    watch(n.li);
   });
-  // la strate en cours : celle du mois et de la consigne d'aujourd'hui (pas de séparateur au-dessus)
-  const currentKey = strataKey({ createdAt: new Date(now).toISOString(), prompt });
-  const keyOf = p => (p.pending ? currentKey : strataKey(p));
-  // 2. placer : strate par strate ; d'abord ce qui est à l'écran (et un écran de plus), puis le reste par morceaux
-  const screen = scrollY + innerHeight * 2 - (wallEl.getBoundingClientRect().top + scrollY);
-  let i = 0, L = null, key = null, bottom = 0;
-  const placeUntil = stop => {
-    for (; i < wallNodes.length && !stop(); i++) {
-      const n = wallNodes[i], k = keyOf(n.p);
-      if (k !== key) {                                   // nouvelle strate : filet + mot de sa consigne, puis ses dépôts
-        let top = L ? L.height() - pad : 0;
-        if (L || k !== currentKey) { wallEl.append(divider(n.p, top + pad, pad)); top += STRATUM; }
-        key = k;
-        L = createLayout(W, wallNodes.length, { limit, pad, mobile, top, first: i });
-      }
-      const r = L.add(boxes[i]);
-      Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, height: `${r.h}px`, zIndex: String(r.z) });   // le plus récent au-dessus
-      watch(n.li);                                       // à sa place : son image peut arriver quand l'écran approche
-      bottom = Math.max(bottom, L.height());
-    }
-    wallEl.style.height = `${bottom}px`;
-  };
-  placeUntil(() => i >= 8 && bottom > screen);
-  const more = () => {
-    if (token !== renderToken) return;                   // un rendu plus récent a pris le relais
-    const end = i + 25;
-    placeUntil(() => i >= end);
-    if (i < wallNodes.length) setTimeout(more, 0);
-  };
-  if (i < wallNodes.length) setTimeout(more, 0);
+  if (bands.length > 1) for (const b of bands) {          // un seul mois : rien à dire
+    const li = document.createElement('li'); li.className = 'stack-month'; li.setAttribute('aria-hidden', 'true');
+    li.textContent = b.label; li.style.top = `${b.y}px`; li.style.left = `${pad}px`;
+    wallEl.append(li);
+  }
 }
 
 /*
@@ -348,7 +324,7 @@ function kawaraLine(p) {
   return box;
 }
 function renderList(list) {
-  const now = Date.now();
+  const now = wallNow();
   let open = 0, register = null;                      // index parmi les dépôts qui s'ouvrent ; bloc de lignes expirées en cours
   listEl.replaceChildren(...list.map(p => {
     // dépôts expirés qui se suivent : un seul bloc, une ligne chacun (registre serré)
@@ -398,7 +374,7 @@ listEl.addEventListener('click', e => openFrom(e, '.row'));
 addEventListener('resize', () => {
   if (view !== 'wall') return;
   clearTimeout(render.tm);
-  render.tm = setTimeout(() => { if (Math.abs((wallEl.clientWidth || 0) - lastW) > 1) render(); }, 150);
+  render.tm = setTimeout(render, 150);                 // mur fixe : sa place dépend de la largeur ET de la hauteur de l'écran
 });
 /* Tout le mur, sans bouton : les paquets suivants (500 par 500) sont lus en arrière-plan, et le mur
    se complète à chaque paquet (les éléments déjà placés ne bougent pas : les nouveaux sont plus anciens). */
@@ -441,6 +417,7 @@ function showViewer() {
   $('#viewerCtrl .vplay')?.remove();
   setAge($('#viewerBody'), p);                          // agrandi, le dépôt garde son âge
   $('#viewerBody').replaceChildren(content(p, { full: true }));
+  EDGE.wear($('#viewerBody'), p, ageOf(p).stage);
   // passage d'un dépôt à l'autre : fondu enchaîné (durée 0 avec « Réduire les animations », tokens.css)
   const vb = $('#viewerBody'); vb.classList.remove('is-swap'); void vb.offsetWidth; vb.classList.add('is-swap');
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
@@ -479,7 +456,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=538afba9bc');
+    const { makeFragment, today } = await import('./fragment.js?v=d6fcff6248');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -569,7 +546,7 @@ let src = null, rendered = null, preparing = null, imageError = '';   // src : i
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
-const videoLib = () => import('./video.js?v=68afb6c95d');
+const videoLib = () => import('./video.js?v=a1506d5008');
 /** Message d'une erreur de lecture ou de conversion vidéo (js/video.js), avec la raison quand elle est connue. */
 const videoErrorText = err => { const { key, why } = videoError(err); return t(key, { why: t(`why_${why}`) }); };
 const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');

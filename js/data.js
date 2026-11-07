@@ -6,10 +6,12 @@
  *                 revérifiés là-bas). La clé utilisée ici est la clé publique « anon ».
  *   mode 'mock' : tout est simulé dans le navigateur (mur vide, aucun envoi). Forcé par ?mock dans l'URL.
  */
-import { CONFIG } from './config.js?v=05f59e2af5';
+import { CONFIG } from './config.js?v=b90e1cccbc';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
-export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;
+// Démonstration : ?demo=1 → 70 faux dépôts sur 5 mois (js/demo.js), en mode maquette : rien n'est envoyé
+const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+export const mode = new URLSearchParams(location.search).has('mock') || DEMO ? 'mock' : CONFIG.mode;
 
 const headers = () => ({ apikey: CONFIG.supabaseAnonKey, Authorization: `Bearer ${CONFIG.supabaseAnonKey}` });
 /** Fichier stocké déjà en négatif (déposé depuis la correction « fix-original », ou converti par tools/negate-existing.mjs). */
@@ -45,7 +47,7 @@ function save(patch) {
  * Un court texte anglais réglé depuis /admin/ (table prompt) ; vide = pas de consigne ce mois-ci.
  */
 export async function fetchPrompt() {
-  if (mode === 'mock') return '';
+  if (mode === 'mock') return DEMO ? 'trace' : '';
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/current_prompt?select=text`, { headers: headers() });
   if (!r.ok) throw new ServerError('server', r.status);
   const prompt = (await r.json())[0]?.text || '';
@@ -76,6 +78,7 @@ export function settlePending(publishedIds) {
 
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {}) {
+  if (DEMO) return (await (await import('./demo.js?v=11c5dec88c')).demoPosts()).slice(offset, offset + limit);
   if (mode === 'mock') {
     const { MOCK_POSTS, expiredDemo } = await import('./mock.js?v=9743e94d55');
     // ?mock=expired : démonstration de la liste des dépôts expirés (fausses données, aucun envoi possible)
