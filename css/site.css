@@ -30,7 +30,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 
 /* ------------------------------------------------------------------ Mood + Drop : deux capsules de verre
  * Deux éléments fixes posés sur le mur, sans barre ni bandeau (docs/mood-da.md). Le verre (verre dépoli :
- * flou, éclaircissement, reflet de bord ; pas de réfraction) REMPLACE mix-blend-mode: difference : « Mood » et
+ * flou, éclaircissement, reflet de bord ; aucun filtre SVG) REMPLACE mix-blend-mode: difference : « Mood » et
  * « Drop » sont noirs sur verre clair, lisibles sur n'importe quelle image (8,0:1 au pire, docs/tokens.css).
  * Sur le blanc nu, les capsules disparaissent presque. Le mur défile dessous ; aucun parent ne porte de
  * transform / filter (sinon position: fixed casse). Le flou n'est jamais dans ce qui défile.
