@@ -62,6 +62,8 @@ ok(writes.length === 0 && store.published.has('aaaaaaaa-1.jpg'), 'essai à blanc
 r = await run('--apply');
 const a = posts[0], v = posts[1], c = posts[2];
 ok(r.code === 0, '--apply : terminé sans échec', r.out);
+ok(/Vérification : 0 dépôt\(s\) pointant encore vers un fichier d'origine ; 0 ancien\(s\) fichier\(s\) encore présent\(s\) sur 5 supprimé\(s\)/.test(r.out),
+  '--apply : vérification finale — plus aucune ancienne adresse en base, les 5 anciens fichiers n’existent plus', r.out);
 ok(a.image_path === 'aaaaaaaa-1.neg.jpg' && a.thumb_path === 'aaaaaaaa-1-thumb.neg.jpg' && negativeError(store.published.get(a.image_path)) === null && negativeError(store.published.get(a.thumb_path)) === null,
   'photo publiée : nouveaux fichiers « .neg.jpg », reconnus comme négatifs', JSON.stringify(a));
 ok(!store.published.has('aaaaaaaa-1.jpg') && !store.published.has('aaaaaaaa-1-thumb.webp'), 'photo publiée : fichiers d’origine supprimés');

@@ -86,6 +86,7 @@ const todo = posts.filter(p => !p.expired_at && (p.kind === 'video' ? !isNeg(p.t
 console.log(`${APPLY ? 'CONVERSION' : 'ESSAI À BLANC (rien n’est écrit)'} : ${posts.length} dépôt(s) avec fichiers, ${todo.length} à convertir`);
 
 const stats = { posts: 0, files: 0, before: 0, after: 0, failed: 0 };
+const removed = [];                                        // [bucket, ancien chemin] : vérifiés absents à la fin
 for (const p of todo) {
   const bucket = p.status === 'pending' ? 'pending' : 'published';
   const short = p.id.slice(0, 8);
@@ -117,6 +118,7 @@ for (const p of todo) {
         throw e;
       }
       await api(`/storage/v1/object/${bucket}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefixes: done.map(d => d.from) }) });
+      for (const d of done) removed.push([bucket, d.from]);
     }
     stats.posts++;
     console.log(`  ${short} (${p.kind}, ${p.status}) : ${done.length} fichier(s) ${APPLY ? 'converti(s), originaux supprimés' : 'convertible(s)'}`);
@@ -124,6 +126,18 @@ for (const p of todo) {
     stats.failed++;
     console.log(`  ${short} : ÉCHEC, rien n’a changé pour ce dépôt — ${e.message}`);
   }
+}
+// Vérification finale (--apply) : plus AUCUN dépôt ne pointe vers une ancienne adresse, et les anciens fichiers n'existent plus
+if (APPLY) {
+  const after = await (await api('/rest/v1/posts?select=id,kind,image_path,thumb_path,expired_at&image_path=not.is.null')).json();
+  const still = after.filter(p => !p.expired_at && (p.kind === 'video' ? !isNeg(p.thumb_path) : (!isNeg(p.image_path) || !isNeg(p.thumb_path))));
+  let present = 0;
+  for (const [b, name] of removed) {
+    const r = await fetch(`${SUPABASE}/storage/v1/object/${b}/${encodeURIComponent(name)}`, { headers: H });
+    if (r.ok) present++;
+  }
+  console.log(`Vérification : ${still.length} dépôt(s) pointant encore vers un fichier d'origine ; ${present} ancien(s) fichier(s) encore présent(s) sur ${removed.length} supprimé(s).`);
+  if (still.length || present) stats.failed++;
 }
 console.log(`Bilan : ${stats.posts} dépôt(s), ${stats.files} fichier(s) ; ${(stats.before / 1024).toFixed(0)} Ko d’origine → ${(stats.after / 1024).toFixed(0)} Ko en négatif ; ${stats.failed} échec(s).`);
 await browser.close(); server.close();
