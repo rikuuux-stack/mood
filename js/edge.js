@@ -1,5 +1,5 @@
 /**
- * PROTOTYPE (?edge=worn) — les BORDS d'une image s'effritent avec l'âge.
+ * Bords rongés — les BORDS d'une image s'effritent avec l'âge.
  *
  * Au dépôt, l'image est presque rectangulaire (un bord à peine irrégulier). À chaque palier d'usure
  * (stageOf de js/wall.js : 0 à 4), de nouvelles morsures apparaissent et les anciennes se creusent :
@@ -9,7 +9,7 @@
  * même, sur le mur, dans la liste, dans l'agrandissement et dans Keep (js/fragment.js relit le même polygone).
  * Il s'applique en clip-path: polygon(…) sur .photo (l'image, ou le canvas d'une vidéo agrandie).
  */
-import { rng } from './wall.js?v=10fdf5c535';
+import { rng } from './wall.js?v=e2142ccd51';
 
 const PER_EDGE = 40;                                  // points par côté (segments droits : bord déchiré)
 const JITTER = [0.004, 0.008, 0.012, 0.016, 0.02];    // irrégularité fine, en part du petit côté, par palier

@@ -1,5 +1,5 @@
 /**
- * PROTOTYPE (?wall=stack) — un mur FIXE, sans défilement : un seul écran, les dépôts superposés.
+ * Mur fixe — un mur FIXE, sans défilement : un seul écran, les dépôts superposés.
  *
  *   - seuls les N dépôts les plus récents sont sur le mur (N = 16 sur iPhone, 40 sur ordinateur) ;
  *     les autres ne sont visibles que dans la liste ;
@@ -11,7 +11,7 @@
  *     (en bas) ; les dépôts d'un mois restent dans leur bande (qui déborde un peu sur la suivante), et le mot
  *     du mois est écrit en petit, en gris, au bord gauche de sa bande. Pas de filet : les bandes se fondent.
  */
-import { rng, wallMonth } from './wall.js?v=10fdf5c535';
+import { rng, wallMonth } from './wall.js?v=e2142ccd51';
 
 export const STACK_N = { mobile: 16, desktop: 40 };
 const SPILL = 0.35;                                    // une bande déborde de 35 % sur sa voisine
@@ -21,7 +21,7 @@ export const monthLabel = key => { const [y, m] = key.split('-'); return `${MONT
 
 /**
  * @param nodes  [{ p, w, h }] du plus récent au plus ancien (w, h : taille mesurée de l'élément)
- * @returns { places: [{ x, y, z }], bands: [{ key, label, y }] }
+ * @returns { places: [{ x, y, z, month }], bands: [{ key, label, y }] }  (month : « AAAA-MM » à Tokyo)
  */
 export function stackLayout(nodes, W, H, { top, pad, now = Date.now() }) {
   const keyOf = n => (n.p.pending ? wallMonth(new Date(now).toISOString()) : wallMonth(n.p.approvedAt || n.p.createdAt));
@@ -48,7 +48,7 @@ export function stackLayout(nodes, W, H, { top, pad, now = Date.now() }) {
       texts.push(best);
     }
     // le plus récent au-dessus ; tous les textes au-dessus de toutes les images
-    return { x: best.x, y: best.y, z: (n.p.kind === 'text' ? 2000 : 1000) - i };
+    return { x: best.x, y: best.y, z: (n.p.kind === 'text' ? 2000 : 1000) - i, month: keys[k] };
   });
   return { places, bands };
 }

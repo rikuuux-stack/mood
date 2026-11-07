@@ -30,7 +30,7 @@ La page est en anglais, avec des mots très courts (choix validé).
 | **Stats** | le journal de modération résumé : par mois (heure de Tokyo) acceptés / refusés (par raison) / retirés, et dépôts par consigne. **Aucune donnée personnelle** : le journal ne garde que l'heure (arrondie), la décision, la raison et la consigne. | — |
 | **Expiry** | expiration à 180 jours, **en simulation** : ce qui serait supprimé maintenant et dans les 30 jours, et la place libérée. **Rien n'est supprimé.** | aucun bouton tant que l'expiration n'est pas activée (voir plus bas) |
 | **Drop** (déposer) | ton propre dépôt : image et/ou mots, taille S / M / L | publié tout de suite, comme n'importe quel dépôt (aucune marque visible ; « me » ici seulement) |
-| **Archive** | une ligne par nuit : le mur entier capturé chaque nuit à 03:00 (heure de Tokyo), vue iPhone + vue ordinateur + état (dépôts, paliers, strates, consigne) | toucher une nuit : aperçu et téléchargement ; **Delete night** (2ᵉ toucher) pour une demande de retrait |
+| **Archive** | une ligne par nuit : le mur (fixe, un écran) capturé chaque nuit à 03:00 (heure de Tokyo), vue iPhone + vue ordinateur + état (dépôts, paliers, strates, consigne) | toucher une nuit : aperçu et téléchargement ; **Delete night** (2ᵉ toucher) pour une demande de retrait |
 
 **Consigne du mois** : en haut, champ **Prompt** (un court texte anglais, 60 caractères au plus, ex. « trace. ») ▸ **Save**. Elle s'affiche « This month: trace. » sur le mur et dans Drop, et elle est gardée sur chaque nouveau dépôt : le mur se lit ainsi par strates (un mois, une consigne). **Clear** = pas de consigne ce mois-ci.
 

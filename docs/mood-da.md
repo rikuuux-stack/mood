@@ -34,7 +34,7 @@ Uniquement des gris (chroma 0). La note l'impose, et une teinte ferait d'un dép
 | `--fg` | `#111111` | `oklch(0.178 0 0)` | texte, capsules | Noir doux : la seule chose qui ne pâlit pas, l'interface. |
 | `--muted` | `#555555` | `oklch(0.450 0 0)` | date, mentions ; nom dans la liste | Ce qui identifie quelqu'un reste en retrait (égalité). 7,5:1 sur blanc. |
 | `--muted-sheet` | `#505050` | `oklch(0.428 0 0)` | gris secondaire dans les feuilles | Sur une feuille au pire, mesuré : 5,7:1 (`#555` : 5,2:1). |
-| `--rule` | `#d9d9d9` | `oklch(0.885 0 0)` | filets de strate, champs | Les strates se voient à peine, comme des couches. |
+| `--rule` | `#d9d9d9` | `oklch(0.885 0 0)` | filets de la liste, champs | Une séparation qui se voit à peine. |
 | `--panel` | `#fafafa` | `oklch(0.985 0 0)` | verre opaque (repli) | Même rôle que le verre, sans transparence. |
 | `--photo-bg` | `#f0f0f0` | `oklch(0.955 0 0)` | image en chargement | Une place grise avant la trace. |
 | `--glass-fill` | blanc à 27 % | `oklch(1 0 0 / .27)` | capsule | **4,59:1 mesuré** pour `--fg` au-dessus du gris visible le plus sombre : la limite basse pour garder 4,5:1 (mesures ci-dessous). 48 % puis 30 % étaient trop opaques sur iPhone. |
@@ -76,7 +76,7 @@ La graisse 300 se limite à un sous-ensemble latin des mots d'interface, qui res
 
 ### Où il s'applique, et seulement là
 
-1. **Capsules « Mood » et « Drop »**, fixées en haut. Elles flottent au-dessus des images qui défilent. → *Lien : le visiteur regarde, le mur passe dessous.*
+1. **Capsules « Mood » et « Drop »**, fixées en haut. Elles flottent au-dessus du mur, qui tient dans un seul écran, et au-dessus de la liste qui défile. → *Lien : le visiteur regarde, le mur reste derrière.*
 2. **Commandes de l'agrandissement** (‹ › ×, et ▶ quand « Réduire les animations » empêche la lecture automatique), réunies dans une seule capsule, collée en haut à droite, au-dessus de l'image. → *Lien : on traverse les dépôts sans en couvrir aucun.*
 3. **Feuilles** Drop et Mood. → *Lien : on écrit ou on lit les règles devant le mur, sans le quitter.*
 
@@ -142,16 +142,17 @@ Tout est déjà dans `tokens.css` : aucune règle de composant n'a besoin d'êtr
 
 ## 5. Grille, espacements, composition
 
-- **Le mur garde sa composition libre** (`wall.js` : placement déterministe, le plus récent au-dessus, recouvrement limité). → *Lien : le mur est immobile et identique pour tous ; la DA n'y touche pas.*
+- **Le mur est fixe** (`stack.js`) : un seul écran, sans défilement. Seuls les dépôts les plus récents y sont, 16 sur iPhone et 40 sur ordinateur ; ils s'empilent, le plus récent au-dessus, et les textes passent toujours au-dessus des images pour rester lisibles. Les plus anciens sont enfouis : ils ne vivent plus que dans la liste. Placement déterministe (identifiant du dépôt et mois à Tokyo) : le même mur pour tous, sur un écran de même taille. → *Lien : le mur ne se parcourt pas, il se recouvre.*
+- **Les bords se rongent avec l'âge** (`edge.js`) : au dépôt, l'image est presque rectangulaire ; à chaque palier d'usure, de nouvelles morsures apparaissent et les coins partent en premier. Le contour est fait de segments droits et d'angles vifs, jamais arrondi (le rond reste au verre). Il est tiré de l'identifiant du dépôt : le même sur le mur, dans la liste, dans l'agrandissement et dans Keep. → *Lien : l'image s'use par le noir, et maintenant aussi par le bord.*
 - **Suite d'espacements non uniforme** : 4 · 8 · 12 · 20 · 32 · 52. Aucun écart ne se répète entre deux niveaux. → *Lien : un rythme de strates, pas une grille de cartes.*
 - **Marges asymétriques** : 24 px à gauche et 12 px à droite sur ordinateur, 16 px et 8 px sur mobile (à 16/12, l'écart était imperceptible et ressemblait à une erreur). Elles s'appliquent à la ligne « Mood » / « Drop » et aux feuilles ; le mur garde son placement (`wall.js`). La capsule « Mood » s'aligne sur la marge gauche, la consigne s'aligne sur les lettres de « Mood », « Drop » se colle à droite. Rien n'est centré. Variante à marges égales : captures `marges-egales` de la PR.
-- **Strates** : un filet `--rule` et le mot de la consigne entre deux mois ou deux consignes. L'écart entre strates reste celui de `wall.js` (64 px) : la DA ne touche pas au placement du mur.
+- **Mois** : l'écran est partagé en bandes horizontales, du mois le plus récent en haut au plus ancien en bas ; les bandes débordent un peu l'une sur l'autre et se fondent, sans filet. Le mot du mois (« OCT.2026 ») est écrit en Mono, petit, en `--muted`, au bord gauche de sa bande. Un seul mois à l'écran : rien n'est écrit.
 - **Feuilles** : sur mobile, elles montent du bas sur toute la largeur, avec des coins hauts de 22 px (c'est du verre, donc arrondi). Sur ordinateur, elles forment une colonne de 400 px **ancrée à droite**, à 72 px du haut, jamais au centre de l'écran, coins arrondis de 22 px. → *Lien : aucun moment « hero », la fenêtre se range sur le côté du mur.*
 - **Agrandissement** : rectangulaire, l'image prend la largeur moins les marges, avec la capsule ‹ › × en haut à droite (elle reste visible quand on fait défiler la fenêtre) et la date en mono en bas à gauche, hors du verre. **Aucun nom** : le nom de la personne qui dépose n'apparaît que dans la liste. L'image y garde **son âge** : seul Keep fige un instant.
 
 ## 6. Mouvement
 
-**Le mur ne bouge pas.** Son seul mouvement, c'est l'érosion, qui se compte en jours. Ce qui bouge, c'est la vitre, et seulement quand le visiteur agit.
+**Le mur ne bouge pas, et il ne défile pas.** Son seul mouvement, c'est l'usure (le noir, puis les bords), qui se compte en jours, et l'enfouissement : un nouveau dépôt recouvre les autres, et le plus ancien de l'écran passe dans la liste. Ce qui bouge, c'est la vitre, et seulement quand le visiteur agit.
 
 | Ce qui bouge | Comment | Durée | Courbe | Pourquoi |
 |---|---|---|---|---|
@@ -176,7 +177,7 @@ Les ouvertures et fermetures utilisent `@starting-style` et `transition-behavior
 |---|---|
 | Couches `backdrop-filter` visibles en même temps | **2 au plus** : les deux capsules au repos, ou la feuille seule quand une fenêtre est ouverte (`html.modal` coupe les capsules). |
 | Flou maximal | 12 px pour une capsule, 20 px pour une feuille ; 10 et 16 px sur mobile. |
-| Où | Uniquement sur des éléments fixes ou dans la couche supérieure (`dialog`). Jamais dans le mur ni dans la liste qui défilent. |
+| Où | Uniquement sur des éléments fixes ou dans la couche supérieure (`dialog`). Jamais dans le mur ni dans la liste. |
 | Surface floutée | Capsules : moins de 5 % de l'écran. Feuilles : jamais plus de 92 dvh. |
 | `will-change` | Jamais de façon permanente. |
 | Poids ajouté par la DA (mesuré, gzip) | **5,8 Ko** : `tokens.css` 2,8 Ko (dont 1,9 Ko de commentaires), CSS du verre et du mouvement +0,9 Ko, `fonts.css` +0,1 Ko, polices au premier écran +1,9 Ko (Sans 300 : +3,7 Ko ; Mono 300 à la place de la Mono 200 : −1,8 Ko). |

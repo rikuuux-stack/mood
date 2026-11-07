@@ -12,14 +12,13 @@
  * est refait ici en pixels, avec les mêmes valeurs (negative, ERODE, GRAIN dans js/wall.js).
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
-import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=10fdf5c535';
-import { stripMetadata } from './image.js?v=4cbe9f94a9';
-import { clipCanvas } from './edge.js?v=2c3982c228';   // bords rongés : même contour usé que sur le mur
+import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=e2142ccd51';
+import { stripMetadata } from './image.js?v=6870828c6e';
+import { clipCanvas } from './edge.js?v=19ea939b8a';   // bords rongés : même contour usé que sur le mur
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
 const BG = [255, 255, 255];      // fond : blanc pur (--bg)
 const BAND = 92;                 // bande du bas (px de l'image), pour la ligne de légende
-const RULE = '#d9d9d9';          // filets des strates (--rule)
 const FRAME = '#f0f0f0';         // cadre d'une image introuvable (--photo-bg)
 const INK = '#111111';           // ligne du bas : noir doux (--fg)
 
@@ -169,13 +168,6 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
 
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, W, RH); ctx.clip();
-  // filets des strates (sans leur mot : aucun autre texte que les dépôts)
-  ctx.fillStyle = RULE;
-  for (const s of wallEl.querySelectorAll('.stratum')) {
-    const y = s.offsetTop;
-    if (y < y0 || y > y0 + ch) continue;
-    ctx.fillRect(X(s.offsetLeft), Math.round(Y(y)), s.offsetWidth * scale, Math.max(1, scale));
-  }
   // les éléments qui touchent le cadre, du plus ancien (dessous) au plus récent (dessus) ;
   // les dépôts « en attente » (visibles chez leur auteur seulement) ne font pas partie du mur
   const items = [...wallEl.querySelectorAll('.item:not(.is-pending):not(.is-out)')]

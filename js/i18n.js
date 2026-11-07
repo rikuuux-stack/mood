@@ -3,7 +3,7 @@
  * Les éléments [data-i18n="clé"] reçoivent leur texte ; [data-i18n-label="clé"] leur aria-label.
  */
 import { STRINGS } from './strings.js?v=087fef21a2';
-import { CONFIG } from './config.js?v=05f59e2af5';
+import { CONFIG } from './config.js?v=b90e1cccbc';
 
 const LANGS = ['fr', 'ja', 'en'];
 const listeners = new Set();

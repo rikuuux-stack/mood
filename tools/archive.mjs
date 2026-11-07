@@ -6,11 +6,12 @@
  *   node tools/archive.mjs --fake --out dossier site local + fausses données (tests/fixtures.mjs), pour essayer sans réseau
  *
  * Chaque nuit (GitHub Actions, 03:00 heure de Tokyo, .github/workflows/supabase.yml) :
- *   archive/AAAA-MM-JJ/iphone.jpg    le mur entier, vue iPhone (390 px de large, pleine page)
- *   archive/AAAA-MM-JJ/desktop.jpg   le mur entier, vue ordinateur (1440 px de large, pleine page)
- *   archive/AAAA-MM-JJ/state.json    date, dépôts visibles (id, dates, âge, palier d'érosion, strate), consigne du mois
+ *   archive/AAAA-MM-JJ/iphone.jpg    le mur (fixe : un seul écran), vue iPhone 390 × 844
+ *   archive/AAAA-MM-JJ/desktop.jpg   le mur (fixe : un seul écran), vue ordinateur 1440 × 900
+ *   archive/AAAA-MM-JJ/state.json    date, dépôts du mur (id, dates, âge, palier d'érosion, strate, présent sur
+ *                                    l'écran iPhone / ordinateur), consigne du mois
  *
- * Même cadrage chaque nuit (même largeur, même échelle, depuis le haut) : un time-lapse est possible.
+ * Même cadrage chaque nuit (même écran, même échelle) : un time-lapse est possible.
  * Une seule visite du site par vue ; rien n'est déposé ni modifié sur le mur ; « Réduire les animations »
  * est simulé (aucune animation au moment de la capture). Envoi : clé service_role lue par le workflow avec
  * le jeton Supabase déjà présent dans les secrets GitHub (SERVICE_KEY, jamais écrite dans le dépôt).
@@ -22,6 +23,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { visibility, stageOf, ageDays, onWall, strataKey } from '../js/wall.js';
+import { STACK_N } from '../js/stack.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = fs.readFileSync(path.join(ROOT, 'js/config.js'), 'utf8');
@@ -36,7 +38,6 @@ const BUCKET = 'archive';
 const ARCHIVE_MAX = 200 * 1024 * 1024;           // garde-fou : 200 Mo pour toute l'archive (offre gratuite : 1 Go en tout)
 const TARGET = 400 * 1024;                       // poids visé par capture (JPEG) : ≤ 400 Ko
 const QUALITIES = [70, 60, 50, 42, 35, 28];      // qualité JPEG essayée, de la meilleure à la plus légère
-const MAX_H = 30000;                             // hauteur maximale capturée (px CSS) : au-delà, le haut du mur seulement
 
 const req = createRequire(import.meta.url);
 let playwright;
@@ -73,10 +74,12 @@ function wallState(rows, prompt, now = Date.now()) {
       stratum: strataKey({ createdAt: p.created_at, prompt: p.prompt }), on_wall: onWall(days),
     };
   });
+  // mur fixe : seuls les N plus récents de moins de 180 jours sont à l'écran (16 iPhone, 40 ordinateur), les autres enfouis
+  const wall = posts.filter(p => p.on_wall).map(({ on_wall, ...p }, i) => ({ ...p, iphone: i < STACK_N.mobile, desktop: i < STACK_N.desktop }));
   return {
     date: tokyoDate(new Date(now)), captured_at: new Date(now).toISOString(), site: SITE, prompt,
-    wall: posts.filter(p => p.on_wall).map(({ on_wall, ...p }) => p),
-    list_only: posts.filter(p => !p.on_wall).length,
+    wall: wall.filter(p => p.desktop),
+    list_only: posts.length - wall.filter(p => p.desktop).length,
   };
 }
 
@@ -100,15 +103,9 @@ async function capture(browser, { width, height, mobile, scale }, url, route) {
   if (route) await route(ctx); else await shareFiles(ctx);
   const page = await ctx.newPage();
   await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-  await page.waitForTimeout(1500);                       // paquets suivants du mur, placement progressif
-  // toute la hauteur du mur dans la fenêtre : chaque image est « à l'approche de l'écran » (chargée) et
-  // aucune n'est « au-delà de 3 écrans » (libérée) ; la largeur, seule, décide de la composition
-  const full = async () => Math.min(MAX_H, await page.evaluate(() => Math.ceil(document.documentElement.scrollHeight)));
-  let h = await full();
-  await page.setViewportSize({ width, height: h });
-  await page.waitForTimeout(500);
-  h = await full();
-  await page.setViewportSize({ width, height: h });
+  await page.waitForTimeout(1500);                       // mise à jour en arrière-plan du mur
+  // mur fixe : il tient dans l'écran, rien à faire défiler ni à agrandir
+  const h = height;
   // toutes les images chargées (ou en échec) avant la capture, 60 s au plus
   await page.waitForFunction(() => [...document.querySelectorAll('.item img')].every(im => !im.dataset.src && im.complete), null, { timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(800);                        // fondu d'apparition des images (220 ms)
@@ -119,7 +116,7 @@ async function capture(browser, { width, height, mobile, scale }, url, route) {
     if (shot.length <= TARGET) break;
   }
   await ctx.close();
-  return { jpeg: shot, meta: { width, height: h, scale, quality, bytes: shot.length, images: images.total, broken: images.broken, cut: h >= MAX_H } };
+  return { jpeg: shot, meta: { width, height: h, scale, quality, bytes: shot.length, images: images.total, broken: images.broken } };
 }
 
 /* ------------------------------------------------------------------ envoi (bucket privé « archive ») */
@@ -200,7 +197,7 @@ const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: proces
 const shots = {};
 for (const [name, view] of Object.entries(VIEWS)) {
   shots[name] = await capture(browser, view, url, site?.route);
-  console.log(`${name} : ${shots[name].meta.width} × ${shots[name].meta.height} px (× ${view.scale}), JPEG q${shots[name].meta.quality}, ${Math.round(shots[name].meta.bytes / 1024)} Ko, ${shots[name].meta.images} images${shots[name].meta.broken ? `, ${shots[name].meta.broken} NON chargées` : ''}${shots[name].meta.cut ? ', COUPÉE en bas' : ''}`);
+  console.log(`${name} : ${shots[name].meta.width} × ${shots[name].meta.height} px (× ${view.scale}), JPEG q${shots[name].meta.quality}, ${Math.round(shots[name].meta.bytes / 1024)} Ko, ${shots[name].meta.images} images${shots[name].meta.broken ? `, ${shots[name].meta.broken} NON chargées` : ''}`);
 }
 await browser.close();
 site?.close();

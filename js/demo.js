@@ -1,6 +1,6 @@
 /**
- * PROTOTYPE (?demo=1, branche proto-v2) — remplace le vrai mur par 70 FAUX dépôts étalés sur 5 mois, pour voir
- * l'usure et les prototypes (?edge=worn, ?wall=stack) sur un mur rempli. Rien n'est lu ni envoyé au serveur
+ * DÉMONSTRATION (?demo=1) — remplace le vrai mur par 70 FAUX dépôts étalés sur 5 mois, pour voir
+ * l'usure, les bords rongés et l'empilement sur un mur rempli. Rien n'est lu ni envoyé au serveur
  * (mode maquette, js/data.js) ; sans le paramètre, ce fichier n'est jamais téléchargé.
  * Images : des scènes dessinées ici (aucune vraie photo), mêmes images à chaque ouverture.
  */

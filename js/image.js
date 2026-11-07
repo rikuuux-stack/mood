@@ -12,8 +12,8 @@
  *   4. ré-encodage en JPEG : un canvas ne recopie AUCUNE métadonnée → EXIF, GPS, XMP, appareil disparaissent ;
  *   5. vérification du résultat : si une métadonnée subsistait malgré tout, on bloque l'envoi.
  */
-import { CONFIG } from './config.js?v=05f59e2af5';
-import { negative } from './wall.js?v=10fdf5c535';
+import { CONFIG } from './config.js?v=b90e1cccbc';
+import { negative } from './wall.js?v=e2142ccd51';
 
 export class ImageError extends Error {
   constructor(code, detail) { super(code); this.code = code; this.detail = detail; }
