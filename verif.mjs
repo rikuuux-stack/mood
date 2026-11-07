@@ -1,0 +1,45 @@
+import { negativeError } from './supabase/functions/_shared/negative.js';
+
+const U = process.env.SUPABASE_URL, H = { apikey: process.env.SERVICE_KEY, Authorization: `Bearer ${process.env.SERVICE_KEY}` };
+const posts = await (await fetch(`${U}/rest/v1/posts?select=id,kind,status,image_path,thumb_path,expired_at&image_path=not.is.null`, { headers: H })).json();
+let bad = 0;
+for (const p of posts) {
+  const bucket = p.status === "pending" ? "pending" : "published";
+  const files = p.kind === "video" ? [p.thumb_path] : [p.image_path, p.thumb_path];
+  const res = [];
+  for (const f of files) {
+    const r = await fetch(`${U}/storage/v1/object/${bucket}/${encodeURIComponent(f)}`, { headers: H });
+    const err = r.ok ? negativeError(new Uint8Array(await r.arrayBuffer())) : `HTTP ${r.status}`;
+    res.push(`${/\.neg\.jpg$/.test(f) ? ".neg" : "ANCIEN NOM"}:${err ?? "négatif"}`);
+    if (err || !/\.neg\.jpg$/.test(f)) bad++;
+  }
+  console.log(`${p.id.slice(0, 8)} (${p.kind}, ${p.status}, bucket ${bucket}) : ${res.join("  ")}`);
+}
+console.log(`Bilan : ${posts.length} dépôt(s) avec fichiers ; ${bad} fichier(s) qui ne sont pas un négatif « .neg » lisible.`);
+// Fichiers réellement présents dans le stockage (liste = base du stockage, sans cache) : en reste-t-il en couleur ?
+for (const bucket of ["published", "pending"]) {
+  const list = await (await fetch(`${U}/storage/v1/object/list/${bucket}`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ prefix: "", limit: 1000, offset: 0 }) })).json();
+  const files = list.filter(f => f.id);
+  const old = files.filter(f => !/\.neg\.jpg$/.test(f.name) && !/\.mp4$/.test(f.name));
+  console.log(`Stockage ${bucket} : ${files.length} fichier(s), dont ${old.length} ancien(s) (pas « .neg »).`);
+  for (const f of old.slice(0, 30)) {
+    const pub = bucket === "published" ? await fetch(`${U}/storage/v1/object/public/${bucket}/${encodeURIComponent(f.name)}`) : null;
+    console.log(`  ancien ${f.name.slice(0, 8)}…${f.name.slice(-10)} : présent dans la liste ; adresse publique → ${pub ? pub.status + " cache=" + (pub.headers.get("cf-cache-status") || "?") + " age=" + (pub.headers.get("age") || "-") : "sans objet (privé)"}`);
+    if (pub) await pub.arrayBuffer().catch(() => {});
+  }
+}
+// Anciennes adresses (noms d'avant la conversion, reconstruits : id.ext / id-thumb.ext) : que répondent-elles ?
+const H0 = h => `${h.status} cache=${h.headers.get("cf-cache-status") || "?"} age=${h.headers.get("age") || "-"}`;
+let open = 0, tried = 0;
+for (const p of posts) {
+  const bucket = p.status === "pending" ? "pending" : "published";
+  for (const name of ["jpg", "webp", "png"].flatMap(e => [`${p.id}.${e}`, `${p.id}-thumb.${e}`])) {
+    const auth = await fetch(`${U}/storage/v1/object/${bucket}/${encodeURIComponent(name)}`, { headers: H });
+    const pub = bucket === "published" ? await fetch(`${U}/storage/v1/object/public/${bucket}/${encodeURIComponent(name)}`) : null;
+    await auth.arrayBuffer().catch(() => {}); if (pub) await pub.arrayBuffer().catch(() => {});
+    if (auth.ok || pub?.ok) { open++; console.log(`  ANCIENNE ADRESSE ${p.id.slice(0, 8)}…${name.slice(-10)} : authentifiée ${H0(auth)} ; publique ${pub ? H0(pub) : "sans objet"}`); }
+    tried++;
+  }
+}
+console.log(`Anciennes adresses : ${open} répondent encore (sur ${tried} noms possibles essayés).`);
+process.exit(bad ? 1 : 0);
