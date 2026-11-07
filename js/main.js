@@ -165,11 +165,11 @@ function player(p) {
   ph.append(v, c);
   paintFrames(v, c, ALPHAS[ageOf(p).stage]);       // noir transparent ET usure du palier, image par image
   v.src = p.image.video;
-  if (reducedMotion.matches) {
+  if (reducedMotion.matches) {                       // ▶ dans la capsule de commandes (verre), pas sur l'image
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'vplay'; b.textContent = t('play'); b.setAttribute('aria-label', t('playVideo'));
+    b.type = 'button'; b.className = 'nav vplay'; b.textContent = t('play'); b.setAttribute('aria-label', t('playVideo'));
     b.addEventListener('click', () => { b.remove(); v.play().catch(() => {}); });
-    ph.append(b);
+    $('#viewerCtrl').insertBefore(b, $('#viewerCtrl [data-close]'));
   } else {
     v.autoplay = true;
     v.play().catch(() => {});                          // lecture muette : permise sans geste
@@ -217,8 +217,8 @@ function render() {
  * Mur : les éléments déjà créés sont RÉUTILISÉS d'un rendu à l'autre (images déjà chargées, pas de
  * clignotement) ; le placement est PROGRESSIF (le premier écran tout de suite, le reste par morceaux,
  * sans bloquer la page) ; chaque strate (mois / consigne) est placée sous la précédente, séparée par
- * un filet et le mot de sa consigne. `glide` : après une mise à jour en arrière-plan, les éléments
- * glissent vers leur nouvelle place.
+ * un filet et le mot de sa consigne. Après une mise à jour en arrière-plan, les éléments prennent leur
+ * nouvelle place sans glisser (le mur ne bouge pas, docs/mood-da.md).
  */
 const nodeCache = new Map();          // identifiant → { li, key, p, w, photoH }
 let wallNodes = [], renderToken = 0;
@@ -253,7 +253,7 @@ function divider(p, y, pad) {
   return li;
 }
 
-function renderWall(list, { glide = false } = {}) {
+function renderWall(list) {
   const token = ++renderToken;
   const W = wallEl.clientWidth || document.documentElement.clientWidth;
   lastW = W;
@@ -278,8 +278,6 @@ function renderWall(list, { glide = false } = {}) {
     if (!n.li.isConnected) wallEl.append(n.li);
     return n;
   });
-  wallEl.classList.toggle('glide', glide && !reducedMotion.matches);
-  if (glide) setTimeout(() => wallEl.classList.remove('glide'), 900);
   // hauteur réelle (image + commentaire éventuel) ; capH = bande du commentaire, que rien ne doit recouvrir
   const boxes = wallNodes.map(n => {
     const h = n.li.offsetHeight;
@@ -424,8 +422,11 @@ function showViewer() {
   const p = current();
   $('#viewerMeta').textContent = metaOf(p);
   freeVideos($('#viewerBody'));
+  $('#viewerCtrl .vplay')?.remove();
   setAge($('#viewerBody'), p);                          // agrandi, le dépôt garde son âge
   $('#viewerBody').replaceChildren(content(p, { full: true }));
+  // passage d'un dépôt à l'autre : fondu enchaîné (durée 0 avec « Réduire les animations », tokens.css)
+  const vb = $('#viewerBody'); vb.classList.remove('is-swap'); void vb.offsetWidth; vb.classList.add('is-swap');
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
   const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas
   captcha.reset($('[data-captcha]', $('#reportForm')));
@@ -462,7 +463,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=7078d3b6d9');
+    const { makeFragment, today } = await import('./fragment.js?v=bf67799b17');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -496,7 +497,10 @@ keepGo.addEventListener('click', () => {
   if (canShare()) navigator.share({ files: [kept.file] }).catch(e => { if (e.name !== 'AbortError') download(); });
   else download();
 });
-$('#viewer').addEventListener('close', () => { keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerBody').replaceChildren(); });
+$('#viewer').addEventListener('close', () => {
+  keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerCtrl .vplay')?.remove();   // vidéo arrêtée et libérée tout de suite
+  setTimeout(() => { if (!$('#viewer').open) $('#viewerBody').replaceChildren(); }, 260);    // vidé après le fondu de fermeture
+});
 
 const step = d => { const j = at + d; if (j >= 0 && j < seq.length) { at = j; showViewer(); } };
 $('#prev').addEventListener('click', () => step(-1));
@@ -760,7 +764,7 @@ if (cached) {
     if (!sameWall(was, page) || pendingChanged || prompt !== oldPrompt) {
       preload(posts);
       $('#empty').hidden = items().length > 0 || posts.length > 0;
-      if (view === 'wall') renderWall(items(), { glide: true }); else renderList(items());
+      if (view === 'wall') renderWall(items()); else renderList(items());
     }
   } catch { /* serveur injoignable : on garde le mur de l'appareil */ }
 } else {

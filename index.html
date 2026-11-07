@@ -22,7 +22,7 @@
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=c87dd264cf" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css?v=5e6db1c9b0">
 <link rel="stylesheet" href="docs/tokens.css?v=654385ab77">
-<link rel="stylesheet" href="css/site.css?v=74cd8714b9">
+<link rel="stylesheet" href="css/site.css?v=e38e28e9e5">
 </head>
 <body>
 <!-- Traitement des photos : NÉGATIF noir et blanc. Gris (luminance), inversé, puis courbe de tons :
@@ -89,9 +89,9 @@
 <a class="skip" href="#board" data-i18n="skip">Skip to content</a>
 
 <header class="bar">
-  <!-- nom du site : à l'endroit au repos ; se retourne brièvement à l'ouverture de la page et au survol ; ouvre le panneau « à propos » -->
-  <button type="button" class="id" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
-  <button type="button" class="btn-drop" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Drop</button>
+  <!-- deux capsules de verre posées sur le mur (docs/mood-da.md) : « Mood » ouvre le panneau « à propos », « Drop » le dépôt -->
+  <button type="button" class="id glass" data-open="about" aria-haspopup="dialog" data-i18n-label="siteMenu"><span class="id-name">Mood</span></button>
+  <button type="button" class="btn-drop glass" data-open="drop" aria-haspopup="dialog" data-i18n="drop">Drop</button>
 </header>
 
 <main id="board" tabindex="-1">
@@ -107,15 +107,14 @@
 
 <!-- Agrandissement d'un dépôt -->
 <dialog id="viewer" class="dlg dlg--viewer" aria-labelledby="viewerMeta">
-  <div class="dlg-head">
-    <p class="viewer-meta" id="viewerMeta"></p>
-    <span class="viewer-nav">
-      <button type="button" class="nav" id="prev" data-i18n-label="prev">‹</button>
-      <button type="button" class="nav" id="next" data-i18n-label="next">›</button>
-    </span>
-    <button type="button" class="x" data-close data-i18n-label="close">×</button>
+  <!-- une seule capsule de verre au-dessus de l'image : précédent, suivant, (▶ si « Réduire les animations »), fermer -->
+  <div class="viewer-ctrl glass" id="viewerCtrl">
+    <button type="button" class="nav" id="prev" data-i18n-label="prev">‹</button>
+    <button type="button" class="nav" id="next" data-i18n-label="next">›</button>
+    <button type="button" class="nav" data-close data-i18n-label="close">×</button>
   </div>
   <div class="viewer-body" id="viewerBody"></div>
+  <p class="viewer-meta" id="viewerMeta"></p>
   <!-- Keep : un fragment du mur autour de ce dépôt, fabriqué sur l'appareil (js/fragment.js), à partager ou garder -->
   <div class="keep" id="keep" hidden>
     <button type="button" class="link" id="keepBtn" aria-expanded="false" data-i18n="keep"></button>
@@ -151,7 +150,7 @@
 
 <!-- Dépôt : une image, des mots, ou les deux. Plus l'image a de pixels, moins il reste de mots (js/budget.js).
      Le visiteur choisit la taille d'affichage (S / M / L). Aucun grain (direction « blanc »). -->
-<dialog id="drop" class="dlg dlg--drop" aria-labelledby="dropTitle">
+<dialog id="drop" class="dlg dlg--drop sheet" aria-labelledby="dropTitle">
   <form id="dropForm" class="drop-form" novalidate>
     <div class="dlg-head">
       <h2 id="dropTitle" data-i18n="drop"></h2>
@@ -194,7 +193,7 @@
 </dialog>
 
 <!-- À propos : contact, réglages (langue, affichage), mentions -->
-<dialog id="about" class="dlg dlg--about" aria-labelledby="aboutTitle">
+<dialog id="about" class="dlg dlg--about sheet" aria-labelledby="aboutTitle">
   <div class="dlg-head">
     <h2 id="aboutTitle">Mood</h2>
     <button type="button" class="x" data-close data-i18n-label="close">×</button>
@@ -217,6 +216,6 @@
   <p class="hint small" data-i18n="mentionsKeep"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=25cfa10870"></script>
+<script type="module" src="js/main.js?v=69e2764110"></script>
 </body>
 </html>
