@@ -51,5 +51,19 @@ jobs:
                 if (pub) await pub.arrayBuffer().catch(() => {});
               }
             }
+            // Anciennes adresses (noms d'avant la conversion, reconstruits : id.ext / id-thumb.ext) : que répondent-elles ?
+            const H0 = h => `${h.status} cache=${h.headers.get("cf-cache-status") || "?"} age=${h.headers.get("age") || "-"}`;
+            let open = 0, tried = 0;
+            for (const p of posts) {
+              const bucket = p.status === "pending" ? "pending" : "published";
+              for (const name of ["jpg", "webp", "png"].flatMap(e => [`${p.id}.${e}`, `${p.id}-thumb.${e}`])) {
+                const auth = await fetch(`${U}/storage/v1/object/${bucket}/${encodeURIComponent(name)}`, { headers: H });
+                const pub = bucket === "published" ? await fetch(`${U}/storage/v1/object/public/${bucket}/${encodeURIComponent(name)}`) : null;
+                await auth.arrayBuffer().catch(() => {}); if (pub) await pub.arrayBuffer().catch(() => {});
+                if (auth.ok || pub?.ok) { open++; console.log(`  ANCIENNE ADRESSE ${p.id.slice(0, 8)}…${name.slice(-10)} : authentifiée ${H0(auth)} ; publique ${pub ? H0(pub) : "sans objet"}`); }
+                tried++;
+              }
+            }
+            console.log(`Anciennes adresses : ${open} répondent encore (sur ${tried} noms possibles essayés).`);
             process.exit(bad ? 1 : 0);
           '
