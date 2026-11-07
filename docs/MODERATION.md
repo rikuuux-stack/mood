@@ -37,8 +37,17 @@ La page est en anglais, avec des mots très courts (choix validé).
 **Taille d'affichage** : sous chaque dépôt, trois cases **S / M / L** (la taille choisie par le visiteur est pleine).
 Un toucher la change aussitôt, avant ou après validation.
 
-Les photos s'affichent ici **en couleur et telles qu'envoyées**, pour que tu juges le vrai contenu.
-Sur le mur, elles s'affichent en négatif noir et blanc (le même pour tous), puis pâlissent lentement avec le temps. Ici, dans /admin/, tu vois le vrai fichier, en couleur.
+Les photos s'affichent ici **telles qu'elles sont stockées**. Depuis la correction « fix-original », le téléphone du visiteur
+envoie la photo **déjà en négatif noir et blanc** : l'original en couleur ne quitte jamais son téléphone, ni le serveur ni toi
+ne le voyez. Sur le mur, s'y ajoutent la transparence et l'usure. Les photos déposées avant cette correction sont encore en
+couleur ici, tant que la conversion ci-dessous n'a pas été lancée.
+
+### Photos déposées avant « fix-original » : conversion en négatif (à décider)
+
+Prête, jamais lancée sans toi. GitHub ▸ **Actions** ▸ **Supabase** ▸ **Run workflow** ▸ task :
+- **negate-dry** : essai à blanc. Lit chaque fichier en couleur, le convertit en mémoire, vérifie, et affiche le bilan. **N'écrit rien.**
+- **negate** : pour de bon. Chaque photo (et sa miniature, et l'image fixe d'une vidéo) est remplacée par son négatif, puis
+  le fichier en couleur est **supprimé, définitivement**. Les textes, dates, tailles et l'usure ne changent pas.
 
 **Vidéos et GIF** : une vidéo apparaît avec un lecteur (▶) et son image fixe ; touche-la pour la voir **avant de valider**.
 Elle est déjà en négatif noir et blanc (convertie sur le téléphone du visiteur), muette, 60 s au plus. Sous la carte : sa durée et son poids réel.

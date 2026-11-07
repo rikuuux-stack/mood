@@ -22,7 +22,7 @@
 <link rel="preload" href="assets/fonts/PlexSansJP-200-core.woff2?v=c87dd264cf" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/fonts.css?v=5e6db1c9b0">
 <link rel="stylesheet" href="docs/tokens.css?v=571042dec3">
-<link rel="stylesheet" href="css/site.css?v=5708c8c72b">
+<link rel="stylesheet" href="css/site.css?v=f8497164c3">
 </head>
 <body>
 <!-- Traitement des photos : NÉGATIF noir et blanc. Gris (luminance), inversé, puis courbe de tons :
@@ -82,6 +82,31 @@
       <feFuncG type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
       <feFuncB type="table" tableValues="0.76 0.64 0.47 0.24 0"/>
     </feComponentTransfer>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6.6667 0 0 0 -3.8667" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
+  </filter>
+  <filter id="toneN" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0" result="t"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6.6667 0 0 0 -2" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode1N" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0" result="t"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6.6667 0 0 0 -2.4667" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode2N" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0" result="t"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6.6667 0 0 0 -2.9334" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode3N" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0" result="t"/>
+    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6.6667 0 0 0 -3.4" result="a"/>
+    <feComposite in="t" in2="a" operator="in"/>
+  </filter>
+  <filter id="erode4N" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
+    <feColorMatrix type="saturate" values="0" result="t"/>
     <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  6.6667 0 0 0 -3.8667" result="a"/>
     <feComposite in="t" in2="a" operator="in"/>
   </filter>
@@ -216,6 +241,6 @@
   <p class="hint small" data-i18n="mentionsKeep"></p>
 </dialog>
 
-<script type="module" src="js/main.js?v=46dbeab6e9"></script>
+<script type="module" src="js/main.js?v=4a908aff1c"></script>
 </body>
 </html>

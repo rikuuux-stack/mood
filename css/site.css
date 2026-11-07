@@ -109,6 +109,15 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 .age-2 .photo img { filter: url(#erode2); }
 .age-3 .photo img { filter: url(#erode3); }
 .age-4 .photo img { filter: url(#erode4); }
+/* photos et vidéos : pas de menu « Enregistrer l'image » à l'appui long (iPhone), pas de glisser-déposer, pas de
+   sélection ; le clic droit est bloqué dans js/main.js. Keep (.keep-preview) n'est pas concerné : il est fait pour ça. */
+.photo, .photo img, .photo video, .photo canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+/* fichiers déjà en négatif (faits sur le téléphone, fix-original) : seulement la transparence et l'usure */
+.photo.is-neg img { filter: url(#toneN); }
+.age-1 .photo.is-neg img { filter: url(#erode1N); }
+.age-2 .photo.is-neg img { filter: url(#erode2N); }
+.age-3 .photo.is-neg img { filter: url(#erode3N); }
+.age-4 .photo.is-neg img { filter: url(#erode4N); }
 /* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (#111 → #4a4a4a : contraste ≥ 8,8:1 sur blanc) */
 .item .sticker, .item .caption, .row .sticker, .row .caption, .viewer-body .sticker, .viewer-body .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
 /* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */

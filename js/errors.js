@@ -6,7 +6,7 @@
 // codes renvoyés par supabase/functions/submit pour une vidéo → raison affichée (clé why_…)
 const VIDEO_SERVER = { video: 'video', type: 'video', meta: 'video', size: 'size', audio: 'audio', location: 'location', duration: 'duration', tooBig: 'tooBig' };
 const SERVER = { captcha: 'eCaptcha', rate: 'eRate', tooBig: 'eTooBigSrv', type: 'eType', thumb: 'eType', size: 'eType', full: 'eFull',
-  meta: 'eMeta', tooLong: 'eTooLong', empty: 'eEmpty', rights: 'eRights', name: 'eName', gone: 'eGone', network: 'eNetwork' };
+  meta: 'eMeta', negative: 'eNegative', tooLong: 'eTooLong', empty: 'eEmpty', rights: 'eRights', name: 'eName', gone: 'eGone', network: 'eNetwork' };
 
 /** Erreur du serveur → { key, why } ; isVideo : le dépôt était une vidéo ou un GIF. */
 export function serverError(code, reason, isVideo) {

@@ -13,13 +13,13 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=d942c1023a';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=83d164e018';
 import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, ERODE, alphaOf } from './wall.js?v=10fdf5c535';
-import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=fa2cdcb911';
-import * as captcha from './captcha.js?v=78262d77a4';
+import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=4cbe9f94a9';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=48ff74ecb7';
+import * as captcha from './captcha.js?v=2844764173';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
-import { serverError, videoError } from './errors.js?v=d67ec3ce38';
+import { serverError, videoError } from './errors.js?v=51450bce30';
 
 /* ------------------------------------------------------------------ PROTOTYPES (branche proto-v2, jamais sans paramètre)
  * ?edge=worn  : les bords des images s'effritent avec l'âge (js/edge.js) ;
@@ -118,7 +118,9 @@ function photo(p, full) {
   img.alt = full ? label(p) : '';
   img.decoding = 'async';
   // noir et blanc + grain : appliqué par .photo (css/site.css) à toutes les photos déposées
-  const ph = document.createElement('span'); ph.className = 'photo'; ph.append(img);
+  img.draggable = false;                               // ni glisser-déposer, ni « Enregistrer l'image » (voir plus bas)
+  // fichier déjà en négatif (.is-neg) : seuls la transparence et l'usure sont appliquées (#toneN, #erode1N …)
+  const ph = document.createElement('span'); ph.className = p.image.neg ? 'photo is-neg' : 'photo'; ph.append(img);
   const done = () => ph.classList.add('is-loaded');
   img.addEventListener('load', done);                  // à chaque (re)chargement : l'image peut être libérée puis revenir
   img.addEventListener('error', done);
@@ -127,6 +129,14 @@ function photo(p, full) {
   if (img.complete && img.naturalWidth) done();
   return ph;
 }
+
+/* Photos et vidéos : ni clic droit (« Enregistrer l'image sous… »), ni glisser-déposer vers le bureau, partout
+ * (mur, liste, agrandissement, aperçu de Drop). L'appui long de l'iPhone est coupé en CSS (-webkit-touch-callout).
+ * Une capture d'écran reste possible (voulu) ; Keep garde son image à partager. Le fichier stocké, lui, n'est plus
+ * l'original (négatif fait sur le téléphone) : c'est ce qui protège vraiment, ceci n'est qu'un frein. */
+const guarded = e => e.target instanceof Element && e.target.closest('.photo, .vcanvas, .preview');
+document.addEventListener('contextmenu', e => { if (guarded(e)) e.preventDefault(); });
+document.addEventListener('dragstart', e => { if (guarded(e)) e.preventDefault(); });
 
 /*
  * Vidéo dans l'agrandissement : téléchargée seulement à l'ouverture, jouée muette, en boucle, neuve (négatif
@@ -168,6 +178,7 @@ function player(p) {
   const v = document.createElement('video');
   v.crossOrigin = 'anonymous';
   v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+  v.disablePictureInPicture = true; v.setAttribute('controlslist', 'nodownload noplaybackrate');
   v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
   v.width = p.image.w; v.height = p.image.h;
   v.poster = p.image.thumb;
@@ -523,7 +534,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=7c9cfbde91');
+    const { makeFragment, today } = await import('./fragment.js?v=6c3011cb48');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -613,7 +624,7 @@ let src = null, rendered = null, preparing = null, imageError = '';   // src : i
 let media = null, converting = null;                  // media : vidéo ou GIF ouvert (js/video.js) ; converting : AbortController
 const budget = () => (media ? textBudget(media.width, media.height) : src ? textBudget(src.width, src.height) : textBudget());
 // js/video.js (et ses bibliothèques) n'est chargé qu'au choix d'une vidéo ou d'un GIF
-const videoLib = () => import('./video.js?v=b8358bd802');
+const videoLib = () => import('./video.js?v=68afb6c95d');
 /** Message d'une erreur de lecture ou de conversion vidéo (js/video.js), avec la raison quand elle est connue. */
 const videoErrorText = err => { const { key, why } = videoError(err); return t(key, { why: t(`why_${why}`) }); };
 const isMediaFile = f => /^video\//.test(f.type) || f.type === 'image/gif' || /\.(gif|mov|mp4|m4v|webm)$/i.test(f.name || '');
@@ -773,7 +784,7 @@ form.addEventListener('submit', async e => {
       if (!image || copy) {
         const nowIso = new Date().toISOString();
         addPending({ id: out.id, kind: video ? 'video' : image ? 'image' : 'text', text, name, size, prompt, createdAt: nowIso, approvedAt: nowIso,
-          image: image ? { src: copy, thumb: copy, w: image.width, h: image.height } : null });
+          image: image ? { src: copy, thumb: copy, w: image.width, h: image.height, neg: true } : null });
         pending = pendingPosts();
         render();
       }

@@ -1,4 +1,5 @@
-"""Réécrit le bloc <svg> des filtres de index.html (#tone, #erode1 … #erode4) à partir de js/wall.js (TONE, ERODE).
+"""Réécrit le bloc <svg> des filtres de index.html (#tone, #erode1 … #erode4) à partir de js/wall.js (TONE, ERODE),
+   et leurs jumeaux #toneN, #erode1N … #erode4N pour les fichiers DÉJÀ en négatif (fix-original : seulement la transparence).
    Usage : python3 tools/filters.py .   (puis python3 tools/stamp.py)"""
 import re, sys, json
 root = sys.argv[1]
@@ -25,6 +26,15 @@ for fid, e in [('tone', BASE)] + [(f'erode{i}', e) for i, e in enumerate(ERODE, 
         src = 't'
     out.append(f'    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  {fmt(e["k"])} 0 0 0 {fmt(c)}" result="a"/>\n')
     out.append(f'    <feComposite in="{src}" in2="a" operator="in"/>\n')
+    out.append('  </filter>\n')
+# fichiers déjà en négatif (faits sur le téléphone) : le gris stocké EST le négatif → pas de seconde inversion,
+# seulement l'opacité, avec les mêmes seuils et pentes (même rendu que #tone / #erodeN sur un original)
+for fid, e in [('toneN', BASE)] + [(f'erode{i}N', e) for i, e in enumerate(ERODE, 1)]:
+    c = 1 - e['k'] * e['t']
+    out.append(f'  <filter id="{fid}" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">\n')
+    out.append('    <feColorMatrix type="saturate" values="0" result="t"/>\n')
+    out.append(f'    <feColorMatrix in="t" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  {fmt(e["k"])} 0 0 0 {fmt(c)}" result="a"/>\n')
+    out.append('    <feComposite in="t" in2="a" operator="in"/>\n')
     out.append('  </filter>\n')
 out.append('</svg>')
 p = f'{root}/index.html'

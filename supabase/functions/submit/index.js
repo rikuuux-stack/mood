@@ -2,7 +2,8 @@
  * POST /functions/v1/submit — reçoit un dépôt (multipart/form-data).
  *
  * Champs : text, name, lang, size (s / m / l), consent=1, captcha (jeton Turnstile), et au choix :
- *   - image (grande) + thumb (miniature) ;
+ *   - image (grande) + thumb (miniature), DÉJÀ EN NÉGATIF noir et blanc (JPEG, fait sur le téléphone ; revérifié ici,
+ *     un original est refusé et jamais stocké : _shared/negative.js) ;
  *   - video (MP4 H.264, converti dans le navigateur : 480 px de grand côté, muet, noir et blanc, ≤ 60 s,
  *     ≤ 4 Mo) + poster (image fixe, affichée sur le mur). La vidéo est lue de l'intérieur (_shared/mp4.js) :
  *     format réel, piste son, coordonnées GPS, dimensions, durée. Un GIF arrive déjà converti en vidéo.
@@ -14,6 +15,7 @@
  */
 import { cors, json, fail, service, ipHash, verifyCaptcha, caller, notify, later, tooLarge, SITE_URL, CACHE } from '../_shared/http.js';
 import { sniffType, dimensions, hasMetadata, looksLikeLink } from '../_shared/image.js';
+import { negativeError } from '../_shared/negative.js';
 import { textBudget, textLength } from '../_shared/budget.js';
 import { inspectMp4, checkVideo } from '../_shared/mp4.js';
 
@@ -47,6 +49,10 @@ async function readImage(file, maxBytes, maxSide) {
   if (hasMetadata(bytes)) return { error: 'meta' };
   const dim = dimensions(bytes);
   if (!dim || dim.width < 1 || dim.height < 1 || Math.max(dim.width, dim.height) > maxSide) return { error: 'size' };
+  // fix-original : le téléphone envoie un NÉGATIF noir et blanc (JPEG) ; un original (couleur, ou gris avec de vrais
+  // blancs) est refusé et n'est jamais stocké. Vérifié sur les pixels (_shared/negative.js).
+  const neg = negativeError(bytes);
+  if (neg) return { error: 'negative', reason: neg };
   return { bytes, type, ...dim };
 }
 
@@ -80,12 +86,12 @@ Deno.serve(async req => {
     full = await readVideo(form.get('video'));
     if (full.error) { console.warn('[submit] vidéo refusée :', full.error, JSON.stringify(full.info || {})); return fail(req, full.error === 'tooBig' ? 413 : 415, full.error); }
     thumb = await readImage(form.get('poster'), MAX_THUMB, POSTER_SIDE);
-    if (thumb.error) { console.warn('[submit] image fixe refusée :', thumb.error); return fail(req, 415, 'thumb', thumb.error); }
+    if (thumb.error) { console.warn('[submit] image fixe refusée :', thumb.error, thumb.reason || ''); return fail(req, 415, thumb.error === 'negative' ? 'negative' : 'thumb', thumb.error); }
   } else if (hasImage) {
     full = await readImage(imageFile, MAX_BYTES, MAX_SIDE);
-    if (full.error) { console.warn('[submit] image refusée :', full.error); return fail(req, full.error === 'tooBig' ? 413 : 415, full.error); }
+    if (full.error) { console.warn('[submit] image refusée :', full.error, full.reason || ''); return fail(req, full.error === 'tooBig' ? 413 : 415, full.error, full.reason); }
     thumb = await readImage(thumbFile, MAX_THUMB, THUMB_SIDE);
-    if (thumb.error) { console.warn('[submit] miniature refusée :', thumb.error); return fail(req, 415, 'thumb', thumb.error); }
+    if (thumb.error) { console.warn('[submit] miniature refusée :', thumb.error, thumb.reason || ''); return fail(req, 415, thumb.error === 'negative' ? 'negative' : 'thumb', thumb.error); }
   } else if (!text) {
     return fail(req, 400, 'empty');
   }
@@ -124,8 +130,9 @@ Deno.serve(async req => {
   let image_path = null, thumb_path = null;
   const promptRead = db.from('prompt').select('text').eq('id', 1).maybeSingle();   // lue pendant l'envoi des fichiers
   if (full) {
-    image_path = `${id}.${hasVideo ? 'mp4' : EXT[full.type]}`;
-    thumb_path = `${id}-${hasVideo ? 'poster' : 'thumb'}.${EXT[thumb.type]}`;
+    // « .neg. » : fichier déjà en négatif (vérifié ci-dessus) → le site n'applique que transparence et usure
+    image_path = hasVideo ? `${id}.mp4` : `${id}.neg.${EXT[full.type]}`;
+    thumb_path = `${id}-${hasVideo ? 'poster' : 'thumb'}.neg.${EXT[thumb.type]}`;
     // les deux fichiers en même temps ; si l'un échoue, l'autre est retiré (aucun fichier orphelin)
     const results = await Promise.all([[image_path, full], [thumb_path, thumb]].map(([path, f]) =>
       db.storage.from(bucket).upload(path, f.bytes, { contentType: f.type, upsert: false, cacheControl: CACHE })));

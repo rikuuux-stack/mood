@@ -5,11 +5,15 @@
  *      (> 60 Mo ou > 100 mégapixels : au-delà, la mémoire d'un iPhone n'est plus sûre) ;
  *   2. redessin dans un canvas, réduit à 2000 px de côté maximum (+ miniature 800 px), avec le grain
  *      choisi par le visiteur (0 = aucun) ;
- *   3. ré-encodage (WebP, ou JPEG si le navigateur ne sait pas produire de WebP) :
- *      un canvas ne recopie AUCUNE métadonnée → EXIF, GPS, XMP, profil appareil disparaissent ;
- *   4. vérification du résultat : si une métadonnée subsistait malgré tout, on bloque l'envoi.
+ *   3. NÉGATIF noir et blanc calculé ICI, sur le téléphone (gris, inversion, courbe : negative() de js/wall.js),
+ *      comme pour les vidéos : l'original en couleur ne quitte JAMAIS l'appareil, le serveur ne reçoit et ne
+ *      stocke que le négatif (il le revérifie : _shared/negative.js). La transparence et l'usure restent
+ *      appliquées à l'affichage (filtres #toneN, #erode1N … #erode4N) ;
+ *   4. ré-encodage en JPEG : un canvas ne recopie AUCUNE métadonnée → EXIF, GPS, XMP, appareil disparaissent ;
+ *   5. vérification du résultat : si une métadonnée subsistait malgré tout, on bloque l'envoi.
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
+import { negative } from './wall.js?v=10fdf5c535';
 
 export class ImageError extends Error {
   constructor(code, detail) { super(code); this.code = code; this.detail = detail; }
@@ -46,6 +50,21 @@ function addGrain(g, w, h, amount, cell) {
   g.putImageData(im, 0, 0);
 }
 
+/**
+ * Remplace les pixels du canvas par leur NÉGATIF noir et blanc (le même que l'affichage : negative() de js/wall.js).
+ * Après ceci, plus aucune couleur ni valeur d'origine dans le canvas : c'est lui seul qui est encodé et envoyé.
+ */
+export function toNegative(g, w, h) {
+  const im = g.getImageData(0, 0, w, h), d = im.data;
+  const lut = new Uint8ClampedArray(256 * 4);           // luminance (×4 pour la précision) → gris du négatif
+  for (let i = 0; i < lut.length; i++) lut[i] = Math.round(negative(i / (lut.length - 1)) * 255);
+  for (let o = 0; o < d.length; o += 4) {
+    const v = lut[Math.round((0.2126 * d[o] + 0.7152 * d[o + 1] + 0.0722 * d[o + 2]) * 4) | 0];
+    d[o] = d[o + 1] = d[o + 2] = v; d[o + 3] = 255;     // opaque : la transparence se décide à l'affichage
+  }
+  g.putImageData(im, 0, 0);
+}
+
 function canvasOf(src, w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -56,12 +75,11 @@ function canvasOf(src, w, h) {
 }
 const fit = (w, h, side) => { const s = Math.min(1, side / Math.max(w, h)); return [Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))]; };
 
-/** WebP (ou JPEG pour Safari), métadonnées retirées ; qualité baissée si le fichier dépasse la limite. */
+/** JPEG (le serveur sait le relire pour vérifier le négatif), métadonnées retirées ; qualité baissée si trop lourd. */
 async function encode(c) {
   let blob = null;
-  for (const q of [0.86, 0.75, 0.62]) {
-    blob = await toBlob(c, 'image/webp', q);
-    if (!blob || blob.type !== 'image/webp') blob = await toBlob(c, 'image/jpeg', q + 0.02);   // Safari : pas de WebP
+  for (const q of [0.88, 0.77, 0.64]) {
+    blob = await toBlob(c, 'image/jpeg', q);
     if (!blob || !blob.size) throw new ImageError('eDecode');
     if (blob.size <= CONFIG.upload.maxBytes) break;            // le grain alourdit le fichier
   }
@@ -97,11 +115,12 @@ export function drawPreview(canvas, src, grain, side = 800) {
   addGrain(g, w, h, grain, Math.max(1, Math.round(Math.max(w, h) / 800)));
 }
 
-/** 2. Image finale : grande (≤ 2000 px) avec son grain, miniature tirée de la grande (même grain). */
+/** 2. Image finale : grande (≤ 2000 px) EN NÉGATIF, miniature tirée de la grande (déjà en négatif). */
 export async function renderImage(src, { grain = 0 } = {}) {
   const U = CONFIG.upload;
   const full = canvasOf(src.img, src.width, src.height);
   addGrain(full.g, src.width, src.height, grain, Math.max(1, Math.round(Math.max(src.width, src.height) / 800)));
+  toNegative(full.g, src.width, src.height);            // l'original s'arrête ici : seul le négatif est encodé
   const [tw, th] = fit(src.width, src.height, U.thumbSide);
   const thumb = canvasOf(full.c, tw, th);
   const [fullBlob, thumbBlob] = [await encode(full.c), await encode(thumb.c)];
