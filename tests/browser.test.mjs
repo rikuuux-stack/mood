@@ -10,16 +10,18 @@
  *   - plus de bandeau : « Mood » et « Drop » sont deux capsules de verre (docs/mood-da.md) ;
  *   - mur FIXE (js/stack.js) : un seul écran, sans défilement, les 16 (iPhone) / 40 (ordinateur) dépôts les plus
  *     récents, textes au-dessus des images, mois en bandes ; les plus anciens ne sont que dans la liste ;
- *   - bords rongés (js/edge.js) : chaque photo a son contour, le même sur le mur, dans la liste et dans l'agrandissement ;
+ *   - bords rongés (js/edge.js) : chaque photo a son contour, le même sur le mur, dans la liste et dans Keep ;
+ *   - plus d'agrandissement : toucher une photo ou un texte du mur ne fait rien ; une vidéo se lit sur place, une
+ *     fois ; dans la liste, toucher un dépôt ouvre la feuille Keep (le dépôt seul) avec Report ;
  *   - ?demo et ?future : sans le paramètre, rien n'est chargé (js/demo.js jamais demandé) ;
  *   - dépôt complet (Drop → Send) : seul le négatif part, « Under review » sur le mur de la personne ;
  *   - vue Wall et vue List, avec la barre d'adresse simulée (hauteur 844 → 750 → 844) et le défilement de la
  *     liste : Mood et Drop restent à leur place et AUCUNE image ne passe dessus ;
  *   - fond blanc uni, sans grain (ni couche body::before, ni grain sur les photos) ;
  *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les sombres du négatif deviennent
- *     transparents), aucune opacité, rien ne change au survol ni à l'agrandissement, la liste montre le même âge ;
+ *     transparents), aucune opacité, rien ne change au survol, la liste montre le même âge ;
  *     textes lisibles à tout âge (≥ 7:1) ;
- *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
+ *   - Keep (depuis la liste) : le dépôt seul aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
  *     sans métadonnées, ligne du bas présente ; partage natif sur iPhone, téléchargement sur ordinateur ;
  *   - fuseaux : le mur (mois) est le même pour tous, à l'heure de Tokyo (visiteurs à Tokyo, Paris,
  *     Los Angeles) ; la date du fragment suit le téléphone (Paris, 30.09 à 17 h 30 → « 30.09.2026 ») ;
@@ -149,7 +151,7 @@ ok(load.scroll <= 0 && load.outside === 0, `mur fixe : la page ne défile pas, t
 ok(load.loaded === load.imgs, `toutes les images du mur chargées (${load.loaded} / ${load.imgs} en mémoire)`);
 ok(load.textAbove && load.newestOnTop, 'empilement : le plus récent au-dessus, les textes au-dessus des images', JSON.stringify(load));
 ok(load.months.length >= 2 && load.months.every(m => /^[A-Z]{3,5}\.\d{4}$/.test(m)), `mois en bandes, leur mot en petit : ${load.months.join(' ')}`);
-// bords rongés : chaque photo a un contour (clip-path) ; le même pour un dépôt dans la liste et l'agrandissement
+// bords rongés : chaque photo a un contour (clip-path) ; le même pour un dépôt dans la liste et Keep
 const edges = await pg.evaluate(() => [...document.querySelectorAll('#wall .item .photo')].map(ph => ({ clip: ph.style.clipPath, age: +(ph.closest('.item').className.match(/age-(\d)/)?.[1] || 0) })));
 ok(edges.length > 0 && edges.every(e => e.clip.startsWith('polygon(')) && new Set(edges.map(e => e.clip)).size === edges.length, `bords rongés : un contour propre à chaque photo (${edges.length})`);
 // sans ?demo ni ?future : rien n'est chargé pour eux
@@ -267,7 +269,7 @@ ok(worst >= 7, `textes et commentaires lisibles à tout âge (contraste mini ${w
 const filters = await pg.evaluate(() => [1, 2, 3, 4].every(i => document.getElementById(`erode${i}`)));
 ok(filters, 'quatre filtres partagés #erode1 … #erode4 dans la page');
 
-/* ordinateur : le survol ne rend pas l'image neuve ; l'agrandissement, si */
+/* ordinateur : le survol ne rend pas l'image neuve ; un clic sur une photo du mur ne fait rien (plus d'agrandissement) */
 const desk = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
 await fakeServer(desk);
 const dp = await desk.newPage();
@@ -282,12 +284,19 @@ await dp.mouse.move(pt.x, pt.y); await dp.waitForTimeout(300);
 const hov = await target.evaluate(li => getComputedStyle(li.querySelector('.photo img')).filter);
 ok(hov.includes('#erode4'), 'survol : l\'image garde son âge (pas de retour à neuf)', hov);
 const wallClip = await target.evaluate(li => li.querySelector('.photo').style.clipPath);
-await dp.mouse.click(pt.x, pt.y); await dp.waitForSelector('#viewer[open] .photo img');
-const big = await dp.evaluate(() => ({ filter: getComputedStyle(document.querySelector('#viewer .photo img')).filter, clip: document.querySelector('#viewer .photo').style.clipPath }));
-ok(big.filter.includes('#erode4'), 'agrandissement : l\'image garde son âge (jamais de retour à neuf, seul Keep fige un instant)', big.filter);
-ok(big.clip === wallClip && big.clip.startsWith('polygon('), 'agrandissement : les bords restent rongés, le même contour que sur le mur');
+const wallId = await target.evaluate(li => li.querySelector('img').dataset.src || li.querySelector('img').getAttribute('src'));
+await dp.mouse.click(pt.x, pt.y); await dp.waitForTimeout(400);
+const afterClick = await dp.evaluate(() => ({ dialogs: [...document.querySelectorAll('dialog[open]')].map(d => d.id), viewer: !!document.querySelector('#viewer'), cursor: getComputedStyle(document.querySelector('#wall .item:not(.item--video) .item-hit')).cursor }));
+ok(!afterClick.dialogs.length && !afterClick.viewer && afterClick.cursor !== 'pointer', 'mur : toucher une photo ou un texte ne fait rien (plus d’agrandissement, pas de curseur « main »)', JSON.stringify(afterClick));
+// liste : la même image garde son âge et le même contour rongé
+await dp.evaluate(() => document.querySelector('#viewBtn').click()); await dp.waitForTimeout(400);
+const inList = await dp.evaluate(src => {
+  const img = [...document.querySelectorAll('#list .row .photo img')].find(i => (i.dataset.src || i.getAttribute('src')) === src);
+  return img ? { filter: getComputedStyle(img).filter, clip: img.closest('.photo').style.clipPath } : null;
+}, wallId);
+ok(inList && inList.filter.includes('#erode4') && inList.clip === wallClip, 'liste : la même image, même âge, même contour rongé que sur le mur', JSON.stringify(inList));
 
-/* Keep : fragment du mur (ordinateur : téléchargement) */
+/* Keep : le dépôt seul, depuis la liste (ordinateur : téléchargement) */
 const imageInfo = (page, bytes) => page.evaluate(async arr => {
   const blob = new Blob([new Uint8Array(arr)], { type: 'image/jpeg' });
   const bmp = await createImageBitmap(blob);
@@ -301,12 +310,13 @@ const imageInfo = (page, bytes) => page.evaluate(async arr => {
   return { w: bmp.width, h: bmp.height, bright, corner, meta: await hasMetadata(blob), jpeg: arr[0] === 0xff && arr[1] === 0xd8 };
 }, [...bytes]);
 
-await dp.keyboard.press('Escape'); await dp.waitForSelector('#viewer:not([open])', { state: 'attached' });
-{ const p2 = await hittable(dp, '#wall .item.item--image:not(.is-pending)'); await dp.mouse.click(p2.x, p2.y); }
-await dp.waitForSelector('#viewer[open]');
-ok(await dp.isVisible('#keepBtn'), 'Keep : bouton présent dans l\'agrandissement d\'un dépôt du mur');
-await dp.click('#keepBtn');
+// Keep : depuis la liste, toucher un dépôt ouvre la feuille Keep (le dépôt seul, avec son usure du jour)
+const keepRow = dp.locator('#list .row--image:not(.is-pending) .item-hit').first();
+await keepRow.scrollIntoViewIfNeeded(); await keepRow.click();
+await dp.waitForSelector('#keepSheet[open]');
 await dp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
+const sheet = await dp.evaluate(() => { const c = getComputedStyle(document.querySelector('#keepSheet')); return { bf: c.backdropFilter || c.webkitBackdropFilter, report: !!document.querySelector('#keepSheet #report summary') }; });
+ok(/blur\(/.test(sheet.bf) && sheet.report, 'liste : toucher un dépôt ouvre la feuille Keep (verre), avec le signalement', JSON.stringify(sheet));
 for (const [format, H] of [['4:5', 1350], ['9:16', 1920]]) {
   if (format !== '4:5') { await dp.click(`[data-format="${format}"]`); await dp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 }); }
   const t0 = Date.now();
@@ -327,12 +337,22 @@ ok(footer === '10.10.2026', 'date de la ligne du bas au format JJ.MM.AAAA', foot
 const tainted = await dp.evaluate(async () => {
   // le fragment se fabrique avec toBlob : un canvas « tainted » lèverait une SecurityError
   const { makeFragment } = await import('/js/fragment.js');
-  const li = document.querySelector('#wall .item.item--image:not(.is-pending)');
-  try { const out = await makeFragment({ li, wallEl: document.querySelector('#wall'), format: '4:5', prompt: 'trace' }); return out; }
+  const li = document.querySelector('#list .row--image:not(.is-pending)');
+  try { const out = await makeFragment({ li, format: '4:5', prompt: 'trace' }); return out; }
   catch (e) { return { footer: `ERREUR ${e.name}: ${e.message}`, photos: {} }; }
 });
 ok(/^moodwall\.pages\.dev — \d\d\.\d\d\.\d{4} — trace$/.test(tainted.footer), 'canvas lisible (pas « tainted ») ; ligne du bas : adresse — date — consigne', tainted.footer);
-ok(tainted.photos.drawn > 0 && tainted.photos.missing === 0, `toutes les photos du fragment sont dessinées (${tainted.photos.drawn}, aucune manquante : images chargées avec CORS)`, JSON.stringify(tainted.photos));
+ok(tainted.photos.drawn === 1 && tainted.photos.missing === 0, 'Keep : le dépôt seul (une image dessinée, aucun voisin), chargée avec CORS', JSON.stringify(tainted.photos));
+// le dépôt seul : la photo est au centre, tout le pourtour reste blanc (aucun voisin coupé par le bord)
+const alone = await dp.evaluate(async () => {
+  const { makeFragment } = await import('/js/fragment.js');
+  const out = await makeFragment({ li: document.querySelector('#list .row--image:not(.is-pending)'), format: '4:5' });
+  const bmp = await createImageBitmap(out.blob), c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+  const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+  const strip = (x, y, w, h) => { const d = g.getImageData(x, y, w, h).data; let dark = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 240) dark++; return dark; };
+  return { top: strip(0, 0, 1080, 100), left: strip(0, 0, 100, 1250), right: strip(980, 0, 100, 1250), middle: strip(340, 400, 400, 400) };
+});
+ok(alone.top === 0 && alone.left === 0 && alone.right === 0 && alone.middle > 0, 'Keep : le dépôt seul au centre, fond blanc tout autour (plus de voisins)', JSON.stringify(alone));
 await dp.keyboard.press('Escape');
 
 /* Keep sur iPhone : menu de partage natif avec le fichier */
@@ -346,8 +366,12 @@ const pp = await phone.newPage();
 pp.on('pageerror', e => errors.push(e.message));
 await pp.goto(BASE); await pp.waitForSelector('#wall .item.item--text');
 await pp.waitForTimeout(500);
-{ const p3 = await hittable(pp, '#wall .item.item--text'); await pp.touchscreen.tap(p3.x, p3.y); } await pp.waitForSelector('#viewer[open]');
-await pp.tap('#keepBtn');
+// mur : toucher un texte ne fait rien
+{ const p3 = await hittable(pp, '#wall .item.item--text'); await pp.touchscreen.tap(p3.x, p3.y); await pp.waitForTimeout(300); }
+ok(!(await pp.evaluate(() => document.querySelectorAll('dialog[open]').length)), 'iPhone : toucher un texte du mur ne fait rien');
+await pp.evaluate(() => document.querySelector('#viewBtn').click()); await pp.waitForTimeout(400);
+await pp.locator('#list .row--text .item-hit').first().tap();
+await pp.waitForSelector('#keepSheet[open]');
 await pp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
 ok(await pp.textContent('#keepGo') === 'Share', 'iPhone : le bouton propose « Share »');
 await pp.tap('#keepGo'); await pp.waitForTimeout(300);
@@ -407,7 +431,7 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
   await ic.close();
 }
 
-/* Vidéos : l'image fixe sur le mur (aucun téléchargement de la vidéo), lecture à l'ouverture, libération à la fermeture */
+/* Vidéos : l'image fixe sur le mur (aucun téléchargement), lecture SUR PLACE au toucher, une fois, puis retour à l'image fixe */
 {
   const vrow = (id, days) => ({
     id, kind: 'video', text: '', name: '', size: 'm', prompt: '', duration: 2,
@@ -439,54 +463,50 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
       ok(list.some(r => r.age === '4' && r.filter.includes('#erode4')), 'liste : une vieille image garde son usure (jamais neuve dans la liste)', JSON.stringify(list));
       await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
     }
+    // jamais de lecture automatique : rien ne joue ni ne se télécharge avant un toucher
+    await vp.waitForTimeout(300);
+    ok(!(await vp.evaluate(() => document.querySelectorAll('video').length)) && mp4Requests.length === 0,
+      `${reduce ? '« Réduire les animations » : ' : ''}aucune lecture automatique, aucune vidéo téléchargée avant un toucher`);
+    // toucher : la vidéo se lit SUR PLACE (aucune fenêtre), muette, une seule fois, puis revient à son image fixe
     await vp.evaluate(() => document.querySelector('#wall .item--video .item-hit').click());
-    await vp.waitForSelector('#viewer[open] video');
-    await vp.waitForTimeout(800);
+    await vp.waitForTimeout(400);
     const open = await vp.evaluate(() => {
-      const v = document.querySelector('#viewer video');
-      return { src: v.getAttribute('src') || '', muted: v.muted, loop: v.loop, inline: v.playsInline, autoplay: v.autoplay, paused: v.paused,
-        button: !!document.querySelector('#viewerCtrl.glass .vplay'), filter: getComputedStyle(v).filter, canPlay: v.canPlayType('video/mp4; codecs="avc1.42E01E"') };
+      const li = document.querySelector('#wall .item--video'), v = li.querySelector('video');
+      return { dialogs: document.querySelectorAll('dialog[open]').length, src: v?.getAttribute('src') || '', muted: v?.muted, loop: v?.loop, inline: v?.playsInline,
+        canvas: !!li.querySelector('canvas.vcanvas'), clip: li.querySelector('.photo').style.clipPath.startsWith('polygon('),
+        canPlay: document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') };
     });
-    ok(open.src.endsWith('vid-new.mp4') && mp4Requests.length > 0, `${reduce ? '« Réduire les animations » : ' : ''}ouverture : la vidéo est téléchargée à ce moment-là`, JSON.stringify(open));
-    ok(open.muted && open.loop && open.inline && open.filter === 'none', 'agrandissement : vidéo muette, en boucle, neuve (aucun filtre d’érosion)', JSON.stringify(open));
-    if (reduce) ok(!open.autoplay && open.paused && open.button, '« Réduire les animations » : pas de lecture automatique, un bouton ▶', JSON.stringify(open));
-    else ok(open.autoplay && !open.button, 'lecture automatique (muette) à l’ouverture', JSON.stringify(open));
-    if (open.canPlay && !reduce) {
-      const played = await vp.waitForFunction(() => document.querySelector('#viewer video').currentTime > 0.2, null, { timeout: 8000 }).then(() => true, () => false);
+    ok(open.dialogs === 0 && mp4Requests.some(u => u.endsWith('vid-new.mp4')), `${reduce ? '« Réduire les animations » : ' : ''}toucher une vidéo : téléchargée à ce moment-là, lue sur place (aucune fenêtre)`, JSON.stringify(open));
+    if (open.canPlay) {
+      ok(open.src.endsWith('vid-new.mp4') && open.muted && open.loop === false && open.inline && open.canvas && open.clip, 'lecture sur place : muette, une seule fois (sans boucle), dans son cadre aux bords rongés', JSON.stringify(open));
+      const played = await vp.waitForFunction(() => document.querySelector('#wall .item--video video')?.currentTime > 0.2, null, { timeout: 8000 }).then(() => true, () => false);
       ok(played, 'la vidéo joue vraiment (navigateur avec H.264)');
-      // noir transparent pendant la lecture : chaque image est redessinée dans un canvas, alpha = BASE (comme #tone)
-      await vp.waitForTimeout(300);
+      // noir transparent pendant la lecture, avec l'usure du palier (ici neuve : BASE, comme #tone)
       const cv = await vp.evaluate(async () => {
         const { alphaOf, BASE } = await import('/js/wall.js');
-        const c = document.querySelector('#viewer canvas.vcanvas'), v = document.querySelector('#viewer video');
+        const c = document.querySelector('#wall .item--video canvas.vcanvas');
         if (!c || !c.width) return { canvas: false };
         const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
         let bad = 0, clear = 0, n = 0;
-        // relu depuis un canvas, un pixel presque transparent perd la précision de son gris (couleurs stockées
-        // « prémultipliées ») : on ne compare que les pixels assez opaques pour garder leur gris exact
         for (let i = 0; i < d.length; i += 4 * 97) { n++; if (d[i + 3] === 0) { clear++; continue; } if (d[i + 3] < 128) continue;
-          // gris relu à ± 255 / alpha près, multiplié par la pente du fondu (BASE.k) : tolérance en conséquence
           const want = Math.round(alphaOf(d[i + 1] / 255, BASE) * 255), tol = Math.ceil(BASE.k * 255 / d[i + 3]) + 3;
           if (Math.abs(d[i + 3] - want) > tol) bad++; }
-        return { canvas: true, n, bad, clear, filter: getComputedStyle(c).filter, videoOpacity: getComputedStyle(v).opacity };
+        return { canvas: true, n, bad, clear };
       });
-      ok(cv.canvas && cv.bad === 0 && cv.filter === 'none' && cv.videoOpacity === '0', `lecture : le noir de chaque image est transparent (canvas, ${cv.clear} / ${cv.n} points transparents, alpha conforme à BASE)`, JSON.stringify(cv));
-    } else if (!open.canPlay) console.log('SAUTÉ  lecture réelle : ce Chromium de test ne lit pas le H.264 (vérifiée dans GitHub avec Google Chrome, puis sur iPhone)');
-    await vp.keyboard.press('Escape');
-    await vp.waitForSelector('#viewer:not([open])', { state: 'attached' });
-    // l'événement « close » (qui libère la vidéo) arrive juste APRÈS la fermeture : on l'attend (2 s au plus)
-    await vp.waitForFunction(() => !document.querySelector('#viewerBody').childElementCount, null, { timeout: 2000 }).catch(() => {});
-    const closed = await vp.evaluate(() => ({ videos: document.querySelectorAll('video').length, body: document.querySelector('#viewerBody').childElementCount }));
-    ok(closed.videos === 0 && closed.body === 0, 'fermeture : la vidéo est arrêtée et libérée de la mémoire', JSON.stringify(closed));
-    // Keep : le fragment utilise l'image fixe érodée
+      ok(cv.canvas && cv.bad === 0, `lecture : le noir de chaque image est transparent (${cv.clear} / ${cv.n} points transparents, alpha conforme à BASE)`, JSON.stringify(cv));
+    } else console.log('SAUTÉ  lecture réelle : ce Chromium de test ne lit pas le H.264 (vérifiée dans GitHub avec Google Chrome, puis sur iPhone)');
+    // à la fin (ou si elle ne peut pas être lue), l'image fixe revient et la vidéo est libérée
+    const back = await vp.waitForFunction(() => { const li = document.querySelector('#wall .item--video'); return !li.querySelector('video, canvas.vcanvas') && getComputedStyle(li.querySelector('.photo img')).visibility === 'visible'; }, null, { timeout: 10000 }).then(() => true, () => false);
+    ok(back && !(await vp.evaluate(() => document.querySelectorAll('video').length)), 'après une seule lecture, elle revient à son image fixe ; la vidéo est libérée de la mémoire');
+    // Keep (depuis la liste) : la vidéo apparaît par son image fixe usée
     if (!reduce) {
+      await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
       const frag = await vp.evaluate(async () => {
         const { makeFragment } = await import('/js/fragment.js');
-        const li = document.querySelectorAll('#wall .item--video')[1];
-        const out = await makeFragment({ li, wallEl: document.querySelector('#wall') });
+        const out = await makeFragment({ li: document.querySelectorAll('#list .row--video')[1] });
         return out.photos;
       });
-      ok(frag.drawn > 0 && frag.missing === 0, 'Keep : la vidéo apparaît dans le fragment par son image fixe', JSON.stringify(frag));
+      ok(frag.drawn === 1 && frag.missing === 0, 'Keep : une vidéo est gardée par son image fixe', JSON.stringify(frag));
     }
     await vc.close();
   }
@@ -527,11 +547,12 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     tzPlaces.push(st.place);
     ok(real === zone && st.bands === 'OCT.2026 SEPT.2026' && st.a === '2026-10' && st.c === '2026-10' && st.b === '2026-09',
       `${zone} : le mur est le même partout (mois à l'heure de Tokyo : 1er oct. 0 h 20 en octobre)`, JSON.stringify({ real, ...st }));
-    { const p4 = await hittable(tp, '#wall .item.item--image'); await tp.mouse.click(p4.x, p4.y); } await tp.waitForSelector('#viewer[open]');
-    await tp.click('#keepBtn'); await tp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
+    await tp.evaluate(() => document.querySelector('#viewBtn').click()); await tp.waitForTimeout(300);
+    await tp.locator('#list .row--image .item-hit').first().click(); await tp.waitForSelector('#keepSheet[open]');
+    await tp.waitForSelector('#keepGo:not([disabled])', { timeout: 10000 });
     const foot = await tp.evaluate(async () => {
       const { makeFragment } = await import('/js/fragment.js');
-      return (await makeFragment({ li: document.querySelector('#wall .item.item--image'), wallEl: document.querySelector('#wall'), prompt: 'light' })).footer;
+      return (await makeFragment({ li: document.querySelector('#list .row--image'), prompt: 'light' })).footer;
     });
     ok(foot === `moodwall.pages.dev — ${footer} — light`, `${zone} : la ligne du bas suit la date du téléphone (${at}) : « ${foot} »`);
     const [dl] = await Promise.all([tp.waitForEvent('download'), tp.click('#keepGo')]);
@@ -556,9 +577,9 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
   const kept = await ep.$$eval('.row--expired .kawara-entry', es => es.map(e => ({ line: !!e.querySelector('.kawara'), words: e.querySelector('.kawara-words')?.textContent || '', size: parseFloat(getComputedStyle(e.querySelector('.kawara-words')).fontSize), color: getComputedStyle(e.querySelector('.kawara-words')).color })));
   ok(kept.length > 0 && kept.every(k => k.line && k.words.length > 0 && k.size >= 13 && k.color === 'rgb(17, 17, 17)'), `dépôt expiré avec des mots : la ligne, puis les mots, lisibles (${kept.length} dans la démonstration)`, JSON.stringify(kept.slice(0, 2)));
   await ep.click('.row--expired'); await ep.waitForTimeout(200);
-  ok(!(await ep.evaluate(() => document.querySelector('#viewer').open)), 'dépôt expiré : un toucher n’ouvre rien');
-  await ep.click('.row:not(.row--expired) .item-hit'); await ep.waitForSelector('#viewer[open]');
-  ok(/\S/.test(await ep.textContent('#viewerBody')), 'les autres dépôts de la liste s’ouvrent toujours (le bon : un texte)');
+  ok(!(await ep.evaluate(() => document.querySelector('#keepSheet').open)), 'dépôt expiré : un toucher n’ouvre rien');
+  await ep.click('.row:not(.row--expired) .item-hit'); await ep.waitForSelector('#keepSheet[open]');
+  ok(await ep.isVisible('#keepSheet #report summary'), 'les autres dépôts de la liste ouvrent la feuille Keep (avec Report)');
   await ec.close();
 }
 
@@ -587,6 +608,11 @@ for (const [locale, mention] of [['fr-FR', /modérés/], ['ja-JP', /確認後に
   const nc = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
   const negRows = rows.slice(0, 6).map((r, i) => r.image_path ? { ...r, image_path: `n-${i}.neg.jpg`, thumb_path: `n-${i}-thumb.neg.jpg` } : r);
   await fakeServer(nc, negRows);
+  // faux Turnstile et fausse fonction « report » (aucun réseau)
+  await nc.route(/challenges\.cloudflare\.com/, r => r.fulfill({ contentType: 'text/javascript',
+    body: 'window.turnstile = { render(el, o) { setTimeout(() => o.callback("tok"), 20); return 1; }, reset() {} };' }));
+  const reported = [];
+  await nc.route(/\/functions\/v1\/report/, r => { try { reported.push(JSON.parse(r.request().postData() || '{}')); } catch {} return r.fulfill({ json: { ok: true } }); });
   const np = await nc.newPage();
   await np.goto(BASE); await np.waitForSelector('#wall .item .photo');
   // (1) le vrai code du site (js/image.js) sur une image en couleur dessinée ici
@@ -619,10 +645,18 @@ for (const [locale, mention] of [['fr-FR', /modérés/], ['ja-JP', /確認後に
   ok(guard.context && guard.drag && guard.draggable === false && guard.select === 'none', 'photos : clic droit et glisser-déposer bloqués, pas de sélection', JSON.stringify(guard));
   ok(!guard.callout || guard.callout === 'none', 'photos : appui long (« Enregistrer l’image ») coupé sur iPhone (-webkit-touch-callout: none)', JSON.stringify(guard));
   // Keep fonctionne toujours avec un fichier déjà en négatif (pas d'inversion en plus dans le fragment)
-  await np.evaluate(() => document.querySelector('#wall .item--image .item-hit').click());
-  await np.waitForSelector('#viewer[open]'); await np.click('#keepBtn');
+  await np.evaluate(() => document.querySelector('#viewBtn').click()); await np.waitForTimeout(300);
+  await np.locator('#list .row--image .item-hit').first().tap(); await np.waitForSelector('#keepSheet[open]');
   const kept = await np.waitForSelector('#keepPreview:not([hidden])', { timeout: 20000 }).then(() => true, () => false);
-  ok(kept, 'Keep : le fragment se fabrique toujours avec des photos déjà en négatif');
+  ok(kept, 'Keep : l’image se fabrique toujours avec des photos déjà en négatif');
+  // Report, depuis la feuille Keep : envoyé pour CE dépôt
+  await np.tap('#report summary');
+  await np.check('#reportForm input[value="spam"]');
+  await np.waitForTimeout(200);
+  await np.tap('#reportForm button[type=submit]');
+  const thanks = await np.waitForFunction(() => document.querySelector('#reportForm .form-msg').textContent === 'Thanks', null, { timeout: 8000 }).then(() => true, () => false);
+  ok(thanks && reported.length === 1 && reported[0].post_id === negRows.find(r => r.image_path).id && reported[0].reason === 'spam',
+    'Report : depuis la feuille Keep de la liste, le signalement part pour le bon dépôt', JSON.stringify(reported));
   await nc.close();
 }
 

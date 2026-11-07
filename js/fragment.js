@@ -1,9 +1,8 @@
 /**
- * « Keep » — un FRAGMENT DU MUR, prélevé à cet instant, comme un morceau d'affiches arraché.
+ * « Keep » — UN DÉPÔT SEUL, prélevé à cet instant, depuis la liste.
  *
- * Le dépôt au centre, ses voisins tels qu'ils sont placés et superposés sur le mur (positions, ordre,
- * tailles), coupés par le bord du cadre ; le fond blanc ; l'érosion RÉELLE de chaque élément
- * (même le dépôt central, qui paraît neuf dans l'agrandissement) ; les textes avec la même typo ;
+ * Le dépôt au centre du cadre (≈ 42 %), sans ses voisins ; le fond blanc ; son usure RÉELLE du jour
+ * (négatif, transparence du palier, bords rongés) ; ses mots en entier, avec la même typo ;
  * en bas, une seule petite ligne : « moodwall.pages.dev — JJ.MM.AAAA — consigne ». Aucun nom.
  *
  * Tout se fait sur l'appareil, sans serveur, à partir des images déjà chargées (chargées avec
@@ -14,7 +13,7 @@
  */
 import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=e2142ccd51';
 import { stripMetadata } from './image.js?v=6870828c6e';
-import { clipCanvas } from './edge.js?v=19ea939b8a';   // bords rongés : même contour usé que sur le mur
+import { clipCanvas } from './edge.js?v=2ead68abf7';   // bords rongés : même contour usé que sur le mur
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
 const BG = [255, 255, 255];      // fond : blanc pur (--bg)
@@ -73,7 +72,7 @@ function processPhoto(source, dw, dh, stage, scale, neg = false) {
   return c;
 }
 
-/** L'image d'une photo du mur : celle déjà chargée, sinon redemandée (cache du navigateur). */
+/** L'image d'une photo de la liste : celle déjà chargée, sinon redemandée (cache du navigateur). */
 function sourceOf(imgEl) {
   if (imgEl.getAttribute('src') && imgEl.complete && imgEl.naturalWidth) return Promise.resolve(imgEl);
   const im = new Image();
@@ -125,9 +124,9 @@ async function drawText(ctx, el, x, y, w, scale, clamp) {
   lines.forEach((l, i) => ctx.fillText(l, x, y + lh * i + lh / 2));
 }
 
-/* ------------------------------------------------------------------ le fragment */
-const rectIn = (el, li) => {
-  const a = el.getBoundingClientRect(), b = li.getBoundingClientRect();
+/* ------------------------------------------------------------------ le dépôt seul */
+const rectIn = (el, root) => {
+  const a = el.getBoundingClientRect(), b = root.getBoundingClientRect();
   return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
 };
 const pad2 = n => String(n).padStart(2, '0');
@@ -135,21 +134,19 @@ const pad2 = n => String(n).padStart(2, '0');
 export const today = (d = new Date()) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 
 /**
- * @param li      l'élément du mur au centre (li.item, placé)
- * @param wallEl  le mur (ul#wall)
+ * @param li      la ligne de la liste (li.row) du dépôt, avec sa classe d'âge (age-N) et ses bords rongés
  * @param format  '4:5' | '9:16'
- * @param prompt  consigne de la strate du dépôt ('' = aucune)
+ * @param prompt  consigne du mois du dépôt ('' = aucune)
  * @returns {Promise<{ blob: Blob, width: number, height: number, footer: string, photos: { drawn, missing } }>}
  */
-export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', date = new Date() }) {
+export async function makeFragment({ li, format = '4:5', prompt = '', date = new Date() }) {
   const [W, H] = FORMATS[format] || FORMATS['4:5'];
-  const RH = H - BAND;                                           // hauteur réservée au mur
-  const box = { x: li.offsetLeft, y: li.offsetTop, w: li.offsetWidth, h: li.offsetHeight };
-  // le dépôt occupe ≈ 42 % du cadre ; ses voisins débordent autour
+  const RH = H - BAND;                                           // hauteur réservée au dépôt
+  const node = li.querySelector('.item-hit') || li;              // le dépôt (image + mots), sans la ligne nom · date
+  const box = { w: node.offsetWidth, h: node.offsetHeight };
+  // le dépôt occupe ≈ 42 % du cadre, au centre, seul
   const scale = Math.min(W * 0.42 / box.w, RH * 0.42 / box.h, 4);
-  const cw = W / scale, ch = RH / scale;
-  const x0 = box.x + box.w / 2 - cw / 2, y0 = box.y + box.h / 2 - ch / 2;
-  const X = v => (v - x0) * scale, Y = v => (v - y0) * scale;
+  const ox = (W - box.w * scale) / 2, oy = (RH - box.h * scale) / 2;
 
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -166,39 +163,24 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
     ctx.drawImage(nc, 0, 0, gw * scale, gh * scale);
   }
 
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, 0, W, RH); ctx.clip();
-  // les éléments qui touchent le cadre, du plus ancien (dessous) au plus récent (dessus) ;
-  // les dépôts « en attente » (visibles chez leur auteur seulement) ne font pas partie du mur
-  const items = [...wallEl.querySelectorAll('.item:not(.is-pending):not(.is-out)')]
-    .filter(el => el.offsetLeft < x0 + cw && el.offsetLeft + el.offsetWidth > x0 && el.offsetTop < y0 + ch && el.offsetTop + el.offsetHeight > y0)
-    .sort((a, b) => (+a.style.zIndex || 0) - (+b.style.zIndex || 0));
-  // images d'abord (en parallèle), puis dessin dans l'ordre
-  const sources = await Promise.all(items.map(el => {
-    const img = el.querySelector('.photo img');
-    return img ? sourceOf(img).catch(() => null) : null;
-  }));
+  const stage = +(li.className.match(/\bage-(\d)\b/)?.[1] || 0);
   let drawn = 0, missing = 0;
-  for (const [i, el] of items.entries()) {
-    const bx = el.offsetLeft, by = el.offsetTop;
-    const stage = +(el.className.match(/\bage-(\d)\b/)?.[1] || 0);
-    const ph = el.querySelector('.photo');
-    if (ph) {
-      const r = rectIn(ph, el), dw = Math.max(1, Math.round(r.w * scale)), dh = Math.max(1, Math.round(r.h * scale));
-      if (sources[i]) {
-        const px = Math.round(X(bx + r.x)), py = Math.round(Y(by + r.y));
-        ctx.save(); clipCanvas(ctx, ph, px, py, dw, dh);        // bords rongés, comme à l'écran
-        ctx.drawImage(processPhoto(sources[i], dw, dh, stage, scale, ph.classList.contains('is-neg')), px, py); ctx.restore(); drawn++;
-      }
-      else { ctx.fillStyle = FRAME; ctx.fillRect(X(bx + r.x), Y(by + r.y), dw, dh); missing++; }   // image introuvable : son cadre
-    }
-    const tx = el.querySelector('.caption-text, .sticker-text');
-    if (tx && tx.textContent) {
-      const r = rectIn(tx, el);
-      await drawText(ctx, tx, X(bx + r.x), Y(by + r.y), r.w * scale, scale, tx.classList.contains('caption-text') ? 4 : 10);
-    }
+  const ph = node.querySelector('.photo');
+  if (ph) {
+    const r = rectIn(ph, node), dw = Math.max(1, Math.round(r.w * scale)), dh = Math.max(1, Math.round(r.h * scale));
+    const px = Math.round(ox + r.x * scale), py = Math.round(oy + r.y * scale);
+    const img = ph.querySelector('img');
+    const source = img ? await sourceOf(img).catch(() => null) : null;
+    if (source) {
+      ctx.save(); clipCanvas(ctx, ph, px, py, dw, dh);          // bords rongés, comme à l'écran
+      ctx.drawImage(processPhoto(source, dw, dh, stage, scale, ph.classList.contains('is-neg')), px, py); ctx.restore(); drawn++;
+    } else { ctx.fillStyle = FRAME; ctx.fillRect(px, py, dw, dh); missing++; }   // image introuvable : son cadre
   }
-  ctx.restore();
+  const tx = node.querySelector('.caption-text, .sticker-text');
+  if (tx && tx.textContent) {                                    // les mots en entier, comme dans la liste
+    const r = rectIn(tx, node);
+    await drawText(ctx, tx, ox + r.x * scale, oy + r.y * scale, r.w * scale, scale, Infinity);
+  }
 
   // la ligne du bas : adresse, date du jour, consigne de la strate (rien d'autre)
   const footer = `moodwall.pages.dev — ${today(date)}${prompt ? ` — ${prompt}` : ''}`;
