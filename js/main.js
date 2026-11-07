@@ -27,6 +27,10 @@ import { serverError, videoError } from './errors.js?v=d67ec3ce38';
  * Combinables. Sans paramètre, rien ne change et ces fichiers ne sont pas téléchargés. */
 const PROTO = new URLSearchParams(location.search);
 const EDGE = PROTO.get('edge') === 'worn' ? await import('./edge.js?v=2c3982c228') : null;
+// ?future=N : le mur tel qu'il sera dans N jours (usure, bords, placement, mois). AFFICHAGE SEULEMENT : aucune écriture,
+// aucune expiration ; les dépôts qui dépasseraient 180 jours restent sur le mur, à leur dernier palier, pour l'essai.
+const FUTURE = PROTO.has('future') ? Math.max(0, Math.min(3650, Math.round(+PROTO.get('future') || 0))) : null;
+const wallNow = () => Date.now() + (FUTURE || 0) * 86400e3;
 const STACK = PROTO.get('wall') === 'stack' ? await import('./stack.js?v=847701ce76') : null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -58,7 +62,7 @@ onLangChange(() => { viewLabel(); showPrompt(); render(); refreshDropTexts(); })
  * Liste : tout, à 100 %.
  */
 const asPending = p => ({ ...p, pending: true });
-const wallItems = () => [...pending.map(asPending), ...posts.filter(p => !p.expired && onWall(ageDays(p.approvedAt)))];
+const wallItems = () => [...pending.map(asPending), ...posts.filter(p => !p.expired && (FUTURE !== null || onWall(ageDays(p.approvedAt))))];
 const listItems = () => [...pending.map(asPending), ...posts];
 const items = () => (view === 'wall' ? wallItems() : listItems());
 
@@ -135,7 +139,7 @@ function photo(p, full) {
 // une table d'opacité par palier (0 = neuf : BASE ; 1 … 4 : ERODE), mêmes valeurs que les filtres #tone / #erode1 … #erode4
 const ALPHAS = [BASE, ...ERODE].map(e => new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, e) * 255)));
 /** Âge affiché d'un dépôt, partout (mur, liste, agrandissement) : seul Keep fige un instant, rien ne rajeunit. */
-const ageOf = (p, now = Date.now()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
+const ageOf = (p, now = wallNow()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
 function setAge(el, p, now) {
   const { v, stage } = ageOf(p, now);
   el.style.setProperty('--v', v.toFixed(3));
@@ -278,7 +282,7 @@ function renderWall(list) {
     setTimeout(() => n.li.remove(), reducedMotion.matches ? 0 : 450);
   }
   wallEl.querySelectorAll('.stratum').forEach(d => d.remove());
-  const now = Date.now();
+  const now = wallNow();
   wallNodes = list.map((p, i) => {
     const { w, font } = sizeFor(p, W - 2 * pad, mobile);
     const n = nodeFor(p, w, font);
@@ -340,7 +344,7 @@ function renderStack(all) {
   const ids = new Set(list.map(p => p.id));
   for (const [id, n] of nodeCache) if (!ids.has(id)) { nodeCache.delete(id); n.li.remove(); }
   wallEl.querySelectorAll('.stratum, .stack-month').forEach(d => d.remove());
-  const now = Date.now();
+  const now = wallNow();
   wallNodes = list.map((p, i) => {
     const { w, font } = sizeFor(p, W - 2 * pad, mobile);
     const n = nodeFor(p, w, font);
@@ -387,7 +391,7 @@ function kawaraLine(p) {
   return box;
 }
 function renderList(list) {
-  const now = Date.now();
+  const now = wallNow();
   let open = 0, register = null;                      // index parmi les dépôts qui s'ouvrent ; bloc de lignes expirées en cours
   listEl.replaceChildren(...list.map(p => {
     // dépôts expirés qui se suivent : un seul bloc, une ligne chacun (registre serré)
