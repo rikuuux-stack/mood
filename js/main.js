@@ -16,8 +16,8 @@ import { CONFIG } from './config.js?v=05f59e2af5';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=d942c1023a';
 import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, ERODE, alphaOf } from './wall.js?v=10fdf5c535';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
-import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=4d6e44fae3';
-import * as captcha from './captcha.js?v=130a7987f8';
+import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=538a981e47';
+import * as captcha from './captcha.js?v=d0938d08b8';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 import { serverError, videoError } from './errors.js?v=d67ec3ce38';
 
@@ -329,7 +329,12 @@ function kawaraLine(p) {
   for (const [cls, txt] of [['k-date', kawara(p.createdAt)], ['k-kind', p.kind], ['k-life', `${TIME.wallDays} days`], ['k-prompt', p.prompt || '']]) {
     const s = document.createElement('span'); s.className = cls; s.textContent = txt; line.append(s);
   }
-  return line;
+  if (!p.text) return line;
+  // l'image s'en est allée, les mots déposés avec elle restent, lisibles, sous la ligne (textContent seulement)
+  const box = document.createElement('div'); box.className = 'kawara-entry';
+  const words = document.createElement('p'); words.className = 'kawara-words'; words.textContent = p.text;
+  box.append(line, words);
+  return box;
 }
 function renderList(list) {
   const now = Date.now();

@@ -331,3 +331,6 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 .kawara { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font: var(--w-mono) var(--fs-meta)/1.6 var(--mono); letter-spacing: .06em; color: var(--muted); }
 .kawara .k-date { color: var(--fg); width: 12.5ch; }
 .kawara .k-prompt:empty { display: none; }
+/* les mots restés après l'image : lisibles, comme un texte de la liste, sous leur ligne */
+.kawara-entry { display: grid; gap: 4px; }
+.kawara-words { margin: 0 0 6px; font-size: 14px; line-height: 1.55; color: var(--fg); white-space: pre-line; }
