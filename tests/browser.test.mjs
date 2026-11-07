@@ -12,7 +12,7 @@
  *     (hauteur 844 → 750 → 844) : Mood et Drop restent à leur place et AUCUNE image ne passe dessus ;
  *   - fond blanc uni, sans grain (ni couche body::before, ni grain sur les photos) ;
  *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les sombres du négatif deviennent
- *     transparents), aucune opacité, rien ne change au survol, l'agrandissement montre l'image neuve ;
+ *     transparents), aucune opacité, rien ne change au survol ni à l'agrandissement, la liste montre le même âge ;
  *     textes lisibles à tout âge (≥ 7:1) ;
  *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
  *     sans métadonnées, ligne du bas présente ; partage natif sur iPhone, téléchargement sur ordinateur ;
@@ -220,7 +220,7 @@ const hov = await target.evaluate(li => getComputedStyle(li.querySelector('.phot
 ok(hov.includes('#erode4'), 'survol : l\'image garde son âge (pas de retour à neuf)', hov);
 await target.click(); await dp.waitForSelector('#viewer[open] .photo img');
 const big = await dp.evaluate(() => getComputedStyle(document.querySelector('#viewer .photo img')).filter);
-ok(big.includes('#tone') && !big.includes('erode'), 'agrandissement : l\'image est neuve', big);
+ok(big.includes('#erode4'), 'agrandissement : l\'image garde son âge (jamais de retour à neuf, seul Keep fige un instant)', big);
 
 /* Keep : fragment du mur (ordinateur : téléchargement) */
 const imageInfo = (page, bytes) => page.evaluate(async arr => {
@@ -371,8 +371,9 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
       ok(wall[1].age === '4' && wall[1].filter.includes('#erode4'), 'mur : l’image fixe d’une vieille vidéo suit les paliers d’érosion des photos', JSON.stringify(wall[1]));
       ok(mp4Requests.length === 0, `mur : aucune vidéo téléchargée tant qu’on ne l’ouvre pas (${mp4Requests.length})`);
       await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
-      const list = await vp.evaluate(() => [...document.querySelectorAll('#list .row--video')].map(r => ({ mark: !!r.querySelector('.vmark'), video: !!r.querySelector('video') })));
+      const list = await vp.evaluate(() => [...document.querySelectorAll('#list .row--video')].map(r => ({ mark: !!r.querySelector('.vmark'), video: !!r.querySelector('video'), age: (r.className.match(/age-(\d)/) || [])[1] || '0', filter: getComputedStyle(r.querySelector('.photo img')).filter })));
       ok(list.length === 2 && list.every(r => r.mark && !r.video) && mp4Requests.length === 0, 'liste : image fixe + ▶, aucune vidéo téléchargée', JSON.stringify(list));
+      ok(list.some(r => r.age === '4' && r.filter.includes('#erode4')), 'liste : une vieille image garde son usure (jamais neuve dans la liste)', JSON.stringify(list));
       await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
     }
     await vp.locator('#wall .item--video').first().tap();

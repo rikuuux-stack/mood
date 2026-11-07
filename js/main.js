@@ -14,7 +14,7 @@
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
 import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=8b22bd4c08';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, alphaOf } from './wall.js?v=10fdf5c535';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, ERODE, alphaOf } from './wall.js?v=10fdf5c535';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=4d6e44fae3';
 import * as captcha from './captcha.js?v=130a7987f8';
@@ -124,8 +124,17 @@ function photo(p, full) {
  * un canvas (≤ 480 px) où les sombres deviennent transparents (BASE, même règle que #tone). La <video> reste
  * dessous, invisible (elle décode et donne les images).
  */
-const ALPHA = new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, BASE) * 255));
-function paintFrames(v, c) {
+// une table d'opacité par palier (0 = neuf : BASE ; 1 … 4 : ERODE), mêmes valeurs que les filtres #tone / #erode1 … #erode4
+const ALPHAS = [BASE, ...ERODE].map(e => new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, e) * 255)));
+/** Âge affiché d'un dépôt, partout (mur, liste, agrandissement) : seul Keep fige un instant, rien ne rajeunit. */
+const ageOf = (p, now = Date.now()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
+function setAge(el, p, now) {
+  const { v, stage } = ageOf(p, now);
+  el.style.setProperty('--v', v.toFixed(3));
+  for (let s = 1; s <= ERODE.length; s++) el.classList.toggle(`age-${s}`, s === stage);
+  return stage;
+}
+function paintFrames(v, c, ALPHA) {
   const g = c.getContext('2d', { willReadFrequently: true });
   const draw = () => {
     if (!v.videoWidth || !c.isConnected) return;
@@ -154,7 +163,7 @@ function player(p) {
   const c = document.createElement('canvas'); c.className = 'vcanvas'; c.width = p.image.w; c.height = p.image.h;
   c.setAttribute('aria-hidden', 'true');
   ph.append(v, c);
-  paintFrames(v, c);
+  paintFrames(v, c, ALPHAS[ageOf(p).stage]);       // noir transparent ET usure du palier, image par image
   v.src = p.image.video;
   if (reducedMotion.matches) {
     const b = document.createElement('button');
@@ -265,9 +274,7 @@ function renderWall(list, { glide = false } = {}) {
     n.li.dataset.i = i;
     // érosion : selon le temps passé sur le mur (un dépôt en attente garde son propre aspect) ;
     // images : palier fixe (classe age-N → filtre partagé), textes : --v
-    const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)), stage = stageOf(v);
-    n.li.style.setProperty('--v', v.toFixed(3));
-    if (n.stage !== stage) { if (n.stage) n.li.classList.remove(`age-${n.stage}`); if (stage) n.li.classList.add(`age-${stage}`); n.stage = stage; }
+    n.stage = setAge(n.li, p, now);
     if (!n.li.isConnected) wallEl.append(n.li);
     return n;
   });
@@ -327,6 +334,7 @@ function kawaraLine(p) {
   return line;
 }
 function renderList(list) {
+  const now = Date.now();
   let open = 0, register = null;                      // index parmi les dépôts qui s'ouvrent ; bloc de lignes expirées en cours
   listEl.replaceChildren(...list.map(p => {
     // dépôts expirés qui se suivent : un seul bloc, une ligne chacun (registre serré)
@@ -349,6 +357,7 @@ function renderList(list) {
     meta.textContent = metaOf(p, true);
     li.append(b, meta);
     li.dataset.i = i;
+    setAge(li, p, now);                                 // la liste montre l'usure atteinte, jamais l'image neuve
     return li;
   }).filter(Boolean));
   watch(listEl);
@@ -415,6 +424,7 @@ function showViewer() {
   const p = current();
   $('#viewerMeta').textContent = metaOf(p);
   freeVideos($('#viewerBody'));
+  setAge($('#viewerBody'), p);                          // agrandi, le dépôt garde son âge
   $('#viewerBody').replaceChildren(content(p, { full: true }));
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
   const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas

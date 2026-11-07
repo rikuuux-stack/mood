@@ -102,20 +102,21 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .list { isolation: isolate; }
 .item {
   position: absolute;
-  /* érosion (js/wall.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 (neuf) … 1 (plancher) */
-  --w: calc((1 - var(--v, 1)) / .7);
   transition: opacity .2s ease, transform .14s ease;
 }
+/* érosion (js/wall.js, setAge dans js/main.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 … 1 (plancher).
+   Le même âge partout : mur (.item), liste (.row), agrandissement (.viewer-body). Seul Keep fige un instant. */
+.item, .row, .viewer-body { --w: calc((1 - var(--v, 1)) / .7); }
 /* images (négatif) : les pixels SOMBRES deviennent transparents par paliers (.age-1 … .age-4 → filtres
    #erode1 … #erode4, index.html) ; il finit par ne rester que les parties claires, on voit à travers.
-   Aucun retour à neuf au survol : seulement à l'ouverture en grand. */
+   Aucun retour à neuf, ni au survol, ni à l'ouverture en grand. Vidéo agrandie : même palier, dans le canvas. */
 .photo.is-loaded { background: transparent; }
-.item.age-1 .photo img { filter: url(#erode1); }
-.item.age-2 .photo img { filter: url(#erode2); }
-.item.age-3 .photo img { filter: url(#erode3); }
-.item.age-4 .photo img { filter: url(#erode4); }
+.age-1 .photo img { filter: url(#erode1); }
+.age-2 .photo img { filter: url(#erode2); }
+.age-3 .photo img { filter: url(#erode3); }
+.age-4 .photo img { filter: url(#erode4); }
 /* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (#111 → #4a4a4a : contraste ≥ 8,8:1 sur blanc) */
-.item .sticker, .item .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
+.item .sticker, .item .caption, .row .sticker, .row .caption, .viewer-body .sticker, .viewer-body .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
 /* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */
 @media (hover: hover) {
   .item:hover, .item:focus-within { z-index: 100000 !important; transform: translateY(-6px) scale(1.015); }
