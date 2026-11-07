@@ -10,6 +10,7 @@ const UI = {
   // manifeste (panneau Mood)
   m1: 'Images and words, left by anyone.', m2: 'Nothing appears before review.',
   m3: 'Time slowly fades the wall.', m4: 'Old traces sink into the list.',
+  m5: 'After 180 days, images are erased. Words stay.',
   prev: 'Previous', next: 'Next',
   pending: 'Under review',
   report: 'Report', reportSend: 'Send', reportThanks: 'Thanks',
