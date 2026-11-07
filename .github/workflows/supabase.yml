@@ -20,9 +20,9 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: 'deploy = base, fonctions et tests ; archive = archive du mur seulement'
+        description: 'deploy = base, fonctions et tests ; archive = archive du mur seulement ; negate-dry / negate = photos déjà déposées en négatif (essai à blanc / pour de bon, IRRÉVERSIBLE)'
         type: choice
-        options: [deploy, archive]
+        options: [deploy, archive, negate-dry, negate]
         default: deploy
   schedule:
     - cron: '17 6 * * 1'     # lundi : tests
@@ -31,7 +31,7 @@ env:
   PROJECT_REF: ovvdtthnykqvgarrjina
 jobs:
   deploy:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task != 'archive')
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task == 'deploy')
     runs-on: ubuntu-24.04     # pas ubuntu-latest (26.04) : Playwright 1.56 ne s'y installe pas, voir checks.yml
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
     needs: deploy
     if: >-
       always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
-      && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task != 'archive') || github.event.schedule == '17 6 * * 1')
+      && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.task == 'deploy') || github.event.schedule == '17 6 * * 1')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -139,6 +139,47 @@ jobs:
         run: bash tools/expire-nightly.sh
       # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
       # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
+      - name: Alerte e-mail en cas d'échec
+        if: failure()
+        run: |
+          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
+          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # Photos DÉJÀ déposées → négatif (fix-original). Seulement à la main : « Run workflow » ▸ task = negate-dry (essai à blanc :
+  # lit, convertit en mémoire, vérifie, compte, n'écrit RIEN), puis negate (pour de bon : IRRÉVERSIBLE, les fichiers
+  # d'origine en couleur sont supprimés). Jamais planifié, jamais lancé par un push. Voir tools/negate-existing.mjs.
+  negate:
+    if: github.event_name == 'workflow_dispatch' && (inputs.task == 'negate-dry' || inputs.task == 'negate')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1   # figée, comme les autres jobs
+      - name: Clé service_role (lue avec le jeton déjà présent, jamais écrite)
+        run: |
+          key=$(supabase projects api-keys --project-ref "$PROJECT_REF" -o json | jq -r '.[] | select(.name == "service_role") | .api_key' | head -n 1)
+          [ -n "$key" ] && [ "$key" != "null" ] || { echo "::error::clé service_role introuvable"; exit 1; }
+          echo "::add-mask::$key"
+          echo "SERVICE_KEY=$key" >> "$GITHUB_ENV"
+      - name: Conversion des photos existantes (${{ inputs.task }})
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+          if [ "${{ inputs.task }}" = "negate" ]; then node tools/negate-existing.mjs --apply; else node tools/negate-existing.mjs; fi
+      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh) ; sans le secret : ne fait rien.
       - name: Alerte e-mail en cas d'échec
         if: failure()
         run: |
