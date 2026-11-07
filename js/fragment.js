@@ -14,6 +14,7 @@
  */
 import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=10fdf5c535';
 import { stripMetadata } from './image.js?v=0bde9bbfaf';
+import { clipCanvas } from './edge.js?v=2c3982c228';   // prototype ?edge=worn : même contour usé que sur le mur
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
 const BG = [255, 255, 255];      // fond : blanc pur (--bg)
@@ -191,7 +192,11 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
     const ph = el.querySelector('.photo');
     if (ph) {
       const r = rectIn(ph, el), dw = Math.max(1, Math.round(r.w * scale)), dh = Math.max(1, Math.round(r.h * scale));
-      if (sources[i]) { ctx.drawImage(processPhoto(sources[i], dw, dh, stage, scale), Math.round(X(bx + r.x)), Math.round(Y(by + r.y))); drawn++; }
+      if (sources[i]) {
+        const px = Math.round(X(bx + r.x)), py = Math.round(Y(by + r.y));
+        ctx.save(); clipCanvas(ctx, ph, px, py, dw, dh);        // sans contour posé (site normal) : rien n'est découpé
+        ctx.drawImage(processPhoto(sources[i], dw, dh, stage, scale), px, py); ctx.restore(); drawn++;
+      }
       else { ctx.fillStyle = FRAME; ctx.fillRect(X(bx + r.x), Y(by + r.y), dw, dh); missing++; }   // image introuvable : son cadre
     }
     const tx = el.querySelector('.caption-text, .sticker-text');

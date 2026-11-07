@@ -331,3 +331,12 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 .kawara { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font: var(--w-mono) var(--fs-meta)/1.6 var(--mono); letter-spacing: .06em; color: var(--muted); }
 .kawara .k-date { color: var(--fg); width: 12.5ch; }
 .kawara .k-prompt:empty { display: none; }
+
+/* ------------------------------------------------------------------ PROTOTYPE ?wall=stack (branche proto-v2)
+ * Un seul écran : la page ne défile plus en vue Wall (la liste, elle, défile toujours). */
+html.stack, html.stack body { overflow: hidden; height: 100dvh; }
+html.stack .wall { overflow: hidden; }
+.stack-month {
+  position: absolute; list-style: none; z-index: 2500; pointer-events: none;
+  font: var(--w-mono) var(--fs-micro)/1 var(--mono); letter-spacing: .04em; color: var(--muted);
+}

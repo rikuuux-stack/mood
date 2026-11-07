@@ -21,6 +21,14 @@ import * as captcha from './captcha.js?v=130a7987f8';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 import { serverError, videoError } from './errors.js?v=d67ec3ce38';
 
+/* ------------------------------------------------------------------ PROTOTYPES (branche proto-v2, jamais sans paramètre)
+ * ?edge=worn  : les bords des images s'effritent avec l'âge (js/edge.js) ;
+ * ?wall=stack : un mur fixe, sans défilement, les N dépôts les plus récents superposés (js/stack.js).
+ * Combinables. Sans paramètre, rien ne change et ces fichiers ne sont pas téléchargés. */
+const PROTO = new URLSearchParams(location.search);
+const EDGE = PROTO.get('edge') === 'worn' ? await import('./edge.js?v=2c3982c228') : null;
+const STACK = PROTO.get('wall') === 'stack' ? await import('./stack.js?v=847701ce76') : null;
+
 const $ = (s, r = document) => r.querySelector(s);
 const wallEl = $('#wall'), listEl = $('#list');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -132,6 +140,7 @@ function setAge(el, p, now) {
   const { v, stage } = ageOf(p, now);
   el.style.setProperty('--v', v.toFixed(3));
   for (let s = 1; s <= ERODE.length; s++) el.classList.toggle(`age-${s}`, s === stage);
+  if (EDGE) EDGE.wear(el, p, stage);                    // prototype : bords rongés selon le même palier
   return stage;
 }
 function paintFrames(v, c, ALPHA) {
@@ -208,6 +217,7 @@ function content(p, { full = false, font } = {}) {
 /* ------------------------------------------------------------------ rendu */
 let lastW = 0;
 function render() {
+  document.documentElement.classList.toggle('stack', !!STACK && view === 'wall');
   const list = items();
   $('#empty').hidden = list.length > 0 || posts.length > 0;
   if (view === 'wall') renderWall(list); else renderList(list);
@@ -254,6 +264,7 @@ function divider(p, y, pad) {
 }
 
 function renderWall(list) {
+  if (STACK) return renderStack(list);
   const token = ++renderToken;
   const W = wallEl.clientWidth || document.documentElement.clientWidth;
   lastW = W;
@@ -313,6 +324,45 @@ function renderWall(list) {
     if (i < wallNodes.length) setTimeout(more, 0);
   };
   if (i < wallNodes.length) setTimeout(more, 0);
+}
+
+/*
+ * PROTOTYPE ?wall=stack : un seul écran, les N dépôts les plus récents (16 sur iPhone, 40 sur ordinateur),
+ * superposés ; placement déterministe (js/stack.js) ; les mois en bandes, leur mot en petit au bord gauche.
+ * Toutes les images de l'écran sont chargées (N au plus) ; rien d'autre.
+ */
+function renderStack(all) {
+  ++renderToken;
+  const W = wallEl.clientWidth || document.documentElement.clientWidth;
+  lastW = W;
+  const mobile = W < CONFIG.wall.mobileBelow, pad = mobile ? 16 : 24;
+  const list = all.slice(0, mobile ? STACK.STACK_N.mobile : STACK.STACK_N.desktop);
+  const ids = new Set(list.map(p => p.id));
+  for (const [id, n] of nodeCache) if (!ids.has(id)) { nodeCache.delete(id); n.li.remove(); }
+  wallEl.querySelectorAll('.stratum, .stack-month').forEach(d => d.remove());
+  const now = Date.now();
+  wallNodes = list.map((p, i) => {
+    const { w, font } = sizeFor(p, W - 2 * pad, mobile);
+    const n = nodeFor(p, w, font);
+    n.li.dataset.i = i;
+    n.stage = setAge(n.li, p, now);
+    if (!n.li.isConnected) wallEl.append(n.li);
+    return n;
+  });
+  // le mur occupe l'écran sous la consigne ; aucune page à faire défiler
+  const top = 0, H = Math.max(200, document.documentElement.clientHeight - wallEl.getBoundingClientRect().top);
+  wallEl.style.height = `${H}px`;
+  const { places, bands } = STACK.stackLayout(wallNodes.map(n => ({ p: n.p, w: n.w, h: n.li.offsetHeight })), W, H, { top, pad, now });
+  wallNodes.forEach((n, i) => {
+    const r = places[i];
+    Object.assign(n.li.style, { left: `${r.x}px`, top: `${r.y}px`, zIndex: String(r.z) });
+    watch(n.li);
+  });
+  if (bands.length > 1) for (const b of bands) {          // un seul mois : rien à dire
+    const li = document.createElement('li'); li.className = 'stack-month'; li.setAttribute('aria-hidden', 'true');
+    li.textContent = b.label; li.style.top = `${b.y}px`; li.style.left = `${pad}px`;
+    wallEl.append(li);
+  }
 }
 
 /*
@@ -382,7 +432,7 @@ listEl.addEventListener('click', e => openFrom(e, '.row'));
 addEventListener('resize', () => {
   if (view !== 'wall') return;
   clearTimeout(render.tm);
-  render.tm = setTimeout(() => { if (Math.abs((wallEl.clientWidth || 0) - lastW) > 1) render(); }, 150);
+  render.tm = setTimeout(() => { if (STACK || Math.abs((wallEl.clientWidth || 0) - lastW) > 1) render(); }, 150);
 });
 /* Tout le mur, sans bouton : les paquets suivants (500 par 500) sont lus en arrière-plan, et le mur
    se complète à chaque paquet (les éléments déjà placés ne bougent pas : les nouveaux sont plus anciens). */
@@ -425,6 +475,7 @@ function showViewer() {
   $('#viewerCtrl .vplay')?.remove();
   setAge($('#viewerBody'), p);                          // agrandi, le dépôt garde son âge
   $('#viewerBody').replaceChildren(content(p, { full: true }));
+  if (EDGE) EDGE.wear($('#viewerBody'), p, ageOf(p).stage);
   // passage d'un dépôt à l'autre : fondu enchaîné (durée 0 avec « Réduire les animations », tokens.css)
   const vb = $('#viewerBody'); vb.classList.remove('is-swap'); void vb.offsetWidth; vb.classList.add('is-swap');
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
@@ -463,7 +514,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=bf67799b17');
+    const { makeFragment, today } = await import('./fragment.js?v=7c9cfbde91');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
