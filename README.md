@@ -1,6 +1,7 @@
-# Mood — moodboard participatif
+# Mood — un mur qui s'efface
 
-Un mur de moodboard où chacun peut déposer une image ou un court texte. Rien n'est publié sans validation.
+Un mur collectif où chacun peut laisser une image, des mots, ou les deux. Rien n'est publié sans validation.
+Ensuite, le temps use le mur : les images se désagrègent, puis tout dépôt passe dans la liste. Voir `docs/note-de-realisation.md`.
 
 Adresse : **https://moodwall.pages.dev** (Cloudflare Pages, branche `main`, sans étape de build, dossier racine ; en-têtes HTTP dans `_headers`).
 
@@ -41,4 +42,4 @@ python3 tools/stamp.py --check    # empreintes de cache à jour
 
 ## Archive
 
-L'ancien portfolio (espace 3D three.js) est conservé sur la branche `archive/expo-3d`.
+L'ancien site (espace 3D three.js) est conservé sur la branche `archive/expo-3d`.
