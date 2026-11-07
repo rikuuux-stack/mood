@@ -18,7 +18,7 @@
  *                                          (acceptés, refusés par raison, retirés). Aucune donnée personnelle.
  *   GET ?expiry                          → expiration à 180 jours, RAPPORT (simulation) : réglage (enabled, OFF par défaut),
  *                                          ce qui serait supprimé maintenant et dans les 30 jours, place libérée
- *   POST { action: 'expiry-run' }        → supprime vraiment les fichiers des dépôts expirés et ne garde que leur ligne,
+ *   POST { action: 'expiry-run' }        → supprime vraiment les fichiers des dépôts expirés ; il reste leur ligne et leurs mots,
  *                                          SEULEMENT si l'auteur a activé expiry_settings.enabled lui-même (sinon 403
  *                                          « disabled », rien n'est touché). Aucune action ne peut activer ce réglage.
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
@@ -139,8 +139,9 @@ async function expiryRun(db) {
     if (!p?.image_path) continue;
     const { error: e1 } = await db.storage.from('published').remove([p.image_path, p.thumb_path]);
     if (e1) { console.error('[moderate] expiration : fichiers non supprimés', c.id, e1.message); continue; }
-    // seule la ligne de la liste reste : date, consigne, type, taille (ni fichier, ni texte, ni pseudo)
-    const { error: e2 } = await db.from('posts').update({ image_path: null, thumb_path: null, text: '', name: '', expired_at: new Date().toISOString() }).eq('id', c.id);
+    // l'image s'en va, les mots restent (décision de l'auteur, option A) : il reste la ligne de la liste
+    // (date, type, durée, consigne) et, s'il y en avait, les mots déposés avec l'image. Le pseudo est retiré.
+    const { error: e2 } = await db.from('posts').update({ image_path: null, thumb_path: null, name: '', expired_at: new Date().toISOString() }).eq('id', c.id);
     if (e2) { console.error('[moderate] expiration : ligne non mise à jour', c.id, e2.message); continue; }
     done++;
   }

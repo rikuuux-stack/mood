@@ -484,6 +484,9 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
   const line = await ep.$eval('.kawara', l => [...l.children].map(x => x.textContent));
   ok(/^[A-Z]{3,5}\.\d{1,2},\d{4}$/.test(line[0]) && ['image', 'video'].includes(line[1]) && line[2] === '180 days', `dépôt expiré : « ${line.join('  ')} » (date, type, durée de vie, consigne)`, JSON.stringify(line));
   ok(!(await ep.$$eval('.row--expired img, .row--expired video, .row--expired button', x => x.length)), 'dépôt expiré : ni image, ni vidéo, ni bouton');
+  // option A : un dépôt image + mots perd son image mais garde ses mots, lisibles, sous sa ligne
+  const kept = await ep.$$eval('.row--expired .kawara-entry', es => es.map(e => ({ line: !!e.querySelector('.kawara'), words: e.querySelector('.kawara-words')?.textContent || '', size: parseFloat(getComputedStyle(e.querySelector('.kawara-words')).fontSize), color: getComputedStyle(e.querySelector('.kawara-words')).color })));
+  ok(kept.length > 0 && kept.every(k => k.line && k.words.length > 0 && k.size >= 13 && k.color === 'rgb(17, 17, 17)'), `dépôt expiré avec des mots : la ligne, puis les mots, lisibles (${kept.length} dans la démonstration)`, JSON.stringify(kept.slice(0, 2)));
   await ep.click('.row--expired'); await ep.waitForTimeout(200);
   ok(!(await ep.evaluate(() => document.querySelector('#viewer').open)), 'dépôt expiré : un toucher n’ouvre rien');
   await ep.click('.row:not(.row--expired) .item-hit'); await ep.waitForSelector('#viewer[open]');

@@ -75,7 +75,7 @@ export function settlePending(publishedIds) {
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {}) {
   if (mode === 'mock') {
-    const { MOCK_POSTS, expiredDemo } = await import('./mock.js?v=e0066123f7');
+    const { MOCK_POSTS, expiredDemo } = await import('./mock.js?v=9743e94d55');
     // ?mock=expired : démonstration de la liste des dépôts expirés (fausses données, aucun envoi possible)
     const all = new URLSearchParams(location.search).get('mock') === 'expired' ? expiredDemo() : MOCK_POSTS;
     return all.slice(offset, offset + limit);

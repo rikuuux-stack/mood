@@ -13,11 +13,11 @@ import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 /* ------------------------------------------------------------------ base et stockage factices */
-const state = { posts: new Map(), reports: [], admins: new Set(['u1']), buckets: { pending: new Map(), published: new Map() }, failNext: null };
+const state = { posts: new Map(), reports: [], admins: new Set(['u1']), buckets: { pending: new Map(), published: new Map() }, failNext: null, expiry: { id: 1, enabled: false, days: 180 } };
 const failing = step => { if (state.failNext === step) { state.failNext = null; return { message: `panne ${step}` }; } return null; };
 
 function table(name) {
-  const rows = () => (name === 'posts' ? [...state.posts.values()] : name === 'reports' ? state.reports : name === 'admins' ? [...state.admins].map(user_id => ({ user_id })) : []);
+  const rows = () => (name === 'posts' ? [...state.posts.values()] : name === 'reports' ? state.reports : name === 'admins' ? [...state.admins].map(user_id => ({ user_id })) : name === 'expiry_settings' ? [state.expiry] : []);
   const q = { filters: [], op: 'select' };
   const match = r => q.filters.every(([k, v]) => r[k] === v);
   const run = () => {
@@ -52,7 +52,11 @@ function bucket(name) {
     getPublicUrl: p => ({ data: { publicUrl: `public:${p}` } }),
   };
 }
-const fakeClient = () => ({ from: table, storage: { from: bucket }, rpc: async () => ({ data: 0, error: null }), auth: { getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }) } });
+// expiry_candidates : dépôts publiés, avec fichiers, validés depuis plus de `days` jours (comme la fonction SQL)
+const rpc = async (fn, args) => fn === 'expiry_candidates'
+  ? { data: [...state.posts.values()].filter(p => p.status === 'approved' && p.image_path && !p.expired_at && p.approved_at && Date.parse(p.approved_at) < Date.now() - args.days * 864e5).map(p => ({ id: p.id, kind: p.kind, bytes: 3 })), error: null }
+  : { data: 0, error: null };
+const fakeClient = () => ({ from: table, storage: { from: bucket }, rpc, auth: { getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }) } });
 
 // le module « jsr:@supabase/supabase-js@2 » est remplacé par le client factice (chargeur Node)
 const loader = `
@@ -128,6 +132,19 @@ post('g', 'approved', false);
 check('texte seul : remove sans fichier', [(await call({ action: 'remove', id: 'g' })).status, state.posts.has('g')], [200, false]);
 check('resize : taille inconnue refusée', (await call({ action: 'resize', id: 'f', size: 'xl' })).error, 'action');
 check('dépôt inconnu : 404 « gone »', (await call({ action: 'approve', id: 'zzz' })).error, 'gone');
+
+/* ------------------------------------------------------------------ expiration (option A : l'image s'en va, les mots restent) */
+post('x', 'approved'); Object.assign(state.posts.get('x'), { text: 'les mots restent', name: 'pseudo', approved_at: new Date(Date.now() - 200 * 864e5).toISOString() });
+post('y', 'approved'); Object.assign(state.posts.get('y'), { approved_at: new Date(Date.now() - 20 * 864e5).toISOString() });
+check('expiration désactivée (par défaut) : 403 « disabled », rien n’est supprimé', [(await call({ action: 'expiry-run' })).error, where('x.webp')], ['disabled', ['published']]);
+state.expiry.enabled = true;
+{ const back = silence(); const log = console.log; console.log = () => {};
+  const out = await call({ action: 'expiry-run' }); console.log = log; back();
+  const x = state.posts.get('x');
+  check('expiration : l’image et l’image fixe sont supprimées, les MOTS restent, le pseudo est retiré, le dépôt récent est intact',
+    [out.done, where('x.webp'), where('x-thumb.webp'), x.image_path, x.text, x.name, !!x.expired_at, where('y.webp')],
+    [1, [], [], null, 'les mots restent', '', true, ['published']]); }
+state.expiry.enabled = false;
 
 console.log(`\n${n - fail} / ${n} tests passés.`);
 process.exit(fail ? 1 : 0);

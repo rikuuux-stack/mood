@@ -70,8 +70,9 @@ Si un jour tu décides de l'activer (à toi seul : aucun bouton ni programme du 
 
 1. supabase.com ▸ projet ▸ **SQL Editor** ▸ colle `update public.expiry_settings set enabled = true where id = 1;` ▸ **Run** ;
 2. /admin/ ▸ **Expiry** : un bouton **Run** apparaît (2ᵉ toucher pour confirmer). Il supprime les fichiers (image, vidéo,
-   image fixe) des dépôts publiés depuis plus de 180 jours, ainsi que leur légende et leur pseudo ; il ne reste que leur
-   ligne dans la vue List : date, type, « 180 days », consigne.
+   image fixe) des dépôts publiés depuis plus de 180 jours, ainsi que leur pseudo ; il reste leur ligne dans la vue
+   List (date, type, « 180 days », consigne) et, s'il y en avait, **les mots** déposés avec l'image : l'image s'en va,
+   les mots restent. Les textes seuls ne sont jamais touchés.
 
 Pour revenir en simulation : même chose avec `enabled = false`. Une suppression faite est **définitive**.
 
