@@ -21,7 +21,13 @@
   /* ---------------------------------------------------------------- verre
      Deux matières seulement : « capsule » (commandes posées sur le mur)
      et « feuille » (fenêtres Drop / Mood / agrandissement). */
-  --glass-fill:        rgb(255 255 255 / .48);  /* capsule : ≈ 8:1 pour --fg, même sur le gris le plus sombre visible */
+  /* Contraste réel de --fg (#111) sur une capsule (calcul : verre dépoli, pas de réfraction) :
+       gris le plus sombre que produit le traitement des images, images empilées : x = 0,303 (sRGB)
+         (point fixe de x = a·g + (1 − a)·x, a = 1 − 6,67 × (0,45 − g), g du négatif entre 0 et 0,76) ;
+       le flou ne change pas un aplat ; brightness(1,1) puis contrast(,9) : c = (min(1, 1,1·x) − 0,5) × 0,9 + 0,5 = 0,450 ;
+       remplissage f : fond = f + (1 − f) × c → f = 0,48 : 0,662, soit 8,0:1 pour --fg (≥ 7:1, texte 300 à 13 px).
+       55 % n'est donc pas nécessaire (il donnerait 9,2:1). */
+  --glass-fill:        rgb(255 255 255 / .48);  /* capsule : 8,0:1 pour --fg au-dessus du gris visible le plus sombre */
   --glass-fill-sheet:  rgb(255 255 255 / .78);  /* feuille : le mur se devine, le texte fin reste lisible */
   --glass-blur:        12px;
   --glass-blur-sheet:  20px;
@@ -32,7 +38,10 @@
   --glass-rim:
     inset 0 1px 0 var(--glass-rim-light),
     inset 0 0 0 1px var(--glass-rim-dark);      /* reflet intérieur, pas d'ombre portée */
-  --veil:              rgb(255 255 255 / .86);  /* ::backdrop des fenêtres, sans flou */
+  --veil:              rgb(255 255 255 / .60);  /* ::backdrop des fenêtres, sans flou : le mur se devine derrière la feuille */
+  /* feuille au-dessus du voile, pire cas : fond 0,955 → --fg 17,1:1 ; --muted #555 n'y ferait que 6,7:1,
+     d'où --muted-sheet (#505050 : 7,3:1), utilisé seulement dans les feuilles. */
+  --muted-sheet:       #505050;
   --radius-glass:      999px;                   /* le rond est réservé au verre */
   --radius-sheet:      22px;                    /* coins hauts des feuilles sur mobile */
 
@@ -41,7 +50,8 @@
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --w-thin:   100;   /* « Mood » seulement */
   --w-light:  200;   /* tout ce qui est posé sur le blanc */
-  --w-glass:  300;   /* tout ce qui est posé sur le verre (sous-ensemble latin) */
+  --w-glass:  300;   /* tout ce qui est posé sur le verre (sous-ensemble latin, 3,7 Ko) */
+  --w-mono:   300;   /* Plex Mono : consigne, nom · date, Kawara, Keep (200 était trop fin à 10-11 px ; 10,1 Ko) */
   --light: var(--w-light);   /* compatibilité site.css */
 
   --fs-micro: 10px;  /* mono : repère vidéo, compteur */
@@ -62,7 +72,7 @@
   --s-5: 32px;
   --s-6: 52px;   /* entre deux strates (mois / consigne) */
   --gutter:   24px;
-  --gutter-r: 16px;   /* marge droite plus courte que la gauche : le mur penche vers la droite */
+  --gutter-r: 12px;   /* marge droite deux fois plus courte que la gauche (24/12, 16/8 sur mobile) : « Drop » se colle au bord */
   --hit:      44px;   /* cible tactile minimale */
   --line:     1px;
   --safe-t: env(safe-area-inset-top, 0px);
@@ -81,7 +91,7 @@
 @media (max-width: 639px) {
   :root {
     --gutter: 16px;
-    --gutter-r: 12px;
+    --gutter-r: 8px;
     --glass-blur: 10px;
     --glass-blur-sheet: 16px;
   }
@@ -97,6 +107,10 @@
 }
 
 /* ---------------------------------------------------------------- préférences d'accessibilité */
+/* Honnêtement : prefers-reduced-transparency n'est pris en charge que par Chromium (Chrome, Edge, Android).
+   Safari ne la reconnaît pas, donc AUCUN iPhone ne l'applique, même avec « Réduire la transparence » activé
+   dans les réglages. La règle est gardée pour les autres navigateurs ; sur iPhone, la lisibilité repose sur le calcul
+   de contraste ci-dessus. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-fill: var(--panel);
@@ -112,6 +126,7 @@
     --glass-fill-sheet: var(--bg);
     --glass-rim: inset 0 0 0 1px var(--fg);
     --muted: #333333;
+    --muted-sheet: #333333;
   }
 }
 @media (prefers-reduced-motion: reduce) {

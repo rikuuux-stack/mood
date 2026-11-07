@@ -1,25 +1,7 @@
 /* Mood — un mur collectif qui s'efface avec le temps. Direction « blanc » : fond blanc pur, texte noir doux, aucun grain.
    Règle de couleur : UNIQUEMENT des gris neutres, du noir au blanc. Aucune teinte.
    Toutes les photos déposées sont affichées en NÉGATIF noir et blanc (.photo, filtre #tone). */
-:root {
-  --bg: #ffffff;            /* fond de page : blanc pur */
-  --fg: #111111;            /* texte : noir doux (contraste ≈ 18,9:1 sur le fond) */
-  --muted: #555555;         /* texte secondaire (≈ 7,5:1 sur blanc, ≈ 7,1:1 sur --panel) */
-  --panel: #fafafa;         /* fenêtres (dépôt, agrandissement, panneau « à propos ») : gris très clair */
-  --rule: #d9d9d9;          /* filets et bordures discrets : gris clair */
-  --photo-bg: #f0f0f0;      /* fond d'une photo pendant son chargement */
-  /* traits très fins partout : IBM Plex Sans JP ExtraLight (200), Thin (100) pour « Mood ».
-     Repli : Hiragino Sans (iPhone/Mac) existe aussi en graisses fines. */
-  --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --light: 200;
-  --line: 1px;              /* bordures : aussi fines que les lettres */
-  --gutter: 24px;
-  --safe-t: env(safe-area-inset-top, 0px);
-  --safe-b: env(safe-area-inset-bottom, 0px);
-  color-scheme: light;
-}
-@media (max-width: 639px) { :root { --gutter: 16px; } }
+/* Les variables (couleurs, verre, typographie, espaces, mouvement) sont dans docs/tokens.css, chargé avant ce fichier. */
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
