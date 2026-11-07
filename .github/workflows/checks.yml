@@ -39,5 +39,17 @@ jobs:
               console.log(`${p.id.slice(0, 8)} (${p.kind}, ${p.status}, bucket ${bucket}) : ${res.join("  ")}`);
             }
             console.log(`Bilan : ${posts.length} dépôt(s) avec fichiers ; ${bad} fichier(s) qui ne sont pas un négatif « .neg » lisible.`);
+            // Fichiers réellement présents dans le stockage (liste = base du stockage, sans cache) : en reste-t-il en couleur ?
+            for (const bucket of ["published", "pending"]) {
+              const list = await (await fetch(`${U}/storage/v1/object/list/${bucket}`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ prefix: "", limit: 1000, offset: 0 }) })).json();
+              const files = list.filter(f => f.id);
+              const old = files.filter(f => !/\.neg\.jpg$/.test(f.name) && !/\.mp4$/.test(f.name));
+              console.log(`Stockage ${bucket} : ${files.length} fichier(s), dont ${old.length} ancien(s) (pas « .neg »).`);
+              for (const f of old.slice(0, 30)) {
+                const pub = bucket === "published" ? await fetch(`${U}/storage/v1/object/public/${bucket}/${encodeURIComponent(f.name)}`) : null;
+                console.log(`  ancien ${f.name.slice(0, 8)}…${f.name.slice(-10)} : présent dans la liste ; adresse publique → ${pub ? pub.status + " cache=" + (pub.headers.get("cf-cache-status") || "?") + " age=" + (pub.headers.get("age") || "-") : "sans objet (privé)"}`);
+                if (pub) await pub.arrayBuffer().catch(() => {});
+              }
+            }
             process.exit(bad ? 1 : 0);
           '
