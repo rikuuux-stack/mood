@@ -9,6 +9,8 @@ dans assets/fonts/ et RÉÉCRIT css/fonts.css.
         des kanji réellement affichés (dépôts des visiteurs), comme Google Fonts, mais chez nous.
   - IBM Plex Sans JP Thin (100) : le nom « Mood » (bandeau et panneau « à propos »).
   - IBM Plex Mono ExtraLight (200) : petites légendes (dates, poids des fichiers).
+  - IBM Plex Sans JP Light (300) : uniquement les mots d'interface posés sur le verre (sous-ensemble latin).
+  - IBM Plex Mono Light (300) : registre (consigne, nom · date, Kawara, Keep).
 
 À relancer après avoir modifié des textes du site :
     pip install fonttools brotli
@@ -41,12 +43,15 @@ def urange(cps):
         i = j + 1
     return ', '.join(out)
 
-def subset(src, cps, name):
+def subset(src, cps, name, lean=False):
     lst = ROOT / 'tools/fonts/.chars.txt'
     lst.write_text(''.join(chr(c) for c in sorted(cps)), encoding='utf-8')
     subprocess.run([sys.executable, '-m', 'fontTools.subset', str(SRC / src), f'--text-file={lst}',
-                    '--flavor=woff2', '--layout-features=*', '--no-hinting',
-                    f'--output-file={OUT / name}'], check=True, stderr=subprocess.DEVNULL)
+                    '--flavor=woff2', '--no-hinting', f'--output-file={OUT / name}',
+                    # lean : graisses 300 — aucune table de mise en forme (une chasse fixe en Mono, quelques mots
+                    # anglais en Sans) ni d'écriture verticale : 3 à 4 Ko au lieu de 60 Ko.
+                    *(['--layout-features=', '--drop-tables+=BASE,vhea,vmtx,GPOS,GSUB'] if lean else ['--layout-features=*'])],
+                   check=True, stderr=subprocess.DEVNULL)
     lst.unlink()
     return (OUT / name).stat().st_size
 
@@ -83,6 +88,22 @@ mono = (LATIN | {c for c in site if c < 0x2E80}) & set(TTFont(SRC / 'IBMPlexMono
 size = subset('IBMPlexMono-ExtraLight.ttf', mono, 'PlexMono-200-latin.woff2')
 faces.append(("IBM Plex Mono", 200, 'PlexMono-200-latin.woff2', urange(mono)))
 print(f'Mono 200 : {size // 1024} Ko')
+
+# Light (300) — direction artistique (docs/mood-da.md) : seulement le texte posé sur le VERRE (Drop, Keep, Share, Save,
+# Send, ‹ › × ▶, S / M / L…). Ces mots restent en anglais dans les trois langues (UI de js/strings.js) : un petit
+# sous-ensemble latin suffit. Source : paquet npm officiel @ibm/plex-sans-jp 3.0.0 (fonts/complete/woff2/hinted).
+GLASS = chars((0x41, 0x5A), (0x61, 0x7A), (0x30, 0x39)) | {ord(c) for c in ' .,:;!?…’\'-–—/()‹›×▶↓'}
+glass = GLASS & set(TTFont(SRC / 'IBMPlexSansJP-Light.woff2').getBestCmap())
+size = subset('IBMPlexSansJP-Light.woff2', glass, 'PlexSansJP-300-glass.woff2', lean=True)
+faces.append(("IBM Plex Sans JP", 300, 'PlexSansJP-300-glass.woff2', urange(glass)))
+print(f'Sans 300 (verre) : {size} octets')
+
+# Mono Light (300) : consigne, nom · date, lignes Kawara, ligne Keep — l'ExtraLight était trop fine à 10-11 px.
+# Source : paquet npm officiel @ibm/plex-mono 2.5.0 (fonts/complete/woff2).
+mono3 = (LATIN | {c for c in site if c < 0x2E80}) & set(TTFont(SRC / 'IBMPlexMono-Light.woff2').getBestCmap())
+size = subset('IBMPlexMono-Light.woff2', mono3, 'PlexMono-300-latin.woff2', lean=True)
+faces.append(("IBM Plex Mono", 300, 'PlexMono-300-latin.woff2', urange(mono3)))
+print(f'Mono 300 : {size} octets')
 
 css = ['/* Généré par tools/fonts/subset.py — ne pas modifier à la main.',
        '   IBM Plex Sans JP et IBM Plex Mono, licence SIL OFL (assets/fonts/OFL-*.txt). */']
