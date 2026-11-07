@@ -1,60 +1,43 @@
-# Vérifications automatiques à chaque envoi et pull request :
-#  - les empreintes de cache (?v=…) sont à jour (sinon des visiteurs garderaient d'anciens fichiers) ;
-#  - les règles de lisibilité du mur sont respectées ;
-#  - dans un vrai navigateur (iPhone émulé, données factices) : Mood / Drop, fond fixe, érosion, images, vidéos ;
-#  - conversion des vidéos et GIF (Google Chrome, qui encode le H.264).
+# Branche jetable claude/verif-count : VÉRIFIE (lecture seule) que chaque fichier pointé par la base — ceux que /admin/
+# affiche — est bien un négatif (même contrôle que le serveur). N'affiche aucun contenu, n'écrit rien.
 name: Vérifications
 on:
   push:
-  pull_request:
 jobs:
   checks:
-    # ubuntu-24.04 et non ubuntu-latest : depuis fin octobre 2026, « latest » = 26.04, que Playwright 1.56 ne sait pas
-    # équiper (« Playwright does not support chromium on ubuntu26.04 ») : toutes les vérifications tombaient.
     runs-on: ubuntu-24.04
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF: ovvdtthnykqvgarrjina
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Empreintes de cache à jour
-        run: python3 tools/stamp.py --check
-      - name: Règles du mur
-        run: node tests/wall.test.mjs
-      - name: Contrôles serveur (formats, métadonnées, budget)
-        run: node tests/server.test.mjs
-      - name: Alerte e-mail en cas d'échec (script testé contre un faux serveur Resend)
-        run: node tests/ci-alert.test.mjs
-      - name: Expiration de nuit (script testé contre un faux serveur)
-        run: node tests/expire-nightly.test.mjs
-      - name: Modération (enchaînement des étapes, reprise après panne — base et stockage factices)
-        run: node tests/moderate.test.mjs
-      - name: Navigateur (bandeau, fond, érosion)
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      - name: Fichiers pointés par la base (ceux que voit /admin/) — négatifs ?
         run: |
-          npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
-          node tests/browser.test.mjs
-          node tests/negate-existing.test.mjs
-          node tests/admin.test.mjs
-          node tests/admin-log.test.mjs
-          node tests/admin-expiry.test.mjs
-          node tests/admin-bulk.test.mjs
-        env:
-          PW_CHANNEL: chrome          # Google Chrome du runner GitHub : lit le H.264 (lecture réelle des vidéos)
-      - name: Conversion vidéo et GIF (Google Chrome, H.264 ; poids réels sur 60 s)
-        run: node tests/video.test.mjs
-        env:
-          PW_CHANNEL: chrome
-      # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
-      # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
-      - name: Alerte e-mail en cas d'échec
-        if: failure()
-        run: |
-          if [ -f tools/ci-alert.sh ]; then bash tools/ci-alert.sh
-          else echo "::warning::tools/ci-alert.sh introuvable (dépôt non récupéré), pas d'alerte"; fi
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          WORKFLOW: ${{ github.workflow }}
-          JOB: ${{ github.job }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          key=$(supabase projects api-keys --project-ref "$REF" -o json | jq -r '.[] | select(.name == "service_role") | .api_key' | head -n 1)
+          echo "::add-mask::$key"
+          SERVICE_KEY="$key" SUPABASE_URL="https://$REF.supabase.co" node --input-type=module -e '
+            import { negativeError } from "./supabase/functions/_shared/negative.js";
+            const U = process.env.SUPABASE_URL, H = { apikey: process.env.SERVICE_KEY, Authorization: `Bearer ${process.env.SERVICE_KEY}` };
+            const posts = await (await fetch(`${U}/rest/v1/posts?select=id,kind,status,image_path,thumb_path,expired_at&image_path=not.is.null`, { headers: H })).json();
+            let bad = 0;
+            for (const p of posts) {
+              const bucket = p.status === "pending" ? "pending" : "published";
+              const files = p.kind === "video" ? [p.thumb_path] : [p.image_path, p.thumb_path];
+              const res = [];
+              for (const f of files) {
+                const r = await fetch(`${U}/storage/v1/object/${bucket}/${encodeURIComponent(f)}`, { headers: H });
+                const err = r.ok ? negativeError(new Uint8Array(await r.arrayBuffer())) : `HTTP ${r.status}`;
+                res.push(`${/\.neg\.jpg$/.test(f) ? ".neg" : "ANCIEN NOM"}:${err ?? "négatif"}`);
+                if (err || !/\.neg\.jpg$/.test(f)) bad++;
+              }
+              console.log(`${p.id.slice(0, 8)} (${p.kind}, ${p.status}, bucket ${bucket}) : ${res.join("  ")}`);
+            }
+            console.log(`Bilan : ${posts.length} dépôt(s) avec fichiers ; ${bad} fichier(s) qui ne sont pas un négatif « .neg » lisible.`);
+            process.exit(bad ? 1 : 0);
+          '
