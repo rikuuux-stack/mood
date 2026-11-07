@@ -1,0 +1,124 @@
+/* ==========================================================================
+   Mood — tokens de direction artistique
+   À charger AVANT css/site.css. Remplace le bloc :root actuel de site.css
+   (mêmes noms conservés pour --bg, --fg, --muted, --panel, --rule, --photo-bg,
+   --font, --mono, --light, --line, --gutter, --safe-t, --safe-b).
+   Règle de couleur inchangée : uniquement des gris neutres (chroma 0).
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------- gris
+     Chaque valeur : hex (utilisé) · oklch (référence, chroma 0 = aucune teinte) */
+  --bg:        #ffffff;   /* oklch(1 0 0)       le fond, le blanc où l'usure disparaît */
+  --fg:        #111111;   /* oklch(0.178 0 0)   le texte, 18,9:1 sur --bg */
+  --muted:     #555555;   /* oklch(0.450 0 0)   méta : nom, date, mentions (7,5:1) */
+  --rule:      #d9d9d9;   /* oklch(0.885 0 0)   filets de strate, champs */
+  --panel:     #fafafa;   /* oklch(0.985 0 0)   verre opaque (repli) */
+  --photo-bg:  #f0f0f0;   /* oklch(0.955 0 0)   place d'une image en chargement */
+
+  /* ---------------------------------------------------------------- verre
+     Deux matières seulement : « capsule » (commandes posées sur le mur)
+     et « feuille » (fenêtres Drop / Mood / agrandissement). */
+  --glass-fill:        rgb(255 255 255 / .48);  /* capsule : ≈ 8:1 pour --fg, même sur le gris le plus sombre visible */
+  --glass-fill-sheet:  rgb(255 255 255 / .78);  /* feuille : le mur se devine, le texte fin reste lisible */
+  --glass-blur:        12px;
+  --glass-blur-sheet:  20px;
+  --glass-lift:        1.1;                     /* brightness() : éclaircit le mur sous le verre, sans teinte */
+  --glass-flatten:     .9;                      /* contrast() : écrase le détail derrière une commande */
+  --glass-rim-light:   rgb(255 255 255 / .85);  /* reflet de bord, en haut */
+  --glass-rim-dark:    rgb(17 17 17 / .07);     /* tenue du bord sur fond blanc */
+  --glass-rim:
+    inset 0 1px 0 var(--glass-rim-light),
+    inset 0 0 0 1px var(--glass-rim-dark);      /* reflet intérieur, pas d'ombre portée */
+  --veil:              rgb(255 255 255 / .86);  /* ::backdrop des fenêtres, sans flou */
+  --radius-glass:      999px;                   /* le rond est réservé au verre */
+  --radius-sheet:      22px;                    /* coins hauts des feuilles sur mobile */
+
+  /* ---------------------------------------------------------------- typographie */
+  --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --w-thin:   100;   /* « Mood » seulement */
+  --w-light:  200;   /* tout ce qui est posé sur le blanc */
+  --w-glass:  300;   /* tout ce qui est posé sur le verre (sous-ensemble latin) */
+  --light: var(--w-light);   /* compatibilité site.css */
+
+  --fs-micro: 10px;  /* mono : repère vidéo, compteur */
+  --fs-meta:  11px;  /* mono : consigne, nom · date, ligne Kawara, ligne Keep */
+  --fs-base:  13px;  /* interface, mentions */
+  --fs-input: 16px;  /* champs de saisie : en dessous, iOS zoome la page */
+  --fs-mark:  22px;  /* « Mood » */
+  --lh:       1.65;
+  --track-mark: .3em;
+  --track-ui:   .1em;
+
+  /* ---------------------------------------------------------------- espace
+     Suite non uniforme (≈ ×1,6) : pas deux écarts égaux entre deux niveaux. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 20px;
+  --s-5: 32px;
+  --s-6: 52px;   /* entre deux strates (mois / consigne) */
+  --gutter:   24px;
+  --gutter-r: 16px;   /* marge droite plus courte que la gauche : le mur penche vers la droite */
+  --hit:      44px;   /* cible tactile minimale */
+  --line:     1px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* ---------------------------------------------------------------- mouvement */
+  --ease-out: cubic-bezier(.2, 0, 0, 1);    /* entrée : part vite, se pose */
+  --ease-in:  cubic-bezier(.4, 0, 1, 1);    /* sortie : part lentement, disparaît */
+  --dur-1: 120ms;  /* retour tactile (:active) */
+  --dur-2: 180ms;  /* fermeture, passage d'un dépôt à l'autre */
+  --dur-3: 240ms;  /* ouverture d'une feuille, apparition d'une image */
+  --rise:  10px;   /* une feuille monte de 10 px en s'ouvrant, pas plus */
+}
+
+/* ---------------------------------------------------------------- mobile */
+@media (max-width: 639px) {
+  :root {
+    --gutter: 16px;
+    --gutter-r: 12px;
+    --glass-blur: 10px;
+    --glass-blur-sheet: 16px;
+  }
+}
+
+/* ---------------------------------------------------------------- sans backdrop-filter
+   Le verre devient une matière presque opaque : même lisibilité, pas de transparence simulée. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-fill: rgb(250 250 250 / .94);
+    --glass-fill-sheet: var(--panel);
+  }
+}
+
+/* ---------------------------------------------------------------- préférences d'accessibilité */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-fill: var(--panel);
+    --glass-fill-sheet: var(--panel);
+    --glass-blur: 0px;
+    --glass-blur-sheet: 0px;
+    --veil: rgb(255 255 255 / .97);
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --glass-fill: var(--bg);
+    --glass-fill-sheet: var(--bg);
+    --glass-rim: inset 0 0 0 1px var(--fg);
+    --muted: #333333;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+    --dur-3: 0ms;
+    --rise: 0px;
+  }
+}
