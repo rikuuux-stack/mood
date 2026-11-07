@@ -9,7 +9,9 @@
 import { CONFIG } from './config.js?v=05f59e2af5';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
-export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;
+// PROTOTYPE (branche proto-v2) : ?demo=1 → 70 faux dépôts sur 5 mois (js/demo.js), en mode maquette : rien n'est envoyé
+const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+export const mode = new URLSearchParams(location.search).has('mock') || DEMO ? 'mock' : CONFIG.mode;
 
 const headers = () => ({ apikey: CONFIG.supabaseAnonKey, Authorization: `Bearer ${CONFIG.supabaseAnonKey}` });
 const publicUrl = path => `${CONFIG.supabaseUrl}/storage/v1/object/public/published/${encodeURIComponent(path)}`;
@@ -43,7 +45,7 @@ function save(patch) {
  * Un court texte anglais réglé depuis /admin/ (table prompt) ; vide = pas de consigne ce mois-ci.
  */
 export async function fetchPrompt() {
-  if (mode === 'mock') return '';
+  if (mode === 'mock') return DEMO ? 'trace' : '';
   const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/current_prompt?select=text`, { headers: headers() });
   if (!r.ok) throw new ServerError('server', r.status);
   const prompt = (await r.json())[0]?.text || '';
@@ -74,6 +76,7 @@ export function settlePending(publishedIds) {
 
 /** Dépôts validés, du plus récent au plus ancien. */
 export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {}) {
+  if (DEMO) return (await (await import('./demo.js?v=456a371e00')).demoPosts()).slice(offset, offset + limit);
   if (mode === 'mock') {
     const { MOCK_POSTS, expiredDemo } = await import('./mock.js?v=9743e94d55');
     // ?mock=expired : démonstration de la liste des dépôts expirés (fausses données, aucun envoi possible)
