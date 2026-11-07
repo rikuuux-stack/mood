@@ -7,12 +7,12 @@
  * remplacés par des données factices (tests/fixtures.mjs, image tests/fixtures-img/clean.jpg).
  *
  * Vérifie :
- *   - plus de bandeau : « Mood » et « Drop » flottent sans fond (mix-blend-mode: difference) ;
+ *   - plus de bandeau : « Mood » et « Drop » sont deux capsules de verre (docs/mood-da.md) ;
  *   - au défilement (bas puis haut), vue Wall et vue List, avec la barre d'adresse simulée
  *     (hauteur 844 → 750 → 844) : Mood et Drop restent à leur place et AUCUNE image ne passe dessus ;
  *   - fond blanc uni, sans grain (ni couche body::before, ni grain sur les photos) ;
  *   - érosion : les vieilles images ont un palier (age-1 … age-4 → filtre #erodeN : les sombres du négatif deviennent
- *     transparents), aucune opacité, rien ne change au survol, l'agrandissement montre l'image neuve ;
+ *     transparents), aucune opacité, rien ne change au survol ni à l'agrandissement, la liste montre le même âge ;
  *     textes lisibles à tout âge (≥ 7:1) ;
  *   - Keep : un fragment du mur aux bonnes dimensions (1080 × 1350, 1080 × 1920), canvas non « tainted »,
  *     sans métadonnées, ligne du bas présente ; partage natif sur iPhone, téléchargement sur ordinateur ;
@@ -145,14 +145,29 @@ const bar = await pg.evaluate(() => {
 });
 ok(bar.pos === 'fixed' && bar.bg === 'rgba(0, 0, 0, 0)' && bar.img === 'none',
   'plus de bandeau : Mood et Drop flottent, sans aucun fond', JSON.stringify(bar));
-ok(bar.blend === 'difference', 'Mood et Drop lisibles sur le clair comme sur le sombre (mix-blend-mode: difference)', bar.blend);
+// direction artistique (docs/mood-da.md) : deux capsules de verre dépoli, plus de « difference »
+const glass = await pg.evaluate(() => [...document.querySelectorAll('.bar .id, .bar .btn-drop')].map(e => { const c = getComputedStyle(e); return { bf: c.backdropFilter || c.webkitBackdropFilter, bg: c.backgroundColor, radius: c.borderRadius, color: c.color }; }));
+ok(bar.blend === 'normal' && glass.length === 2 && glass.every(g => /blur\(/.test(g.bf) && !/url\(/.test(g.bf) && !/saturate/.test(g.bf) && g.bg !== 'rgba(0, 0, 0, 0)' && g.color === 'rgb(17, 17, 17)'),
+  'Mood et Drop : capsules de verre (flou, sans réfraction ni saturation), texte #111, plus de « difference »', JSON.stringify({ blend: bar.blend, glass }));
+// au plus deux couches de flou visibles à la fois ; jamais dans ce qui défile ; une fenêtre ouverte coupe les capsules
+const blurred = () => pg.evaluate(() => [...document.querySelectorAll('body *')].filter(e => { const c = getComputedStyle(e), f = c.backdropFilter || c.webkitBackdropFilter; return f && f !== 'none' && e.checkVisibility(); })
+  .map(e => ({ id: e.id || e.className, inScroller: !!e.closest('#wall, #list') })));
+const atRest = await blurred();
+await pg.evaluate(() => document.querySelector('.bar .btn-drop').click()); await pg.waitForTimeout(400);
+const withSheet = await blurred();
+await pg.keyboard.press('Escape'); await pg.waitForTimeout(400);
+ok(atRest.length === 2 && withSheet.length === 1 && withSheet[0].id === 'drop' && ![...atRest, ...withSheet].some(e => e.inScroller),
+  'verre : 2 couches de flou au repos (Mood, Drop), 1 seule fenêtre ouverte (la feuille), jamais dans le mur ni la liste', JSON.stringify({ atRest, withSheet }));
+const noFlip = await pg.evaluate(() => { const n = getComputedStyle(document.querySelector('.id-name')); return n.animationName === 'none' && ![...document.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => r.name === 'flip'); } catch { return false; } }); });
+ok(noFlip, '« Mood » ne se retourne plus (aucun mouvement sans geste du visiteur)');
 
 // chaque point de « Mood » et de « Drop » doit leur appartenir (aucune image par-dessus)
 const probe = () => pg.evaluate(() => {
   const bad = [], tops = [];
   for (const el of document.querySelectorAll('.bar .id, .bar .btn-drop')) {
     const r = el.getBoundingClientRect(); tops.push(Math.round(r.top));
-    for (let x = r.left + 2; x < r.right - 1; x += 6) for (let y = r.top + 2; y < r.bottom - 1; y += 4) {
+    const round = r.height / 2;                       // capsule : les coins arrondis laissent voir le mur, c'est voulu
+    for (let x = r.left + round; x < r.right - round; x += 6) for (let y = r.top + 2; y < r.bottom - 1; y += 4) {
       const hit = document.elementFromPoint(x, y);
       if (hit && !el.contains(hit)) bad.push(`${Math.round(x)},${Math.round(y)} ${hit.tagName}.${hit.className}`);
     }
@@ -220,7 +235,7 @@ const hov = await target.evaluate(li => getComputedStyle(li.querySelector('.phot
 ok(hov.includes('#erode4'), 'survol : l\'image garde son âge (pas de retour à neuf)', hov);
 await target.click(); await dp.waitForSelector('#viewer[open] .photo img');
 const big = await dp.evaluate(() => getComputedStyle(document.querySelector('#viewer .photo img')).filter);
-ok(big.includes('#tone') && !big.includes('erode'), 'agrandissement : l\'image est neuve', big);
+ok(big.includes('#erode4'), 'agrandissement : l\'image garde son âge (jamais de retour à neuf, seul Keep fige un instant)', big);
 
 /* Keep : fragment du mur (ordinateur : téléchargement) */
 const imageInfo = (page, bytes) => page.evaluate(async arr => {
@@ -371,8 +386,9 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
       ok(wall[1].age === '4' && wall[1].filter.includes('#erode4'), 'mur : l’image fixe d’une vieille vidéo suit les paliers d’érosion des photos', JSON.stringify(wall[1]));
       ok(mp4Requests.length === 0, `mur : aucune vidéo téléchargée tant qu’on ne l’ouvre pas (${mp4Requests.length})`);
       await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
-      const list = await vp.evaluate(() => [...document.querySelectorAll('#list .row--video')].map(r => ({ mark: !!r.querySelector('.vmark'), video: !!r.querySelector('video') })));
+      const list = await vp.evaluate(() => [...document.querySelectorAll('#list .row--video')].map(r => ({ mark: !!r.querySelector('.vmark'), video: !!r.querySelector('video'), age: (r.className.match(/age-(\d)/) || [])[1] || '0', filter: getComputedStyle(r.querySelector('.photo img')).filter })));
       ok(list.length === 2 && list.every(r => r.mark && !r.video) && mp4Requests.length === 0, 'liste : image fixe + ▶, aucune vidéo téléchargée', JSON.stringify(list));
+      ok(list.some(r => r.age === '4' && r.filter.includes('#erode4')), 'liste : une vieille image garde son usure (jamais neuve dans la liste)', JSON.stringify(list));
       await vp.evaluate(() => document.querySelector('#viewBtn').click()); await vp.waitForTimeout(400);
     }
     await vp.locator('#wall .item--video').first().tap();
@@ -381,7 +397,7 @@ ok(shared?.length === 1 && shared[0].type === 'image/jpeg' && shared[0].size > 1
     const open = await vp.evaluate(() => {
       const v = document.querySelector('#viewer video');
       return { src: v.getAttribute('src') || '', muted: v.muted, loop: v.loop, inline: v.playsInline, autoplay: v.autoplay, paused: v.paused,
-        button: !!document.querySelector('#viewer .vplay'), filter: getComputedStyle(v).filter, canPlay: v.canPlayType('video/mp4; codecs="avc1.42E01E"') };
+        button: !!document.querySelector('#viewerCtrl.glass .vplay'), filter: getComputedStyle(v).filter, canPlay: v.canPlayType('video/mp4; codecs="avc1.42E01E"') };
     });
     ok(open.src.endsWith('vid-new.mp4') && mp4Requests.length > 0, `${reduce ? '« Réduire les animations » : ' : ''}ouverture : la vidéo est téléchargée à ce moment-là`, JSON.stringify(open));
     ok(open.muted && open.loop && open.inline && open.filter === 'none', 'agrandissement : vidéo muette, en boucle, neuve (aucun filtre d’érosion)', JSON.stringify(open));

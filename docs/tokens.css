@@ -1,0 +1,142 @@
+/* ==========================================================================
+   Mood — tokens de direction artistique
+   À charger AVANT css/site.css. Remplace le bloc :root actuel de site.css
+   (mêmes noms conservés pour --bg, --fg, --muted, --panel, --rule, --photo-bg,
+   --font, --mono, --light, --line, --gutter, --safe-t, --safe-b).
+   Règle de couleur inchangée : uniquement des gris neutres (chroma 0).
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------- gris
+     Chaque valeur : hex (utilisé) · oklch (référence, chroma 0 = aucune teinte) */
+  --bg:        #ffffff;   /* oklch(1 0 0)       le fond, le blanc où l'usure disparaît */
+  --fg:        #111111;   /* oklch(0.178 0 0)   le texte, 18,9:1 sur --bg */
+  --muted:     #555555;   /* oklch(0.450 0 0)   méta : nom, date, mentions (7,5:1) */
+  --rule:      #d9d9d9;   /* oklch(0.885 0 0)   filets de strate, champs */
+  --panel:     #fafafa;   /* oklch(0.985 0 0)   verre opaque (repli) */
+  --photo-bg:  #f0f0f0;   /* oklch(0.955 0 0)   place d'une image en chargement */
+
+  /* ---------------------------------------------------------------- verre
+     Deux matières seulement : « capsule » (commandes posées sur le mur)
+     et « feuille » (fenêtres Drop / Mood / agrandissement). */
+  /* Contraste réel de --fg (#111) sur une capsule (verre dépoli) :
+       gris le plus sombre que produit le traitement des images, images empilées : x = 0,303 (sRGB)
+         (point fixe de x = a·g + (1 − a)·x, a = 1 − 6,67 × (0,45 − g), g du négatif entre 0 et 0,76) ;
+       le flou ne change pas un aplat ; brightness(1,1) puis contrast(,9) : c = (min(1, 1,1·x) − 0,5) × 0,9 + 0,5 = 0,450 ;
+       remplissage f : fond = f + (1 − f) × c. Ce calcul est OPTIMISTE : le navigateur assombrit davantage.
+       MESURE dans Chromium (capsule au-dessus d'un aplat #4d4d4d, pixel le plus sombre sous le texte) :
+         20 % : 3,81:1 · 21 % : 3,93 · 24 % : 4,22 · 26 % : 4,46 · 27 % : 4,59 · 30 % : 4,91.
+       27 % est donc le plus bas qui garde le minimum demandé par l'auteur (4,5:1).
+       (Historique, retours de l'iPhone : 48 % → 30 % → 27 %.) */
+  --glass-fill:        rgb(255 255 255 / .27);  /* capsule : 4,59:1 mesuré pour --fg au-dessus du gris visible le plus sombre (limite) */
+  --glass-fill-sheet:  rgb(255 255 255 / .45);  /* feuille : mesuré au pire --fg 13,3:1, --muted-sheet 5,7:1 */
+  --glass-blur:        12px;
+  --glass-blur-sheet:  20px;
+  --glass-lift:        1.1;                     /* brightness() : éclaircit le mur sous le verre, sans teinte */
+  --glass-flatten:     .9;                      /* contrast() : écrase le détail derrière une commande */
+  --glass-rim-light:   rgb(255 255 255 / .85);  /* reflet de bord, en haut */
+  --glass-rim-dark:    rgb(17 17 17 / .07);     /* tenue du bord sur fond blanc */
+  --glass-rim:
+    inset 0 1px 0 var(--glass-rim-light),
+    inset 0 0 0 1px var(--glass-rim-dark);      /* reflet intérieur, pas d'ombre portée */
+  --veil:              rgb(255 255 255 / .60);  /* ::backdrop des fenêtres, sans flou : le mur se devine derrière la feuille */
+  /* feuille (45 %) au-dessus du voile (60 %), MESURÉ au pire (aplat #4d4d4d dessous) : --fg 13,3:1 ;
+     --muted-sheet #505050 : 5,7:1 (#555 : 5,2:1). Minimum demandé : 4,5:1 ; rien à foncer. */
+  --muted-sheet:       #505050;
+  --radius-glass:      999px;                   /* le rond est réservé au verre */
+  --radius-sheet:      22px;                    /* coins hauts des feuilles sur mobile */
+
+  /* ---------------------------------------------------------------- typographie */
+  --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --w-thin:   100;   /* « Mood » seulement */
+  --w-light:  200;   /* tout ce qui est posé sur le blanc */
+  --w-glass:  300;   /* tout ce qui est posé sur le verre (sous-ensemble latin, 3,7 Ko) */
+  --w-mono:   300;   /* Plex Mono : consigne, nom · date, Kawara, Keep (200 était trop fin à 10-11 px ; 10,1 Ko) */
+  --light: var(--w-light);   /* compatibilité site.css */
+
+  --fs-micro: 10px;  /* mono : repère vidéo, compteur */
+  --fs-meta:  11px;  /* mono : consigne, nom · date, ligne Kawara, ligne Keep */
+  --fs-base:  13px;  /* interface, mentions */
+  --fs-input: 16px;  /* champs de saisie : en dessous, iOS zoome la page */
+  --fs-mark:  22px;  /* « Mood » */
+  --lh:       1.65;
+  --track-mark: .3em;
+  --track-ui:   .1em;
+
+  /* ---------------------------------------------------------------- espace
+     Suite non uniforme (≈ ×1,6) : pas deux écarts égaux entre deux niveaux. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 20px;
+  --s-5: 32px;
+  --s-6: 52px;   /* entre deux strates (mois / consigne) */
+  --gutter:   24px;
+  --gutter-r: 12px;   /* marge droite deux fois plus courte que la gauche (24/12, 16/8 sur mobile) : « Drop » se colle au bord */
+  --hit:      44px;   /* cible tactile minimale */
+  --line:     1px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* ---------------------------------------------------------------- mouvement */
+  --ease-out: cubic-bezier(.2, 0, 0, 1);    /* entrée : part vite, se pose */
+  --ease-in:  cubic-bezier(.4, 0, 1, 1);    /* sortie : part lentement, disparaît */
+  --dur-1: 120ms;  /* retour tactile (:active) */
+  --dur-2: 180ms;  /* fermeture, passage d'un dépôt à l'autre */
+  --dur-3: 240ms;  /* ouverture d'une feuille, apparition d'une image */
+  --rise:  10px;   /* une feuille monte de 10 px en s'ouvrant, pas plus */
+}
+
+/* ---------------------------------------------------------------- mobile */
+@media (max-width: 639px) {
+  :root {
+    --gutter: 16px;
+    --gutter-r: 8px;
+    --glass-blur: 10px;
+    --glass-blur-sheet: 16px;
+  }
+}
+
+/* ---------------------------------------------------------------- sans backdrop-filter
+   Le verre devient une matière presque opaque : même lisibilité, pas de transparence simulée. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-fill: rgb(250 250 250 / .94);
+    --glass-fill-sheet: var(--panel);
+  }
+}
+
+/* ---------------------------------------------------------------- préférences d'accessibilité */
+/* Honnêtement : prefers-reduced-transparency n'est pris en charge que par Chromium (Chrome, Edge, Android).
+   Safari ne la reconnaît pas, donc AUCUN iPhone ne l'applique, même avec « Réduire la transparence » activé
+   dans les réglages. La règle est gardée pour les autres navigateurs ; sur iPhone, la lisibilité repose sur le calcul
+   de contraste ci-dessus. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-fill: var(--panel);
+    --glass-fill-sheet: var(--panel);
+    --glass-blur: 0px;
+    --glass-blur-sheet: 0px;
+    --veil: rgb(255 255 255 / .97);
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --glass-fill: var(--bg);
+    --glass-fill-sheet: var(--bg);
+    --glass-rim: inset 0 0 0 1px var(--fg);
+    --muted: #333333;
+    --muted-sheet: #333333;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+    --dur-3: 0ms;
+    --rise: 0px;
+  }
+}

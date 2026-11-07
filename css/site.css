@@ -1,25 +1,7 @@
-/* Mood — moodboard ouvert. Direction « blanc » : fond blanc pur, texte noir doux, aucun grain.
+/* Mood — un mur collectif qui s'efface avec le temps. Direction « blanc » : fond blanc pur, texte noir doux, aucun grain.
    Règle de couleur : UNIQUEMENT des gris neutres, du noir au blanc. Aucune teinte.
    Toutes les photos déposées sont affichées en NÉGATIF noir et blanc (.photo, filtre #tone). */
-:root {
-  --bg: #ffffff;            /* fond de page : blanc pur */
-  --fg: #111111;            /* texte : noir doux (contraste ≈ 18,9:1 sur le fond) */
-  --muted: #555555;         /* texte secondaire (≈ 7,5:1 sur blanc, ≈ 7,1:1 sur --panel) */
-  --panel: #fafafa;         /* fenêtres (dépôt, agrandissement, panneau « à propos ») : gris très clair */
-  --rule: #d9d9d9;          /* filets et bordures discrets : gris clair */
-  --photo-bg: #f0f0f0;      /* fond d'une photo pendant son chargement */
-  /* traits très fins partout : IBM Plex Sans JP ExtraLight (200), Thin (100) pour « Mood ».
-     Repli : Hiragino Sans (iPhone/Mac) existe aussi en graisses fines. */
-  --font: 'IBM Plex Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --light: 200;
-  --line: 1px;              /* bordures : aussi fines que les lettres */
-  --gutter: 24px;
-  --safe-t: env(safe-area-inset-top, 0px);
-  --safe-b: env(safe-area-inset-bottom, 0px);
-  color-scheme: light;
-}
-@media (max-width: 639px) { :root { --gutter: 16px; } }
+/* Les variables (couleurs, verre, typographie, espaces, mouvement) sont dans docs/tokens.css, chargé avant ce fichier. */
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -46,39 +28,55 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .skip:focus { top: 8px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* ------------------------------------------------------------------ Mood + Drop : flottants, sans bandeau
- * Deux éléments fixes posés directement sur le mur : AUCUN fond, aucune bordure de barre. Le mur défile
- * dessous. Toujours au-dessus des images (le mur et la liste sont isolés : isolation, z-index enfermés)
- * et toujours lisibles grâce à mix-blend-mode: difference + blanc pur : noir sur le fond blanc, clair sur
- * les parties sombres d'une image (le contraire de ce qui est dessous).
- * Aucun parent ne doit porter de transform / filter (sinon position: fixed casse).
+/* ------------------------------------------------------------------ Mood + Drop : deux capsules de verre
+ * Deux éléments fixes posés sur le mur, sans barre ni bandeau (docs/mood-da.md). Le verre (verre dépoli :
+ * flou, éclaircissement, reflet de bord ; aucun filtre SVG) REMPLACE mix-blend-mode: difference : « Mood » et
+ * « Drop » sont noirs sur verre clair, lisibles sur n'importe quelle image (4,59:1 mesuré au pire, docs/tokens.css).
+ * Sur le blanc nu, les capsules disparaissent presque. Le mur défile dessous ; aucun parent ne porte de
+ * transform / filter (sinon position: fixed casse). Le flou n'est jamais dans ce qui défile.
  */
 .bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-  display: flex; align-items: center; justify-content: space-between; gap: 18px;
-  padding: calc(12px + var(--safe-t)) calc(var(--gutter) + env(safe-area-inset-right, 0px)) 12px calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: calc(var(--s-3) + var(--safe-t)) calc(var(--gutter-r) + env(safe-area-inset-right, 0px)) var(--s-3) calc(var(--gutter) + env(safe-area-inset-left, 0px));
   background: none; pointer-events: none;       /* la zone entre les deux reste cliquable (le mur dessous) */
-  mix-blend-mode: difference;
 }
 .bar > .id, .bar > .btn-drop { pointer-events: auto; }   /* .id est en « all: unset » : il faut le préciser */
-.id { all: unset; cursor: pointer; font-weight: 100; font-size: 1.4rem; line-height: 1; padding: 6px 0; }
-/* « Mood » à l'envers : retourné de 180°. L'espacement des lettres est compensé à gauche
-   (après rotation, l'espace qui suit la dernière lettre se retrouve devant la première). */
-.id-name { display: inline-block; transform: rotate(0); letter-spacing: .3em; margin-left: -.3em; transition: transform .5s ease; }
-/* « Mood » est à l'endroit au repos ; il se retourne brièvement à l'ouverture de la page, et au survol */
-.id-name { animation: flip .6s ease .35s backwards; }
-@keyframes flip { from { transform: rotate(180deg); } to { transform: rotate(0); } }
-@media (hover: hover) { .id:hover .id-name, .id:focus-visible .id-name { transform: rotate(180deg); } }
-@media (prefers-reduced-motion: reduce) { .id-name { animation: none; transition: none; } .id:hover .id-name, .id:focus-visible .id-name { transform: none; } }
+.id { all: unset; cursor: pointer; font-weight: var(--w-thin); font-size: var(--fs-mark); line-height: 1; }
+.id-name { display: inline-block; letter-spacing: var(--track-mark); margin-right: calc(-1 * var(--track-mark)); }
+
+/* verre : capsule (Mood, Drop, commandes de l'agrandissement) — seulement là (docs/mood-da.md, section 4).
+   Jamais sur un dépôt, jamais sur du verre, jamais d'animation du flou. */
+.glass {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) brightness(var(--glass-lift)) contrast(var(--glass-flatten));
+          backdrop-filter: blur(var(--glass-blur)) brightness(var(--glass-lift)) contrast(var(--glass-flatten));
+  box-shadow: var(--glass-rim);          /* reflet intérieur, aucune ombre portée */
+  border: 0; border-radius: var(--radius-glass);
+  color: var(--fg);
+  font-weight: var(--w-glass);
+  min-height: var(--hit); box-sizing: border-box;
+  padding: 0 var(--s-4);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.bar .id.glass { font-weight: var(--w-thin); }        /* « Mood » garde le Thin (100) */
+.bar .btn-drop.glass { background: var(--glass-fill); border: 0; padding: 0 var(--s-4); min-height: var(--hit); font-weight: var(--w-glass); font-size: var(--fs-base); letter-spacing: var(--track-ui); }
+.glass:active { opacity: .7; }                        /* retour au toucher : l'opacité seulement */
+.glass:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; box-shadow: var(--glass-rim), 0 0 0 6px var(--bg); }
+/* une fenêtre ouverte : les capsules ne floutent plus (au plus deux couches de flou à la fois) ; elles gardent
+   leur remplissage, sans reflet, pour que « Mood » ne se mêle pas au texte du mur sous le voile.
+   Une vidéo en conversion : aucun flou du tout (le processeur est déjà au maximum). */
+html.modal .bar .glass, html:has(#convert:not([hidden])) .glass {
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--panel); }
+
 .btn-drop {
   border: var(--line) solid var(--fg); background: transparent; color: var(--fg);
   font-weight: var(--light); font-size: .8rem; letter-spacing: .1em;
   padding: 7px 12px; min-height: 38px;
 }
-.btn-drop:hover { background: var(--fg); color: var(--bg); }
-.bar .btn-drop { color: #fff; border-color: #fff; }   /* blanc pur : « difference » inverse exactement ce qui est dessous */
-.bar .id { color: #fff; }
-.bar .btn-drop:hover { background: #fff; color: #000; }
+.btn-drop:not(.glass):hover { background: var(--fg); color: var(--bg); }
 .btn-drop:disabled { opacity: .5; cursor: progress; }
 .btn-drop--wide { width: 100%; margin-top: 4px; min-height: 44px; }
 .btn {
@@ -92,30 +90,27 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .x { all: unset; cursor: pointer; width: 44px; height: 44px; display: grid; place-items: center; font-size: 1.6rem; line-height: 1; margin-right: -10px; }
 .x:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; box-shadow: none; }
 
-@media (max-width: 639px) {
-  .bar { gap: 12px; padding-top: calc(8px + var(--safe-t)); padding-bottom: 8px; }
-  .id { font-size: 1.15rem; }
-}
 
 /* ------------------------------------------------------------------ mur */
 .wall { position: relative; list-style: none; margin: 0; padding: 0; isolation: isolate; }   /* z-index des éléments enfermés ici */
 .list { isolation: isolate; }
 .item {
   position: absolute;
-  /* érosion (js/wall.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 (neuf) … 1 (plancher) */
-  --w: calc((1 - var(--v, 1)) / .7);
   transition: opacity .2s ease, transform .14s ease;
 }
+/* érosion (js/wall.js, setAge dans js/main.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 … 1 (plancher).
+   Le même âge partout : mur (.item), liste (.row), agrandissement (.viewer-body). Seul Keep fige un instant. */
+.item, .row, .viewer-body { --w: calc((1 - var(--v, 1)) / .7); }
 /* images (négatif) : les pixels SOMBRES deviennent transparents par paliers (.age-1 … .age-4 → filtres
    #erode1 … #erode4, index.html) ; il finit par ne rester que les parties claires, on voit à travers.
-   Aucun retour à neuf au survol : seulement à l'ouverture en grand. */
+   Aucun retour à neuf, ni au survol, ni à l'ouverture en grand. Vidéo agrandie : même palier, dans le canvas. */
 .photo.is-loaded { background: transparent; }
-.item.age-1 .photo img { filter: url(#erode1); }
-.item.age-2 .photo img { filter: url(#erode2); }
-.item.age-3 .photo img { filter: url(#erode3); }
-.item.age-4 .photo img { filter: url(#erode4); }
+.age-1 .photo img { filter: url(#erode1); }
+.age-2 .photo img { filter: url(#erode2); }
+.age-3 .photo img { filter: url(#erode3); }
+.age-4 .photo img { filter: url(#erode4); }
 /* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (#111 → #4a4a4a : contraste ≥ 8,8:1 sur blanc) */
-.item .sticker, .item .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
+.item .sticker, .item .caption, .row .sticker, .row .caption, .viewer-body .sticker, .viewer-body .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
 /* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */
 @media (hover: hover) {
   .item:hover, .item:focus-within { z-index: 100000 !important; transform: translateY(-6px) scale(1.015); }
@@ -125,9 +120,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 @media (hover: none) { .item:active { transform: scale(.985); transition-duration: .08s; } }
 /* apparition en fondu quand l'image est prête (js/main.js : reveal) ; disparition des dépôts retirés */
 .item.is-out { opacity: 0; pointer-events: none; transition: opacity .4s ease; }
-/* après une mise à jour en arrière-plan : les éléments glissent vers leur nouvelle place */
-.wall.glide .item { transition: opacity .4s ease, left .7s ease, top .7s ease, transform .14s ease; }
-@media (prefers-reduced-motion: reduce) { .item, .wall.glide .item { transition: none; } .item:hover, .item:focus-within, .item:active { transform: none !important; } }
+@media (prefers-reduced-motion: reduce) { .item { transition: none; } .item:hover, .item:focus-within, .item:active { transform: none !important; } }
 .item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
 .item-hit:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
 .fig { display: block; }
@@ -146,8 +139,8 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* la <video> décode, invisible ; on voit le canvas où chaque image a son noir transparent (js/main.js, paintFrames) */
 .photo.is-video video { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
 .photo.is-video .vcanvas { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; filter: none; }
-.vplay { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; font-size: 28px; color: #fff; mix-blend-mode: difference; }
-.vplay:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
+/* ▶ du mur (.vmark) : il appartient au mur, rectangulaire, sans verre, en « difference ».
+   ▶ de l'agrandissement (« Réduire les animations ») : un bouton de la capsule de commandes (.viewer-ctrl .vplay). */
 @media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
 
 /* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
@@ -157,7 +150,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   font-size: var(--fs, 15px); line-height: 1.55;
 }
 .sticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 10; overflow: hidden; white-space: pre-line; }
-.sticker-by { display: block; margin-top: .55em; font: var(--light) 12px/1.4 var(--mono); color: var(--muted); }
 
 /* commentaire d'une photo : sous l'image, petit ; jamais recouvert (js/wall.js) */
 .caption { display: block; padding: 5px 1px 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
@@ -170,7 +162,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .row .photo img { width: 100%; height: auto; }
 .row .sticker { height: auto; font-size: 14px; }
 .row .sticker-text, .row .caption-text { -webkit-line-clamp: unset; display: block; }
-.row-meta { margin: 6px 0 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
+.row-meta { margin: 6px 0 0; font: var(--w-mono) var(--fs-meta)/1.5 var(--mono); color: var(--muted); }
 
 .empty { margin: 48px var(--gutter); color: var(--muted); font-size: 13px; }
 .empty .link { color: var(--fg); }
@@ -181,12 +173,12 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   width: min(920px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;
   overscroll-behavior: contain;
 }
-.dlg::backdrop { background: rgba(255,255,255,.9); }
+.dlg::backdrop { background: var(--veil); }   /* voile sans flou : une seule couche floue à la fois */
 .dlg--drop, .dlg--about { width: min(520px, calc(100vw - 24px)); }
 .dlg h2 { margin: 0; font-size: 1.15rem; font-weight: var(--light); letter-spacing: .06em; }
 #aboutTitle { font-weight: 100; letter-spacing: .32em; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.viewer-meta { margin: 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
+.viewer-meta { margin: 0; font: var(--w-mono) var(--fs-meta)/1.5 var(--mono); color: var(--muted); }
 .viewer-body .photo { display: table; margin: 0 auto; }
 .viewer-body img { max-width: 100%; max-height: 70dvh; width: auto; height: auto; }
 .viewer-body .sticker { font-size: clamp(14px, 1.6vw, 18px); }
@@ -197,6 +189,54 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   .dlg { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; padding: 12px var(--gutter) calc(18px + var(--safe-b)); }
   .viewer-body img, .viewer-body .photo.is-video .vcanvas { max-height: 60dvh; }
 }
+
+/* feuilles de verre : Drop et Mood (docs/mood-da.md). Le mur se voit derrière (voile 60 %, feuille 45 %).
+   Ordinateur : une colonne de 400 px rangée à droite, à 72 px du haut ; mobile : monte du bas, coins hauts arrondis.
+   Les boutons à l'intérieur ne sont pas en verre (jamais de verre sur du verre). */
+.sheet {
+  --muted: var(--muted-sheet);                         /* 5,7:1 mesuré au pire sur la feuille (#555 : 5,2:1) */
+  background: var(--glass-fill-sheet);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sheet)) brightness(var(--glass-lift));
+          backdrop-filter: blur(var(--glass-blur-sheet)) brightness(var(--glass-lift));
+  box-shadow: var(--glass-rim);
+  border: 0; border-radius: var(--radius-sheet);
+  width: min(400px, calc(100vw - var(--gutter) - var(--gutter-r)));
+  margin: 72px var(--gutter-r) auto auto;
+  max-height: calc(100dvh - 72px - var(--s-4));
+}
+.sheet .btn-drop--wide, .sheet .sizes span { font-weight: var(--w-glass); }   /* mots d'interface posés sur le verre */
+@media (max-width: 639px) {
+  .sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; max-height: 92dvh; }
+}
+
+/* mouvement : seulement quand le visiteur agit. Ouverture : fondu + montée de 10 px (feuilles), 240 ms ;
+   fermeture : fondu 180 ms ; passage d'un dépôt à l'autre : fondu enchaîné 180 ms. Jamais le flou n'est animé.
+   « Réduire les animations » : durées à 0 (tokens.css). Navigateurs sans @starting-style : ouverture directe. */
+.dlg {
+  transition: opacity var(--dur-2) var(--ease-in), translate var(--dur-2) var(--ease-in),
+              display var(--dur-2) allow-discrete, overlay var(--dur-2) allow-discrete;
+}
+.dlg:not([open]) { opacity: 0; }
+.dlg[open] { opacity: 1; translate: 0 0; transition-duration: var(--dur-3); transition-timing-function: var(--ease-out); }
+@starting-style {
+  .dlg[open] { opacity: 0; }
+  .sheet[open] { translate: 0 var(--rise); }
+}
+.viewer-body.is-swap { animation: swap var(--dur-2) var(--ease-out); }
+@keyframes swap { from { opacity: 0; } }
+
+/* agrandissement : rectangulaire (il appartient au mur) ; une capsule de verre ‹ › (▶) × en haut à droite,
+   au-dessus de l'image ; nom · date en mono en bas à gauche, hors du verre */
+.viewer-ctrl {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; width: max-content; margin: 0 0 calc(-1 * var(--hit)) auto;
+  padding: 0 var(--s-1); gap: 0;
+}
+.viewer-ctrl .nav { width: 40px; height: var(--hit); font-size: 18px; font-weight: var(--w-glass); border-radius: var(--radius-glass); }
+.viewer-ctrl .nav:focus-visible { outline-offset: -4px; }
+.viewer-body:has(> .sticker) { padding-top: calc(var(--hit) + var(--s-2)); }   /* un texte : la capsule ne le couvre pas */
+.viewer-ctrl .nav:disabled { color: var(--fg); opacity: .3; }
+.dlg--viewer .viewer-meta { margin: var(--s-2) 0 0; }
 
 /* panneau « à propos » */
 .prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 16px 0; padding-block: 8px; border-block: var(--line) solid var(--rule); }
@@ -211,11 +251,11 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 #keepBtn { font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
 .keep-panel { display: grid; gap: 10px; justify-items: start; margin-top: 6px; }
 .keep-formats { display: flex; gap: 18px; }
-.keep-formats .link { font: var(--light) 12px/1 var(--mono); color: var(--muted); }
+.keep-formats .link { font: var(--w-mono) var(--fs-meta)/1 var(--mono); color: var(--muted); }
 .keep-formats .link[aria-pressed="true"] { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
 .keep-preview { display: block; max-height: 34dvh; max-width: 100%; width: auto; border: var(--line) solid var(--rule); }
 .keep-actions { display: flex; align-items: center; gap: 14px; }
-.keep-msg { font: var(--light) 12px/1.4 var(--mono); color: var(--muted); }
+.keep-msg { font: var(--w-mono) var(--fs-meta)/1.4 var(--mono); color: var(--muted); }
 .report { margin-top: 12px; }
 .report summary { display: inline-block; cursor: pointer; font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
 .report fieldset { border: 0; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
@@ -235,7 +275,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file:has(input:focus-visible) .btn { outline: 2px solid var(--fg); outline-offset: 2px; }
 .hint { margin: 0; font-size: 12px; color: var(--muted); }
-.count { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); }
+.count { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-weight: var(--w-mono); }
 .count.over { color: var(--fg); text-decoration: underline; }
 .preview { margin: 0; }
 .preview .photo { display: inline-block; background: transparent; }   /* le noir transparent laisse voir la fenêtre */
@@ -246,32 +286,30 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .sizes legend { float: left; margin-right: 8px; font-size: 12px; color: var(--muted); padding: 0; }
 .sizes label { position: relative; }
 .sizes input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.sizes span { display: grid; place-items: center; width: 40px; height: 40px; border: var(--line) solid var(--rule); font: var(--light) 13px var(--mono); cursor: pointer; }
+.sizes span { display: grid; place-items: center; width: 40px; height: 40px; border: var(--line) solid var(--rule); font: var(--w-mono) var(--fs-base) var(--mono); cursor: pointer; }
 .sizes input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .sizes input:focus-visible + span { outline: 2px solid var(--fg); outline-offset: 2px; }
-.preview figcaption { font: var(--light) 12px/1.5 var(--mono); color: var(--muted); margin-top: 6px; }
+.preview figcaption { font: var(--w-mono) var(--fs-meta)/1.5 var(--mono); color: var(--muted); margin-top: 6px; }
 .captcha-mock { font-size: 13px; }
 .form-msg { margin: 0; min-height: 1.5em; font-size: 13px; }
 
 /* ------------------------------------------------------------------ consigne, strates */
-.intro { padding: calc(64px + var(--safe-t)) var(--gutter) 0; }   /* au départ sous « Mood » ; puis défile sous lui */
-@media (max-width: 639px) { .intro { padding-top: calc(54px + var(--safe-t)); } }
-.prompt { margin: 0; font: var(--light) 12px/1.5 var(--mono); color: var(--fg); }
+.intro { padding: calc(var(--s-3) + var(--hit) + var(--s-3) + var(--safe-t)) var(--gutter) 0 calc(var(--gutter) + var(--s-4)); }   /* sous « Mood », alignée sur ses lettres ; puis défile sous lui */
+.prompt { margin: 0; font: var(--w-mono) var(--fs-meta)/1.5 var(--mono); color: var(--fg); }
 .drop-form .prompt { margin: 0; }
 /* séparateur de strates : un filet fin et le mot de la consigne de ce mois-là (rien s'il n'y en avait pas) */
 .stratum { position: absolute; list-style: none; height: 64px; border-top: var(--line) solid var(--rule); pointer-events: none; }
-.stratum span { display: block; padding-top: 8px; font: var(--light) 11px/1.4 var(--mono); color: var(--muted); letter-spacing: .04em; }
+.stratum span { display: block; padding-top: 8px; font: var(--w-mono) var(--fs-meta)/1.4 var(--mono); color: var(--muted); letter-spacing: .04em; }
 
 /* mon dépôt en attente (chez moi seulement) */
 .item.is-pending { opacity: .55; }
-.pending-tag, .row.is-pending .row-meta { display: block; margin-top: 4px; font: var(--light) 11px/1.4 var(--mono); color: var(--muted); }
+.pending-tag, .row.is-pending .row-meta { display: block; margin-top: 4px; font: var(--w-mono) var(--fs-meta)/1.4 var(--mono); color: var(--muted); }
 
 /* panneau Mood : manifeste */
 .manifesto { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 14px; line-height: 1.5; }
 .hint.small { font-size: 11px; }
 
 /* agrandissement : précédent / suivant */
-.viewer-nav { display: flex; gap: 4px; margin-left: auto; }
 .nav { all: unset; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; font-size: 20px; color: var(--fg); }
 .nav:disabled { color: var(--rule); cursor: default; }
 .nav:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
@@ -279,7 +317,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* vidéo dans Drop : curseur « Start » et progression de la conversion — gris seulement */
 .start { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
 .start input { flex: 1; min-width: 0; accent-color: var(--fg); }
-.start-time { font: var(--light) 12px/1 var(--mono); color: var(--fg); min-width: 3.2em; text-align: right; }
+.start-time { font: var(--w-mono) var(--fs-meta)/1 var(--mono); color: var(--fg); min-width: 3.2em; text-align: right; }
 .convert { display: grid; gap: 6px; }
 .convert progress { width: 100%; height: 2px; border: 0; background: var(--rule); accent-color: var(--fg); -webkit-appearance: none; appearance: none; }
 .convert progress::-webkit-progress-bar { background: var(--rule); }
@@ -290,6 +328,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* ------------------------------------------------------------------ dépôt expiré (vue List) : texte seul, façon On Kawara
  * La date du dépôt, le type, la durée de vie sur le mur, la consigne. Mono, fin, gris ; rien à ouvrir. */
 .row--expired { display: grid; gap: 6px; }       /* dépôts expirés consécutifs : un bloc, une ligne chacun */
-.kawara { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font: var(--light) 12px/1.6 var(--mono); letter-spacing: .06em; color: var(--muted); }
+.kawara { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font: var(--w-mono) var(--fs-meta)/1.6 var(--mono); letter-spacing: .06em; color: var(--muted); }
 .kawara .k-date { color: var(--fg); width: 12.5ch; }
 .kawara .k-prompt:empty { display: none; }

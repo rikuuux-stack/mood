@@ -13,8 +13,8 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=7f7191e965';
-import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, alphaOf } from './wall.js?v=10fdf5c535';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=d942c1023a';
+import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, ERODE, alphaOf } from './wall.js?v=10fdf5c535';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=4d6e44fae3';
 import * as captcha from './captcha.js?v=130a7987f8';
@@ -65,9 +65,13 @@ function showPrompt() {
 /* ------------------------------------------------------------------ éléments */
 // une vidéo (ou un GIF converti) se comporte comme une photo partout, sauf dans l'agrandissement où elle joue
 const visual = p => p.kind === 'image' || p.kind === 'video';
-const label = p => t(p.kind === 'video' ? 'videoBy' : p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
-const ariaOf = p => (p.pending ? `${t('pending')} — ` : '') + (p.text ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
-const metaOf = p => (p.pending ? t('pending') : `${p.name || t('anon')} · ${formatDate(p.createdAt)}`);
+// Le nom de la personne qui dépose n'apparaît QUE dans la vue List (décision de l'auteur) : ni sur le mur
+// (pas même pour les lecteurs d'écran), ni dans l'agrandissement.
+const label = (p, named) => named
+  ? t(p.kind === 'video' ? 'videoBy' : p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') })
+  : t(p.kind === 'video' ? 'videoItem' : p.kind === 'image' ? 'imageItem' : 'textItem');
+const ariaOf = (p, named = false) => (p.pending ? `${t('pending')} — ` : '') + (p.text ? `${label(p, named)} : ${p.text.slice(0, 120)}` : label(p, named));
+const metaOf = (p, named = false) => (p.pending ? t('pending') : named ? `${p.name || t('anon')} · ${formatDate(p.createdAt)}` : formatDate(p.createdAt));
 
 /*
  * Images du mur et de la liste : téléchargées seulement à l'approche de l'écran (un écran de marge,
@@ -120,8 +124,17 @@ function photo(p, full) {
  * un canvas (≤ 480 px) où les sombres deviennent transparents (BASE, même règle que #tone). La <video> reste
  * dessous, invisible (elle décode et donne les images).
  */
-const ALPHA = new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, BASE) * 255));
-function paintFrames(v, c) {
+// une table d'opacité par palier (0 = neuf : BASE ; 1 … 4 : ERODE), mêmes valeurs que les filtres #tone / #erode1 … #erode4
+const ALPHAS = [BASE, ...ERODE].map(e => new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, e) * 255)));
+/** Âge affiché d'un dépôt, partout (mur, liste, agrandissement) : seul Keep fige un instant, rien ne rajeunit. */
+const ageOf = (p, now = Date.now()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
+function setAge(el, p, now) {
+  const { v, stage } = ageOf(p, now);
+  el.style.setProperty('--v', v.toFixed(3));
+  for (let s = 1; s <= ERODE.length; s++) el.classList.toggle(`age-${s}`, s === stage);
+  return stage;
+}
+function paintFrames(v, c, ALPHA) {
   const g = c.getContext('2d', { willReadFrequently: true });
   const draw = () => {
     if (!v.videoWidth || !c.isConnected) return;
@@ -150,13 +163,13 @@ function player(p) {
   const c = document.createElement('canvas'); c.className = 'vcanvas'; c.width = p.image.w; c.height = p.image.h;
   c.setAttribute('aria-hidden', 'true');
   ph.append(v, c);
-  paintFrames(v, c);
+  paintFrames(v, c, ALPHAS[ageOf(p).stage]);       // noir transparent ET usure du palier, image par image
   v.src = p.image.video;
-  if (reducedMotion.matches) {
+  if (reducedMotion.matches) {                       // ▶ dans la capsule de commandes (verre), pas sur l'image
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'vplay'; b.textContent = t('play'); b.setAttribute('aria-label', t('playVideo'));
+    b.type = 'button'; b.className = 'nav vplay'; b.textContent = t('play'); b.setAttribute('aria-label', t('playVideo'));
     b.addEventListener('click', () => { b.remove(); v.play().catch(() => {}); });
-    ph.append(b);
+    $('#viewerCtrl').insertBefore(b, $('#viewerCtrl [data-close]'));
   } else {
     v.autoplay = true;
     v.play().catch(() => {});                          // lecture muette : permise sans geste
@@ -169,7 +182,7 @@ function freeVideos(root) {
   root.querySelectorAll('canvas.vcanvas').forEach(c => { c.width = c.height = 0; });   // libère l'image du canvas
 }
 
-function content(p, { full = false, font, byline = false } = {}) {
+function content(p, { full = false, font } = {}) {
   if (visual(p)) {
     const media = full && p.kind === 'video' && p.image.video ? player(p) : photo(p, full);
     const fig = document.createElement('span'); fig.className = 'fig'; fig.append(media);
@@ -189,7 +202,6 @@ function content(p, { full = false, font, byline = false } = {}) {
   if (font) s.style.setProperty('--fs', `${font}px`);
   const tx = document.createElement('span'); tx.className = 'sticker-text'; tx.textContent = p.text;
   s.append(tx);
-  if (byline && p.name) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
   return s;
 }
 
@@ -205,8 +217,8 @@ function render() {
  * Mur : les éléments déjà créés sont RÉUTILISÉS d'un rendu à l'autre (images déjà chargées, pas de
  * clignotement) ; le placement est PROGRESSIF (le premier écran tout de suite, le reste par morceaux,
  * sans bloquer la page) ; chaque strate (mois / consigne) est placée sous la précédente, séparée par
- * un filet et le mot de sa consigne. `glide` : après une mise à jour en arrière-plan, les éléments
- * glissent vers leur nouvelle place.
+ * un filet et le mot de sa consigne. Après une mise à jour en arrière-plan, les éléments prennent leur
+ * nouvelle place sans glisser (le mur ne bouge pas, docs/mood-da.md).
  */
 const nodeCache = new Map();          // identifiant → { li, key, p, w, photoH }
 let wallNodes = [], renderToken = 0;
@@ -241,7 +253,7 @@ function divider(p, y, pad) {
   return li;
 }
 
-function renderWall(list, { glide = false } = {}) {
+function renderWall(list) {
   const token = ++renderToken;
   const W = wallEl.clientWidth || document.documentElement.clientWidth;
   lastW = W;
@@ -262,14 +274,10 @@ function renderWall(list, { glide = false } = {}) {
     n.li.dataset.i = i;
     // érosion : selon le temps passé sur le mur (un dépôt en attente garde son propre aspect) ;
     // images : palier fixe (classe age-N → filtre partagé), textes : --v
-    const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)), stage = stageOf(v);
-    n.li.style.setProperty('--v', v.toFixed(3));
-    if (n.stage !== stage) { if (n.stage) n.li.classList.remove(`age-${n.stage}`); if (stage) n.li.classList.add(`age-${stage}`); n.stage = stage; }
+    n.stage = setAge(n.li, p, now);
     if (!n.li.isConnected) wallEl.append(n.li);
     return n;
   });
-  wallEl.classList.toggle('glide', glide && !reducedMotion.matches);
-  if (glide) setTimeout(() => wallEl.classList.remove('glide'), 900);
   // hauteur réelle (image + commentaire éventuel) ; capH = bande du commentaire, que rien ne doit recouvrir
   const boxes = wallNodes.map(n => {
     const h = n.li.offsetHeight;
@@ -324,6 +332,7 @@ function kawaraLine(p) {
   return line;
 }
 function renderList(list) {
+  const now = Date.now();
   let open = 0, register = null;                      // index parmi les dépôts qui s'ouvrent ; bloc de lignes expirées en cours
   listEl.replaceChildren(...list.map(p => {
     // dépôts expirés qui se suivent : un seul bloc, une ligne chacun (registre serré)
@@ -339,13 +348,14 @@ function renderList(list) {
     li.className = `row row--${p.kind === 'video' ? 'image row--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
-    b.setAttribute('aria-label', ariaOf(p));
+    b.setAttribute('aria-label', ariaOf(p, true));
     b.append(content(p));
     const meta = document.createElement('p');
     meta.className = 'row-meta';
-    meta.textContent = metaOf(p);
+    meta.textContent = metaOf(p, true);
     li.append(b, meta);
     li.dataset.i = i;
+    setAge(li, p, now);                                 // la liste montre l'usure atteinte, jamais l'image neuve
     return li;
   }).filter(Boolean));
   watch(listEl);
@@ -412,7 +422,11 @@ function showViewer() {
   const p = current();
   $('#viewerMeta').textContent = metaOf(p);
   freeVideos($('#viewerBody'));
-  $('#viewerBody').replaceChildren(content(p, { full: true, byline: true }));
+  $('#viewerCtrl .vplay')?.remove();
+  setAge($('#viewerBody'), p);                          // agrandi, le dépôt garde son âge
+  $('#viewerBody').replaceChildren(content(p, { full: true }));
+  // passage d'un dépôt à l'autre : fondu enchaîné (durée 0 avec « Réduire les animations », tokens.css)
+  const vb = $('#viewerBody'); vb.classList.remove('is-swap'); void vb.offsetWidth; vb.classList.add('is-swap');
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
   const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas
   captcha.reset($('[data-captcha]', $('#reportForm')));
@@ -449,7 +463,7 @@ async function makeKeep() {
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=7078d3b6d9');
+    const { makeFragment, today } = await import('./fragment.js?v=bf67799b17');
     const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
@@ -483,7 +497,10 @@ keepGo.addEventListener('click', () => {
   if (canShare()) navigator.share({ files: [kept.file] }).catch(e => { if (e.name !== 'AbortError') download(); });
   else download();
 });
-$('#viewer').addEventListener('close', () => { keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerBody').replaceChildren(); });
+$('#viewer').addEventListener('close', () => {
+  keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerCtrl .vplay')?.remove();   // vidéo arrêtée et libérée tout de suite
+  setTimeout(() => { if (!$('#viewer').open) $('#viewerBody').replaceChildren(); }, 260);    // vidé après le fondu de fermeture
+});
 
 const step = d => { const j = at + d; if (j >= 0 && j < seq.length) { at = j; showViewer(); } };
 $('#prev').addEventListener('click', () => step(-1));
@@ -747,7 +764,7 @@ if (cached) {
     if (!sameWall(was, page) || pendingChanged || prompt !== oldPrompt) {
       preload(posts);
       $('#empty').hidden = items().length > 0 || posts.length > 0;
-      if (view === 'wall') renderWall(items(), { glide: true }); else renderList(items());
+      if (view === 'wall') renderWall(items()); else renderList(items());
     }
   } catch { /* serveur injoignable : on garde le mur de l'appareil */ }
 } else {
