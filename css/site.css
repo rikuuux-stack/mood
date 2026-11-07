@@ -17,6 +17,11 @@
   --gutter: 24px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  /* mouvement : une seule courbe (départ vif, arrivée douce) et trois durées pour tout le site.
+     Seulement opacité et transformations (rien qui recalcule la mise en page) ; tout est coupé
+     avec « Réduire les animations ». */
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --t-fast: 140ms; --t-mid: 240ms; --t-slow: 420ms;
   color-scheme: light;
 }
 @media (max-width: 639px) { :root { --gutter: 16px; } }
@@ -75,6 +80,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   font-weight: var(--light); font-size: .8rem; letter-spacing: .1em;
   padding: 7px 12px; min-height: 38px;
 }
+.btn-drop, .btn { transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
 .btn-drop:hover { background: var(--fg); color: var(--bg); }
 .bar .btn-drop { color: #fff; border-color: #fff; }   /* blanc pur : « difference » inverse exactement ce qui est dessous */
 .bar .id { color: #fff; }
@@ -104,7 +110,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   position: absolute;
   /* érosion (js/wall.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 (neuf) … 1 (plancher) */
   --w: calc((1 - var(--v, 1)) / .7);
-  transition: opacity .2s ease, transform .14s ease;
+  transition: opacity .2s var(--ease), transform var(--t-fast) var(--ease);
 }
 /* images (négatif) : les pixels SOMBRES deviennent transparents par paliers (.age-1 … .age-4 → filtres
    #erode1 … #erode4, index.html) ; il finit par ne rester que les parties claires, on voit à travers.
@@ -124,9 +130,9 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* toucher : léger retour avant l'ouverture */
 @media (hover: none) { .item:active { transform: scale(.985); transition-duration: .08s; } }
 /* apparition en fondu quand l'image est prête (js/main.js : reveal) ; disparition des dépôts retirés */
-.item.is-out { opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+.item.is-out { opacity: 0; pointer-events: none; transition: opacity var(--t-slow) var(--ease); }
 /* après une mise à jour en arrière-plan : les éléments glissent vers leur nouvelle place */
-.wall.glide .item { transition: opacity .4s ease, left .7s ease, top .7s ease, transform .14s ease; }
+.wall.glide .item { transition: opacity var(--t-slow) var(--ease), left .7s var(--ease), top .7s var(--ease), transform var(--t-fast) var(--ease); }
 @media (prefers-reduced-motion: reduce) { .item, .wall.glide .item { transition: none; } .item:hover, .item:focus-within, .item:active { transform: none !important; } }
 .item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
 .item-hit:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
@@ -136,19 +142,25 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* photos : NÉGATIF noir et blanc, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
    Appliqué à l'affichage : les fichiers restent intacts, le traitement est le même pour tous. */
 .photo { position: relative; display: block; overflow: hidden; background: var(--photo-bg); }
-.photo img { display: block; filter: url(#tone); opacity: 0; transition: opacity .22s ease; }   /* négatif N&B + courbe (filtre SVG dans index.html) */
+.photo img { display: block; filter: url(#tone); opacity: 0; transition: opacity .22s var(--ease); }   /* négatif N&B + courbe (filtre SVG dans index.html) */
 /* le cadre (aux bonnes proportions) est là tout de suite ; l'image y apparaît en fondu quand elle est prête */
 .photo.is-loaded img { opacity: 1; }
 /* vidéo : sur le mur et dans la liste, l'image fixe + un petit ▶ discret ; dans l'agrandissement, la vidéo
    (négatif noir et blanc et courbe déjà DANS le fichier : aucun filtre pendant la lecture — Safari / iOS
    n'applique pas les filtres SVG aux vidéos, WebKit bug 184601) */
-.vmark { position: absolute; left: 6px; bottom: 5px; z-index: 1; font-size: 10px; line-height: 1; color: #fff; mix-blend-mode: difference; pointer-events: none; }
+.vmark { position: absolute; left: 6px; bottom: 6px; z-index: 1; display: grid; place-items: center; width: 18px; height: 18px;
+  font-size: 8px; line-height: 1; color: var(--fg); background: rgba(255,255,255,.88); border: var(--line) solid var(--rule); pointer-events: none; }
 /* la <video> décode, invisible ; on voit le canvas où chaque image a son noir transparent (js/main.js, paintFrames) */
 .photo.is-video video { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
 .photo.is-video .vcanvas { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; filter: none; }
-.vplay { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; font-size: 28px; color: #fff; mix-blend-mode: difference; }
+.vplay { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; isolation: isolate;
+  font-size: 18px; line-height: 1; color: var(--fg); padding-left: 3px; }
+/* le rond, DERRIÈRE le ▶ : blanc presque opaque, filet sombre — lisible sur le clair comme sur le sombre */
+.vplay::before { content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+  background: rgba(255,255,255,.9); border: var(--line) solid var(--fg); transition: transform var(--t-fast) var(--ease); }
+@media (hover: hover) { .vplay:hover::before { transform: scale(1.06); } }
 .vplay:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
-@media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .photo img, .vplay::before { transition: none; } .vplay:hover::before { transform: none; } }
 
 /* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
 .sticker {
@@ -156,6 +168,8 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   padding: 4px 2px 8px;
   font-size: var(--fs, 15px); line-height: 1.55;
 }
+.sticker-text, .caption-text, .manifesto { text-wrap: pretty; }
+.dlg h2, .empty { text-wrap: balance; }
 .sticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 10; overflow: hidden; white-space: pre-line; }
 .sticker-by { display: block; margin-top: .55em; font: var(--light) 12px/1.4 var(--mono); color: var(--muted); }
 
@@ -182,11 +196,29 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   overscroll-behavior: contain;
 }
 .dlg::backdrop { background: rgba(255,255,255,.9); }
+@media (prefers-reduced-motion: no-preference) {
+  /* ouverture ET fermeture animées là où le navigateur sait le faire (@starting-style, allow-discrete) ;
+     ailleurs, la fenêtre apparaît simplement, comme avant */
+  .dlg, .dlg::backdrop {
+    transition: opacity var(--t-mid) var(--ease), transform var(--t-mid) var(--ease),
+      overlay var(--t-mid) allow-discrete, display var(--t-mid) allow-discrete;
+  }
+  .dlg:not([open]) { opacity: 0; transform: translateY(10px); }
+  .dlg:not([open])::backdrop { opacity: 0; }
+  @starting-style {
+    .dlg[open] { opacity: 0; transform: translateY(10px); }
+    .dlg[open]::backdrop { opacity: 0; }
+  }
+  /* agrandissement : le dépôt suivant / précédent arrive en fondu (aucun déplacement) */
+  .viewer-body > * { animation: settle var(--t-mid) var(--ease); }
+  @keyframes settle { from { opacity: 0; } to { opacity: 1; } }
+}
 .dlg--drop, .dlg--about { width: min(520px, calc(100vw - 24px)); }
 .dlg h2 { margin: 0; font-size: 1.15rem; font-weight: var(--light); letter-spacing: .06em; }
 #aboutTitle { font-weight: 100; letter-spacing: .32em; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.viewer-meta { margin: 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); }
+.dlg--viewer .dlg-head { position: sticky; top: -16px; z-index: 2; margin: -16px -20px 12px; padding: 10px 20px 8px; background: var(--panel); }
+.viewer-meta { margin: 0; font: var(--light) 12px/1.5 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .viewer-body .photo { display: table; margin: 0 auto; }
 .viewer-body img { max-width: 100%; max-height: 70dvh; width: auto; height: auto; }
 .viewer-body .sticker { font-size: clamp(14px, 1.6vw, 18px); }
@@ -195,6 +227,12 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 
 @media (max-width: 639px) {
   .dlg { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; padding: 12px var(--gutter) calc(18px + var(--safe-b)); }
+  .dlg--viewer .dlg-head { top: -12px; margin: -12px calc(-1 * var(--gutter)) 12px; padding: 8px var(--gutter); }
+  /* sur iPhone, les fenêtres montent du bas (comme une feuille) */
+  @media (prefers-reduced-motion: no-preference) {
+    .dlg:not([open]) { transform: translateY(24px); }
+    @starting-style { .dlg[open] { transform: translateY(24px); } }
+  }
   .viewer-body img, .viewer-body .photo.is-video .vcanvas { max-height: 60dvh; }
 }
 
@@ -272,7 +310,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 
 /* agrandissement : précédent / suivant */
 .viewer-nav { display: flex; gap: 4px; margin-left: auto; }
-.nav { all: unset; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; font-size: 20px; color: var(--fg); }
+.nav { all: unset; cursor: pointer; display: grid; place-items: center; width: 44px; height: 44px; font-size: 20px; color: var(--fg); transition: color var(--t-fast) var(--ease); }
 .nav:disabled { color: var(--rule); cursor: default; }
 .nav:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 

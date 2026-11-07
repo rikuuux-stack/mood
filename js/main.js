@@ -28,6 +28,14 @@ let posts = [], pending = pendingPosts(), prompt = '', hasMore = false, view = '
 
 applyI18n();
 
+/* ------------------------------------------------------------------ rendus à comparer (aperçu seulement)
+ * ?look=soft (négatif doux) ou ?look=copy (photocopie) remplace les filtres des photos le temps de la visite.
+ * Sans ce paramètre : rendu publié, et js/looks.js n'est jamais téléchargé. */
+{
+  const look = new URLSearchParams(location.search).get('look');
+  if (look && look !== 'current') import('./looks.js?v=3e2c7d663c').then(m => m.applyLook(look)).catch(() => {});
+}
+
 /* ------------------------------------------------------------------ vue mémorisée */
 try { if (localStorage.getItem('view') === 'list') view = 'list'; } catch {}
 // un seul bouton, dans le panneau « à propos » : il affiche le nom de l'autre vue (« List » sur le mur, « Wall » sur la liste)
@@ -483,7 +491,12 @@ keepGo.addEventListener('click', () => {
   if (canShare()) navigator.share({ files: [kept.file] }).catch(e => { if (e.name !== 'AbortError') download(); });
   else download();
 });
-$('#viewer').addEventListener('close', () => { keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerBody').replaceChildren(); });
+// fermeture : la vidéo est arrêtée et libérée TOUT DE SUITE ; le contenu, lui, part après le fondu de la fenêtre
+// (css/site.css, --t-mid), sauf si elle a été rouverte entre-temps
+$('#viewer').addEventListener('close', () => {
+  keepJob++; dropKept(); freeVideos($('#viewerBody'));
+  setTimeout(() => { if (!$('#viewer').open) $('#viewerBody').replaceChildren(); }, reducedMotion.matches ? 0 : 260);
+});
 
 const step = d => { const j = at + d; if (j >= 0 && j < seq.length) { at = j; showViewer(); } };
 $('#prev').addEventListener('click', () => step(-1));
