@@ -157,7 +157,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
   font-size: var(--fs, 15px); line-height: 1.55;
 }
 .sticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 10; overflow: hidden; white-space: pre-line; }
-.sticker-by { display: block; margin-top: .55em; font: var(--light) 12px/1.4 var(--mono); color: var(--muted); }
 
 /* commentaire d'une photo : sous l'image, petit ; jamais recouvert (js/wall.js) */
 .caption { display: block; padding: 5px 1px 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }

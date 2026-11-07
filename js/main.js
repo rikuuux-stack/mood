@@ -13,7 +13,7 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=05f59e2af5';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=7f7191e965';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=8b22bd4c08';
 import { createLayout, sizeFor, visibility, stageOf, ageDays, onWall, strataKey, TIME, BASE, alphaOf } from './wall.js?v=10fdf5c535';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=0bde9bbfaf';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=4d6e44fae3';
@@ -65,9 +65,13 @@ function showPrompt() {
 /* ------------------------------------------------------------------ éléments */
 // une vidéo (ou un GIF converti) se comporte comme une photo partout, sauf dans l'agrandissement où elle joue
 const visual = p => p.kind === 'image' || p.kind === 'video';
-const label = p => t(p.kind === 'video' ? 'videoBy' : p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') });
-const ariaOf = p => (p.pending ? `${t('pending')} — ` : '') + (p.text ? `${label(p)} : ${p.text.slice(0, 120)}` : label(p));
-const metaOf = p => (p.pending ? t('pending') : `${p.name || t('anon')} · ${formatDate(p.createdAt)}`);
+// Le nom de la personne qui dépose n'apparaît QUE dans la vue List (décision de l'auteur) : ni sur le mur
+// (pas même pour les lecteurs d'écran), ni dans l'agrandissement.
+const label = (p, named) => named
+  ? t(p.kind === 'video' ? 'videoBy' : p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') })
+  : t(p.kind === 'video' ? 'videoItem' : p.kind === 'image' ? 'imageItem' : 'textItem');
+const ariaOf = (p, named = false) => (p.pending ? `${t('pending')} — ` : '') + (p.text ? `${label(p, named)} : ${p.text.slice(0, 120)}` : label(p, named));
+const metaOf = (p, named = false) => (p.pending ? t('pending') : named ? `${p.name || t('anon')} · ${formatDate(p.createdAt)}` : formatDate(p.createdAt));
 
 /*
  * Images du mur et de la liste : téléchargées seulement à l'approche de l'écran (un écran de marge,
@@ -169,7 +173,7 @@ function freeVideos(root) {
   root.querySelectorAll('canvas.vcanvas').forEach(c => { c.width = c.height = 0; });   // libère l'image du canvas
 }
 
-function content(p, { full = false, font, byline = false } = {}) {
+function content(p, { full = false, font } = {}) {
   if (visual(p)) {
     const media = full && p.kind === 'video' && p.image.video ? player(p) : photo(p, full);
     const fig = document.createElement('span'); fig.className = 'fig'; fig.append(media);
@@ -189,7 +193,6 @@ function content(p, { full = false, font, byline = false } = {}) {
   if (font) s.style.setProperty('--fs', `${font}px`);
   const tx = document.createElement('span'); tx.className = 'sticker-text'; tx.textContent = p.text;
   s.append(tx);
-  if (byline && p.name) { const by = document.createElement('span'); by.className = 'sticker-by'; by.textContent = `— ${p.name}`; s.append(by); }
   return s;
 }
 
@@ -339,11 +342,11 @@ function renderList(list) {
     li.className = `row row--${p.kind === 'video' ? 'image row--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'item-hit';
-    b.setAttribute('aria-label', ariaOf(p));
+    b.setAttribute('aria-label', ariaOf(p, true));
     b.append(content(p));
     const meta = document.createElement('p');
     meta.className = 'row-meta';
-    meta.textContent = metaOf(p);
+    meta.textContent = metaOf(p, true);
     li.append(b, meta);
     li.dataset.i = i;
     return li;
@@ -412,7 +415,7 @@ function showViewer() {
   const p = current();
   $('#viewerMeta').textContent = metaOf(p);
   freeVideos($('#viewerBody'));
-  $('#viewerBody').replaceChildren(content(p, { full: true, byline: true }));
+  $('#viewerBody').replaceChildren(content(p, { full: true }));
   $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
   const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas
   captcha.reset($('[data-captcha]', $('#reportForm')));
