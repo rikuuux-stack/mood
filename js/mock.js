@@ -16,7 +16,8 @@ export function expiredDemo(now = Date.now()) {
   return Array.from({ length: 24 }, (_, i) => {
     const days = 186 + i * 9, at = new Date(now - days * DAY).toISOString();
     const kind = ['image', 'image', 'video', 'text', 'image', 'video'][i % 6];
-    return { id: `demo-${i}`, kind, text: kind === 'text' ? words[i % words.length] : '', name: '', size: 'm',
+    // un dépôt image + mots sur trois garde ses mots après l'expiration (option A)
+    return { id: `demo-${i}`, kind, text: kind === 'text' || i % 3 === 1 ? words[i % words.length] : '', name: '', size: 'm',
       prompt: prompts[Math.floor(days / 30) % prompts.length], createdAt: at, approvedAt: at, image: null, expired: kind !== 'text' };
   });
 }

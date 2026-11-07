@@ -25,6 +25,8 @@ jobs:
         run: node tests/server.test.mjs
       - name: Alerte e-mail en cas d'échec (script testé contre un faux serveur Resend)
         run: node tests/ci-alert.test.mjs
+      - name: Expiration de nuit (script testé contre un faux serveur)
+        run: node tests/expire-nightly.test.mjs
       - name: Modération (enchaînement des étapes, reprise après panne — base et stockage factices)
         run: node tests/moderate.test.mjs
       - name: Navigateur (bandeau, fond, érosion)

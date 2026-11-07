@@ -66,14 +66,47 @@ une demande de retrait concerne aussi elles).
 ## Expiration à 180 jours (désactivée)
 
 Par défaut, l'expiration est une **simulation** : l'onglet **Expiry** dit ce qui serait supprimé, rien ne l'est.
-Si un jour tu décides de l'activer (à toi seul : aucun bouton ni programme du site ne peut le faire) :
+Une tâche tourne **chaque nuit à 03:00 (heure de Tokyo)**, juste après l'archive du mur (workflow « Supabase » sur
+GitHub, `tools/expire-nightly.sh`). Tant que l'expiration est désactivée, elle ne fait **rien** (son journal dit
+« désactivée (simulation) »). Personne d'autre que toi ne peut l'activer : aucun bouton ni programme du site ne le peut.
 
-1. supabase.com ▸ projet ▸ **SQL Editor** ▸ colle `update public.expiry_settings set enabled = true where id = 1;` ▸ **Run** ;
-2. /admin/ ▸ **Expiry** : un bouton **Run** apparaît (2ᵉ toucher pour confirmer). Il supprime les fichiers (image, vidéo,
-   image fixe) des dépôts publiés depuis plus de 180 jours, ainsi que leur légende et leur pseudo ; il ne reste que leur
-   ligne dans la vue List : date, type, « 180 days », consigne.
+Ce qu'elle fait une fois activée : pour chaque dépôt publié depuis plus de 180 jours, elle supprime les fichiers
+(image, vidéo, image fixe) et le pseudo. Il reste sa ligne dans la vue List (date, type, « 180 days », consigne) et,
+s'il y en avait, **les mots** déposés avec l'image : l'image s'en va, les mots restent. Les textes seuls ne sont jamais
+touchés. Une suppression faite est **définitive**.
 
-Pour revenir en simulation : même chose avec `enabled = false`. Une suppression faite est **définitive**.
+### L'essayer d'abord sur un faux dépôt
+
+Aujourd'hui, aucun vrai dépôt n'a 180 jours : l'essai ne touche que le faux dépôt. Vérifie-le quand même à l'étape 3.
+
+1. /admin/ ▸ **Drop** : dépose une image d'essai avec quelques mots (par exemple « essai expiration »). Elle est publiée
+   tout de suite.
+2. supabase.com ▸ projet ▸ **SQL Editor** : vieillis-la de 181 jours, puis **Run** :
+   ```sql
+   update public.posts set approved_at = now() - interval '181 days'
+    where text = 'essai expiration' and is_author;
+   ```
+3. /admin/ ▸ **Expiry** : la ligne « now » doit compter **1** dépôt, le tien, et aucun autre.
+4. Active l'expiration (SQL Editor ▸ **Run**) :
+   ```sql
+   update public.expiry_settings set enabled = true where id = 1;
+   ```
+5. Lance la tâche sans attendre la nuit : GitHub ▸ **Actions** ▸ **Supabase** ▸ **Run workflow** ▸ task = **archive**.
+   Dans le journal, l'étape « Expiration à 180 jours » doit dire « 1 dépôt(s) expiré(s) ». (Ou bien /admin/ ▸ Expiry ▸
+   **Run**, deux touchers.)
+6. Sur le site, vue **List** : à la place de l'image, une ligne (date du dépôt, `image`, `180 days`, consigne), puis
+   tes mots.
+7. Pour revenir en simulation : même requête qu'à l'étape 4 avec `enabled = false`. Pour effacer la ligne d'essai :
+   /admin/ ▸ **Live** ▸ **Remove**.
+
+### L'activer pour de bon
+
+Une seule ligne, dans supabase.com ▸ SQL Editor ▸ **Run** :
+```sql
+update public.expiry_settings set enabled = true where id = 1;
+```
+À partir de là, chaque nuit à 03:00 (Tokyo), les dépôts qui ont passé 180 jours perdent leur image. Pour arrêter :
+la même ligne avec `enabled = false`.
 
 ## Alerte e-mail
 
