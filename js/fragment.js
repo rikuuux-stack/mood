@@ -204,7 +204,7 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
 
   // la ligne du bas : adresse, date du jour, consigne de la strate (rien d'autre)
   const footer = `moodwall.pages.dev — ${today(date)}${prompt ? ` — ${prompt}` : ''}`;
-  const font = '200 24px "IBM Plex Mono"';
+  const font = '300 24px "IBM Plex Mono"';   // même graisse que le registre à l'écran (--w-mono)
   try { await document.fonts.load(font, footer); } catch {}
   ctx.font = font; ctx.fillStyle = INK; ctx.textBaseline = 'middle';
   ctx.fillText(footer, 48, H - BAND / 2);
