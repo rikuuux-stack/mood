@@ -146,5 +146,21 @@ state.expiry.enabled = true;
     [1, [], [], null, 'les mots restent', '', true, ['published']]); }
 state.expiry.enabled = false;
 
+/* ------------------------------------------------------------------ tâche de nuit : la clé service_role, pour expiry-run SEULEMENT */
+// ici Deno.env.get() renvoie « x » pour tout : la « clé service_role » factice vaut donc « x »
+const nightly = async (body, key = 'x') => {
+  const r = await handler(new Request('https://x/moderate', { method: 'POST', headers: { authorization: `Bearer ${key}` }, body: JSON.stringify(body) }));
+  return { status: r.status, ...(await r.json()) };
+};
+post('z', 'approved'); Object.assign(state.posts.get('z'), { text: 'encore des mots', approved_at: new Date(Date.now() - 300 * 864e5).toISOString() });
+check('nuit, expiration désactivée : 403 « disabled », rien n’est supprimé', [await nightly({ action: 'expiry-run' }), where('z.webp')], [{ status: 403, error: 'disabled' }, ['published']]);
+check('nuit : toute autre action est refusée avec cette clé', [(await nightly({ action: 'remove', id: 'z' })).status, state.posts.has('z')], [403, true]);
+{ const back = silence(); check('nuit : une autre clé ne passe pas (traitée comme une session invalide)', (await nightly({ action: 'expiry-run' }, 'y')).status, 401); back(); }
+state.expiry.enabled = true;
+{ const log = console.log; console.log = () => {};
+  const out = await nightly({ action: 'expiry-run' }); console.log = log;
+  check('nuit, expiration activée : l’image s’en va, les mots restent', [out.status, out.done, where('z.webp'), state.posts.get('z').text], [200, 1, [], 'encore des mots']); }
+state.expiry.enabled = false;
+
 console.log(`\n${n - fail} / ${n} tests passés.`);
 process.exit(fail ? 1 : 0);

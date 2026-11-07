@@ -5,8 +5,9 @@
 #   - chaque lundi : tests seuls, plus le contrôle de la production dans un vrai navigateur (aussi à la
 #     demande). Ça garde aussi le projet Supabase gratuit actif (il se met en pause après 7 jours sans activité) ;
 #   - chaque nuit à 03:00 heure de Tokyo (et à la demande : « Run workflow » ▸ task = archive) : archive du mur
-#     (tools/archive.mjs : captures iPhone et ordinateur + état en JSON, bucket PRIVÉ « archive »). Rien d'autre :
-#     ni déploiement, ni tests.
+#     (tools/archive.mjs : captures iPhone et ordinateur + état en JSON, bucket PRIVÉ « archive »), puis
+#     expiration à 180 jours (tools/expire-nightly.sh), qui ne fait RIEN tant que l'auteur ne l'a pas activée.
+#     Ni déploiement, ni tests.
 #
 # Secrets GitHub nécessaires (Settings ▸ Secrets and variables ▸ Actions) :
 #   SUPABASE_ACCESS_TOKEN   jeton personnel Supabase (Account ▸ Access Tokens)
@@ -130,6 +131,12 @@ jobs:
           node tools/archive.mjs
         env:
           PW_CHANNEL: chrome
+      # Expiration à 180 jours, chaque nuit APRÈS l'archive (la nuit garde donc le mur avant l'expiration).
+      # Ne fait RIEN tant que l'auteur n'a pas activé expiry_settings.enabled (éditeur SQL, docs/MODERATION.md) :
+      # la fonction répond alors 403 « disabled », ce qui est normal. Toute autre réponse fait échouer le job (alerte).
+      - name: Expiration à 180 jours (inactive tant que l'auteur ne l'a pas activée)
+        if: always() && env.SERVICE_KEY != ''
+        run: bash tools/expire-nightly.sh
       # Alerte e-mail si une étape ci-dessus a échoué (Resend, tools/ci-alert.sh). Sans le secret RESEND_API_KEY :
       # ne fait rien et ne fait pas échouer le job. Destinataire : ADMIN_EMAIL de supabase/functions/_shared/http.js.
       - name: Alerte e-mail en cas d'échec

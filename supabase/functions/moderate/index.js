@@ -21,6 +21,8 @@
  *   POST { action: 'expiry-run' }        → supprime vraiment les fichiers des dépôts expirés ; il reste leur ligne et leurs mots,
  *                                          SEULEMENT si l'auteur a activé expiry_settings.enabled lui-même (sinon 403
  *                                          « disabled », rien n'est touché). Aucune action ne peut activer ce réglage.
+ *                                          Appelée aussi chaque nuit par le workflow « Supabase » (job archive) avec la clé
+ *                                          service_role : c'est la SEULE action acceptée avec cette clé (voir nightly()).
  *   GET ?health                          → PUBLIC, sans données : les fonctions ont-elles accès à la base ?
  *                                          (utilisé par tests/e2e.mjs pour détecter un problème de droits)
  */
@@ -109,6 +111,15 @@ async function exists(db, bucket, path) {
 }
 
 /* ------------------------------------------------------------------ expiration à 180 jours (simulation par défaut) */
+/** Appel de la tâche de nuit : « Authorization: Bearer <clé service_role> », comparée à temps constant. */
+function nightly(req) {
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  const got = (req.headers.get('authorization') || '').replace(/^Bearer /, '');
+  if (!key || got.length !== key.length) return false;
+  let d = 0;
+  for (let i = 0; i < key.length; i++) d |= key.charCodeAt(i) ^ got.charCodeAt(i);
+  return d === 0;
+}
 async function expirySettings(db) {
   const { data, error } = await db.from('expiry_settings').select('enabled, days').eq('id', 1).maybeSingle();
   if (error) console.error('[moderate] réglage d\'expiration illisible :', error.code, error.message);
@@ -178,6 +189,19 @@ Deno.serve(async req => {
     const tables = Object.fromEntries(checks);
     const ok = Object.values(tables).every(Boolean);
     return json(req, ok ? 200 : 500, { ok, tables });
+  }
+  // tâche de nuit (workflow « Supabase », job archive) : la clé service_role, et pour la SEULE action expiry-run.
+  // Elle ne fait rien tant que l'auteur n'a pas activé expiry_settings.enabled (403 « disabled »).
+  if (req.method === 'POST' && nightly(req)) {
+    let body; try { body = await req.json(); } catch { return fail(req, 400, 'bad'); }
+    if (body?.action !== 'expiry-run') return fail(req, 403, 'admin');
+    try {
+      const out = await expiryRun(db);
+      return out.refused ? fail(req, 403, 'disabled') : json(req, 200, { ok: true, ...out });
+    } catch (e) {
+      console.error('[moderate] expiration de nuit impossible :', e?.message || e);
+      return fail(req, 500, 'storage');
+    }
   }
   const who = await caller(req, db);
   if (who.status === 'none' || who.status === 'auth') return fail(req, 401, 'auth');   // se (re)connecter
