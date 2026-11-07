@@ -9,6 +9,7 @@ import { summarize } from '../supabase/functions/_shared/stats.js';
 import { serverError, videoError, WHY } from '../js/errors.js';
 import { STRINGS } from '../js/strings.js';
 import { clientIpFrom, bodyTooLarge } from '../supabase/functions/_shared/request.js';
+import { negativeError } from '../supabase/functions/_shared/negative.js';
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -97,4 +98,12 @@ check('IP : sans cf-connecting-ip, le DERNIER élément de x-forwarded-for (ajou
   [clientIpFrom('', 'faux, 198.51.100.2'), clientIpFrom(null, '198.51.100.2'), clientIpFrom('', ''), clientIpFrom(undefined, undefined)], ['198.51.100.2', '198.51.100.2', '', '']);
 check('corps trop gros refusé avant lecture (content-length), inconnu accepté',
   [bodyTooLarge('7000000', 6 * 1024 * 1024), bodyTooLarge('100', 6 * 1024 * 1024), bodyTooLarge(null, 1), bodyTooLarge('abc', 1)], [true, false, false, false]);
+// fix-original : le serveur n'accepte qu'un NÉGATIF gris fait par le site (JPEG, rien de plus clair que 76 %)
+const fx = n => new Uint8Array(readFileSync(new URL(`./fixtures-img/${n}`, import.meta.url)));
+check('négatif : les faux négatifs générés (gris ≤ 76 %) sont acceptés',
+  ['neg.jpg', 'neg-thumb.jpg', 'neg-tall.jpg', 'neg-poster.jpg'].map(n => negativeError(fx(n))), [null, null, null, null]);
+check('négatif : une photo en couleur, une photo grise avec de vrais blancs, un WebP sont refusés',
+  [negativeError(fx('clean.jpg')), negativeError(fx('gray-white.jpg')), negativeError(fx('lossy.webp'))], ['color', 'light', 'type']);
+check('négatif : message traduit (FR / JA / EN) pour le code « negative »',
+  ['fr', 'ja', 'en'].map(l => typeof STRINGS[l]?.eNegative === 'string' && STRINGS[l].eNegative.length > 5), [true, true, true]);
 process.exit(fail ? 1 : 0);

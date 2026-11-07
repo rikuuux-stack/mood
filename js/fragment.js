@@ -13,7 +13,7 @@
  * Le fichier produit (JPEG) ne contient aucune métadonnée.
  */
 import { negative, BASE, ERODE, GRAIN, PAGE_GRAIN, alphaOf } from './wall.js?v=10fdf5c535';
-import { stripMetadata } from './image.js?v=0bde9bbfaf';
+import { stripMetadata } from './image.js?v=4cbe9f94a9';
 
 export const FORMATS = { '4:5': [1080, 1350], '9:16': [1080, 1920] };
 const BG = [255, 255, 255];      // fond : blanc pur (--bg)
@@ -44,7 +44,7 @@ const overlay = (b, s) => (b <= 0.5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s));
  *   palier 0 : négatif (gris, inversion, courbe), NOIR transparent (BASE), grain habituel s'il y en a (GRAIN) ;
  *   palier N : négatif, grain du palier s'il y en a, transparence qui gagne les gris plus clairs (ERODE).
  */
-function processPhoto(source, dw, dh, stage, scale) {
+function processPhoto(source, dw, dh, stage, scale, neg = false) {
   const c = document.createElement('canvas');
   c.width = dw; c.height = dh;
   const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -55,7 +55,8 @@ function processPhoto(source, dw, dh, stage, scale) {
   const g = grain ? noiseGrid(Math.ceil(dw / scale) + 1, Math.ceil(dh / scale) + 1) : null;
   for (let y = 0, i = 0; y < dh; y++) {
     for (let x = 0; x < dw; x++, i += 4) {
-      const t = negative((0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255);
+      const lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+      const t = neg ? lum : negative(lum);                             // fichier déjà en négatif : son gris tel quel
       const n = g ? sample(g, x / scale, y / scale) : 0.5;
       let v = t;
       const a = alphaOf(t, e || BASE);                                 // alpha = 1 − k × (t − gris)
@@ -191,7 +192,7 @@ export async function makeFragment({ li, wallEl, format = '4:5', prompt = '', da
     const ph = el.querySelector('.photo');
     if (ph) {
       const r = rectIn(ph, el), dw = Math.max(1, Math.round(r.w * scale)), dh = Math.max(1, Math.round(r.h * scale));
-      if (sources[i]) { ctx.drawImage(processPhoto(sources[i], dw, dh, stage, scale), Math.round(X(bx + r.x)), Math.round(Y(by + r.y))); drawn++; }
+      if (sources[i]) { ctx.drawImage(processPhoto(sources[i], dw, dh, stage, scale, ph.classList.contains('is-neg')), Math.round(X(bx + r.x)), Math.round(Y(by + r.y))); drawn++; }
       else { ctx.fillStyle = FRAME; ctx.fillRect(X(bx + r.x), Y(by + r.y), dw, dh); missing++; }   // image introuvable : son cadre
     }
     const tx = el.querySelector('.caption-text, .sticker-text');

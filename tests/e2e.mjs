@@ -181,16 +181,25 @@ await t('GIF refusé (format lu dans le fichier)', async () =>
 await t('photo avec EXIF / GPS refusée', async () => code(await submitForm({}, { image: fx('exif.jpg'), thumb: fx('lossy.webp') }), 'meta'));
 await t('image de plus de 2000 px refusée', async () => code(await submitForm({}, { image: fx('toowide.png'), thumb: fx('lossy.webp') }), 'size'));
 await t('pixels contre mots : 200 caractères avec une image 1500 × 2000 refusés (max 125)', async () =>
-  code(await submitForm({ text: 'm'.repeat(200) }, { image: fx('tall.webp'), thumb: fx('lossy.webp') }), 'tooLong'));
+  code(await submitForm({ text: 'm'.repeat(200) }, { image: fx('neg-tall.jpg'), thumb: fx('neg-thumb.jpg') }), 'tooLong'));
 await t('dépôt valide SANS captcha refusé', async () => code(await submitForm({ text: 'bonjour' }), 'captcha'));
 await t('dépôt valide avec un FAUX captcha refusé', async () => code(await submitForm({ text: 'bonjour', captcha: 'faux-jeton' }), 'captcha'));
 await t('image valide avec un faux captcha refusée', async () =>
-  code(await submitForm({ text: 'court' }, { image: fx('tall.webp'), thumb: fx('lossy.webp'), }), 'captcha'));
+  code(await submitForm({ text: 'court' }, { image: fx('neg-tall.jpg'), thumb: fx('neg-thumb.jpg'), }), 'captcha'));
+// fix-original : l'original (couleur, ou gris avec de vrais blancs) n'est jamais accepté, ni pour la photo, ni pour sa miniature
+await t('photo originale en couleur refusée (« negative »), jamais stockée', async () =>
+  code(await submitForm({ text: 'court' }, { image: fx('clean.jpg'), thumb: fx('neg-thumb.jpg') }), 'negative'));
+await t('photo grise avec de vrais blancs (pas le négatif du site) refusée', async () =>
+  code(await submitForm({ text: 'court' }, { image: fx('gray-white.jpg'), thumb: fx('neg-thumb.jpg') }), 'negative'));
+await t('miniature originale en couleur refusée', async () =>
+  code(await submitForm({ text: 'court' }, { image: fx('neg-tall.jpg'), thumb: fx('clean.jpg') }), 'negative'));
 
 // --- vidéos / GIF convertis (fausses vidéos générées : tests/fixtures-img/v-*.mp4) : tout est vérifié AVANT le captcha
 const vid = n => new Blob([readFileSync(new URL(`./fixtures-img/${n}`, import.meta.url))], { type: 'video/mp4' });   // type annoncé : ignoré par le serveur
 await t('vidéo valide (MP4 H.264 480 px, muette, 2 s) + image fixe : contrôles passés, refusée seulement au captcha', async () =>
-  code(await submitForm({ text: 'court' }, { video: vid('v-ok.mp4'), poster: fx('clean.jpg') }), 'captcha'));
+  code(await submitForm({ text: 'court' }, { video: vid('v-ok.mp4'), poster: fx('neg-poster.jpg') }), 'captcha'));
+await t('vidéo avec image fixe en couleur (pas le négatif) refusée', async () =>
+  code(await submitForm({ text: 'court' }, { video: vid('v-ok.mp4'), poster: fx('clean.jpg') }), 'negative'));
 await t('vidéo de plus de 60 s refusée', async () => code(await submitForm({}, { video: vid('v-long.mp4'), poster: fx('clean.jpg') }), 'duration'));
 await t('vidéo de plus de 4 Mo refusée', async () =>
   code(await submitForm({}, { video: new Blob([new Uint8Array(4 * 1024 * 1024 + 1)], { type: 'video/mp4' }), poster: fx('clean.jpg') }), 'tooBig'));

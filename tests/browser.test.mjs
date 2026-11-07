@@ -27,6 +27,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { SAMPLE_POSTS } from './fixtures.mjs';
+import { negativeError } from '../supabase/functions/_shared/negative.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(import.meta.url);
@@ -527,6 +528,51 @@ for (const [locale, mention] of [['fr-FR', /modérés/], ['ja-JP', /確認後に
   ok(seen.lang === locale.slice(0, 2) && mention.test(seen.mentions), `${locale} : mentions et lecteurs d'écran dans la langue du navigateur (« ${seen.skip} »)`, JSON.stringify(seen));
   ok(seen.mail === 'mailto:rikuuux@gmail.com', `${locale} : adresse de contact posée depuis la config`, seen.mail);
   await lc.close();
+}
+
+// fix-original : (1) le téléphone n'envoie que le NÉGATIF (le serveur le reconnaît), (2) un fichier déjà en négatif
+// (« .neg. ») n'est pas inversé une seconde fois, (3) ni clic droit ni glisser-déposer sur les photos, appui long coupé
+{
+  const nc = await browser.newContext({ ...devices['iPhone 12'], viewport: { width: 390, height: 844 } });
+  const negRows = rows.slice(0, 6).map((r, i) => r.image_path ? { ...r, image_path: `n-${i}.neg.jpg`, thumb_path: `n-${i}-thumb.neg.jpg` } : r);
+  await fakeServer(nc, negRows);
+  const np = await nc.newPage();
+  await np.goto(BASE); await np.waitForSelector('#wall .item .photo');
+  // (1) le vrai code du site (js/image.js) sur une image en couleur dessinée ici
+  const sent = await np.evaluate(async () => {
+    const { renderImage } = await import('/js/image.js');
+    const c = document.createElement('canvas'); c.width = 1600; c.height = 1200;
+    const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 1600, 1200);
+    gr.addColorStop(0, '#ff2200'); gr.addColorStop(0.5, '#ffffff'); gr.addColorStop(1, '#0033ff');
+    g.fillStyle = gr; g.fillRect(0, 0, 1600, 1200); g.fillStyle = '#00cc44'; g.fillRect(300, 300, 500, 400);
+    const img = new Image(); img.src = c.toDataURL('image/png'); await img.decode();
+    const out = await renderImage({ img, width: 1600, height: 1200 });
+    const bytes = async b => Array.from(new Uint8Array(await b.arrayBuffer()));
+    return { type: out.full.type, thumbType: out.thumb.type, full: await bytes(out.full), thumb: await bytes(out.thumb) };
+  });
+  const fullErr = negativeError(new Uint8Array(sent.full)), thumbErr = negativeError(new Uint8Array(sent.thumb));
+  ok(sent.type === 'image/jpeg' && sent.thumbType === 'image/jpeg' && fullErr === null && thumbErr === null,
+    'dépôt : la photo envoyée est déjà le NÉGATIF gris (JPEG), reconnu par le contrôle du serveur ; l’original ne part pas', JSON.stringify({ t: sent.type, fullErr, thumbErr }));
+  // (2) affichage : seulement la transparence / l'usure (#toneN, #erodeNN), pas de seconde inversion
+  const shown = await np.evaluate(() => [...document.querySelectorAll('#wall .photo.is-neg img')].slice(0, 4).map(i => getComputedStyle(i).filter));
+  ok(shown.length > 0 && shown.every(f => /#(toneN|erode[1-4]N)/.test(f)), 'fichier déjà en négatif : filtre de transparence seul (#toneN / #erode…N)', JSON.stringify(shown));
+  // (3) clic droit et glisser-déposer bloqués ; appui long iPhone coupé en CSS ; Keep non concerné
+  const guard = await np.evaluate(() => {
+    const img = document.querySelector('#wall .photo img');
+    const ctx = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); img.dispatchEvent(ctx);
+    const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true }); img.dispatchEvent(drag);
+    const cs = getComputedStyle(img);
+    return { context: ctx.defaultPrevented, drag: drag.defaultPrevented, draggable: img.draggable, callout: cs.webkitTouchCallout || cs.getPropertyValue('-webkit-touch-callout'), select: cs.userSelect || cs.webkitUserSelect,
+      keep: getComputedStyle(document.querySelector('#keepPreview')).getPropertyValue('-webkit-touch-callout') };
+  });
+  ok(guard.context && guard.drag && guard.draggable === false && guard.select === 'none', 'photos : clic droit et glisser-déposer bloqués, pas de sélection', JSON.stringify(guard));
+  ok(!guard.callout || guard.callout === 'none', 'photos : appui long (« Enregistrer l’image ») coupé sur iPhone (-webkit-touch-callout: none)', JSON.stringify(guard));
+  // Keep fonctionne toujours avec un fichier déjà en négatif (pas d'inversion en plus dans le fragment)
+  await np.evaluate(() => document.querySelector('#wall .item--image .item-hit').click());
+  await np.waitForSelector('#viewer[open]'); await np.click('#keepBtn');
+  const kept = await np.waitForSelector('#keepPreview:not([hidden])', { timeout: 20000 }).then(() => true, () => false);
+  ok(kept, 'Keep : le fragment se fabrique toujours avec des photos déjà en négatif');
+  await nc.close();
 }
 
 ok(!errors.length, 'aucune erreur JavaScript', errors.join(' ; '));

@@ -6,7 +6,7 @@
  * connecté est bien administrateur. Les textes des dépôts sont insérés via textContent uniquement.
  */
 import { CONFIG } from '../js/config.js?v=05f59e2af5';
-import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=0bde9bbfaf';
+import { decodeImage, renderImage, drawPreview, ImageError } from '../js/image.js?v=4cbe9f94a9';
 import { textBudget, textLength } from '../js/budget.js?v=0d99de1d5b';
 
 const $ = s => document.querySelector(s);
