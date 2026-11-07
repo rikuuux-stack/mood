@@ -33,19 +33,19 @@ Uniquement des gris (chroma 0). La note l'impose, et une teinte ferait d'un dép
 | `--bg` | `#ffffff` | `oklch(1 0 0)` | fond | Le blanc vers lequel l'usure ramène tout. |
 | `--fg` | `#111111` | `oklch(0.178 0 0)` | texte, capsules | Noir doux : la seule chose qui ne pâlit pas, l'interface. |
 | `--muted` | `#555555` | `oklch(0.450 0 0)` | date, mentions ; nom dans la liste | Ce qui identifie quelqu'un reste en retrait (égalité). 7,5:1 sur blanc. |
-| `--muted-sheet` | `#505050` | `oklch(0.428 0 0)` | gris secondaire dans les feuilles | Sur une feuille au pire (fond 0,955), `#555` ne ferait que 6,7:1 ; `#505050` fait 7,3:1. |
+| `--muted-sheet` | `#505050` | `oklch(0.428 0 0)` | gris secondaire dans les feuilles | Sur une feuille au pire (fond 0,917), `#555` ne ferait que 6,2:1 ; `#505050` fait 6,7:1. |
 | `--rule` | `#d9d9d9` | `oklch(0.885 0 0)` | filets de strate, champs | Les strates se voient à peine, comme des couches. |
 | `--panel` | `#fafafa` | `oklch(0.985 0 0)` | verre opaque (repli) | Même rôle que le verre, sans transparence. |
 | `--photo-bg` | `#f0f0f0` | `oklch(0.955 0 0)` | image en chargement | Une place grise avant la trace. |
-| `--glass-fill` | blanc à 48 % | `oklch(1 0 0 / .48)` | capsule | **8,0:1** pour `--fg` au-dessus du gris visible le plus sombre (calcul ci-dessous). |
-| `--glass-fill-sheet` | blanc à 78 % | `oklch(1 0 0 / .78)` | feuille | Le mur se devine derrière une fenêtre ouverte. |
+| `--glass-fill` | blanc à 30 % | `oklch(1 0 0 / .30)` | capsule | **5,5:1** pour `--fg` au-dessus du gris visible le plus sombre (calcul ci-dessous ; minimum 4,5:1). 48 % (8,0:1) était trop opaque sur iPhone. |
+| `--glass-fill-sheet` | blanc à 60 % | `oklch(1 0 0 / .60)` | feuille | Le mur se voit derrière une fenêtre ouverte (78 % était trop opaque sur iPhone). |
 | `--glass-rim-light` | blanc à 85 % | `oklch(1 0 0 / .85)` | reflet de bord haut | Le seul « éclat » du site, et il est hors du mur. |
 | `--glass-rim-dark` | `#111` à 7 % | `oklch(0.178 0 0 / .07)` | contour sur blanc | La capsule existe encore sur le fond nu. |
-| `--veil` | blanc à 60 % | `oklch(1 0 0 / .60)` | `::backdrop` | Le mur recule sans disparaître : il se devine encore derrière une feuille (à 86 %, il devenait invisible). |
+| `--veil` | blanc à 60 % | `oklch(1 0 0 / .60)` | `::backdrop` | Le mur recule sans disparaître : il se voit encore derrière une feuille (à 86 %, il devenait invisible). |
 
 Le verre ne contient **pas** de `saturate()` : sur un mur entièrement gris, il ne ferait rien, et un verre teinté à la manière d'iOS trahirait la règle des gris.
 
-**Calcul du contraste sur une capsule** (aussi dans `tokens.css`). Le gris le plus sombre que produit le traitement des images, images empilées, est x = 0,303 (point fixe de x = a·g + (1 − a)·x, avec a = 1 − 6,67 × (0,45 − g) et g le gris du négatif, entre 0 et 0,76). Le flou ne change pas un aplat. Ensuite `brightness(1.1)` puis `contrast(.9)` donnent c = (min(1 ; 1,1 x) − 0,5) × 0,9 + 0,5 = 0,450. Avec un remplissage f, le fond vaut f + (1 − f) × c : à 48 %, 0,662, soit **8,0:1** pour `--fg` (texte 300 à 13 px). Passer à 55 % n'est donc pas nécessaire (9,2:1). Sur une feuille (voile 60 % puis feuille 78 %), le fond vaut 0,955 au pire : 17,1:1 pour `--fg`.
+**Calcul du contraste sur une capsule** (aussi dans `tokens.css`). Le gris le plus sombre que produit le traitement des images, images empilées, est x = 0,303 (point fixe de x = a·g + (1 − a)·x, avec a = 1 − 6,67 × (0,45 − g) et g le gris du négatif, entre 0 et 0,76). Le flou ne change pas un aplat. Ensuite `brightness(1.1)` puis `contrast(.9)` donnent c = (min(1 ; 1,1 x) − 0,5) × 0,9 + 0,5 = 0,450. Avec un remplissage f, le fond vaut f + (1 − f) × c : à **30 %**, 0,545, soit **5,5:1** pour `--fg` (texte 300 à 13 px ; minimum demandé par l'auteur : 4,5:1). À 48 %, c'était 8,0:1, mais trop opaque sur iPhone. Sur une feuille (voile 60 % puis feuille **60 %**), le fond vaut 0,917 au pire : 15,7:1 pour `--fg`, 6,7:1 pour `--muted-sheet`. Ni le flou ni `brightness` n'ont eu besoin de monter.
 
 ## 3. Typographie
 
@@ -123,7 +123,7 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 | Flou | 12 px (10 px sur mobile) | 20 px (16 px) | Assez pour effacer les formes, pas assez pour faire une tache. |
 | `brightness` | 1.1 | 1.1 | Éclaircit sans teinter. |
 | `contrast` | .9 | — | Sous une commande, le mur passe au second plan. |
-| Remplissage | 48 % (8,0:1) | 78 % (voile 60 % dessous) | Calculé pour la lisibilité, pas pour l'effet. |
+| Remplissage | 30 % (5,5:1) | 60 % (voile 60 % dessous ; 15,7:1) | Le plus transparent possible au-dessus de 4,5:1 dans le pire cas. |
 | Reflet | 1 px en haut + contour à 7 % | idem | Le seul reflet, fixe. |
 
 ### Repli

@@ -31,7 +31,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 /* ------------------------------------------------------------------ Mood + Drop : deux capsules de verre
  * Deux éléments fixes posés sur le mur, sans barre ni bandeau (docs/mood-da.md). Le verre (verre dépoli :
  * flou, éclaircissement, reflet de bord ; aucun filtre SVG) REMPLACE mix-blend-mode: difference : « Mood » et
- * « Drop » sont noirs sur verre clair, lisibles sur n'importe quelle image (8,0:1 au pire, docs/tokens.css).
+ * « Drop » sont noirs sur verre clair, lisibles sur n'importe quelle image (5,5:1 au pire, docs/tokens.css).
  * Sur le blanc nu, les capsules disparaissent presque. Le mur défile dessous ; aucun parent ne porte de
  * transform / filter (sinon position: fixed casse). Le flou n'est jamais dans ce qui défile.
  */
@@ -190,11 +190,11 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
   .viewer-body img, .viewer-body .photo.is-video .vcanvas { max-height: 60dvh; }
 }
 
-/* feuilles de verre : Drop et Mood (docs/mood-da.md). Le mur se devine derrière (voile 60 %, feuille 78 %).
+/* feuilles de verre : Drop et Mood (docs/mood-da.md). Le mur se voit derrière (voile 60 %, feuille 60 %).
    Ordinateur : une colonne de 400 px rangée à droite, à 72 px du haut ; mobile : monte du bas, coins hauts arrondis.
    Les boutons à l'intérieur ne sont pas en verre (jamais de verre sur du verre). */
 .sheet {
-  --muted: var(--muted-sheet);                         /* 7,3:1 au pire sur la feuille (#555 n'y ferait que 6,7:1) */
+  --muted: var(--muted-sheet);                         /* 6,7:1 au pire sur la feuille (#555 n'y ferait que 6,2:1) */
   background: var(--glass-fill-sheet);
   -webkit-backdrop-filter: blur(var(--glass-blur-sheet)) brightness(var(--glass-lift));
           backdrop-filter: blur(var(--glass-blur-sheet)) brightness(var(--glass-lift));
