@@ -6,7 +6,7 @@
  * le contour est déchiré, en segments droits et en angles vifs, jamais arrondi (le rond est réservé au verre).
  *
  * Le contour est calculé à partir de l'IDENTIFIANT du dépôt (graine) et de son palier : tout le monde voit le
- * même, sur le mur, dans la liste, dans l'agrandissement et dans Keep (js/fragment.js relit le même polygone).
+ * même, sur le mur, dans la liste et dans Keep (js/fragment.js relit le même polygone).
  * Il s'applique en clip-path: polygon(…) sur .photo (l'image, ou le canvas d'une vidéo agrandie).
  */
 import { rng } from './wall.js?v=e2142ccd51';

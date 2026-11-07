@@ -20,7 +20,7 @@
 
   /* ---------------------------------------------------------------- verre
      Deux matières seulement : « capsule » (commandes posées sur le mur)
-     et « feuille » (fenêtres Drop / Mood / agrandissement). */
+     et « feuille » (fenêtres Drop / Mood / Keep). */
   /* Contraste réel de --fg (#111) sur une capsule (verre dépoli) :
        gris le plus sombre que produit le traitement des images, images empilées : x = 0,303 (sRGB)
          (point fixe de x = a·g + (1 − a)·x, a = 1 − 6,67 × (0,45 − g), g du négatif entre 0 et 0,76) ;

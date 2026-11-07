@@ -1,11 +1,11 @@
 /**
  * Mood — mur modéré d'images et de mots. Point d'entrée.
  *   - charge les dépôts validés et la consigne du mois (js/data.js : Supabase, ou maquette avec ?mock) ;
- *   - deux vues : MUR (composition libre, js/wall.js) et LISTE (archive complète, toujours lisible à 100 %) ;
- *   - le mur est IMMOBILE : c'est le temps qui le transforme — érosion (chaque dépôt pâlit avec son âge,
- *     quitte le mur après 180 jours) et strates (mois / consigne), voir js/wall.js ;
- *   - le plus récent est au-dessus ; un toucher ou un clic ouvre directement l'agrandissement
- *     (précédent / suivant : boutons, balayage, flèches du clavier) ;
+ *   - deux vues : MUR (fixe, un seul écran, js/stack.js) et LISTE (archive complète, toujours lisible) ;
+ *   - le mur est IMMOBILE : c'est le temps qui le transforme — érosion et bords rongés (js/wall.js, js/edge.js),
+ *     enfouissement par les dépôts plus récents, sortie du mur après 180 jours au plus tard ;
+ *   - le plus récent est au-dessus ; plus d'agrandissement : sur le mur, toucher une vidéo la lit sur place
+ *     (une fois) ; dans la liste, toucher un dépôt ouvre la feuille Keep (le dépôt seul) et Report ;
  *   - égalité : aucun dépôt n'est distingué des autres ;
  *   - le dépôt d'un visiteur s'affiche chez lui seul, « Under review », jusqu'à sa validation ;
  *   - un dépôt = une image, des mots, ou les deux ; plus l'image a de pixels, moins de mots (js/budget.js).
@@ -13,7 +13,7 @@
  * Les textes des visiteurs (et la consigne) ne sont JAMAIS insérés en HTML : uniquement via textContent.
  */
 import { CONFIG } from './config.js?v=b90e1cccbc';
-import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=3f019c41a2';
+import { apply as applyI18n, t, lang, setLang, onLangChange, formatDate } from './i18n.js?v=201219e6cb';
 import { sizeFor, visibility, stageOf, ageDays, onWall, TIME, BASE, ERODE, alphaOf } from './wall.js?v=e2142ccd51';
 import { decodeImage, renderImage, drawPreview, ImageError } from './image.js?v=6870828c6e';
 import { fetchPosts, cachedPosts, fetchPrompt, pendingPosts, addPending, settlePending, submitPost, reportPost, mode, ServerError } from './data.js?v=08b14cca51';
@@ -21,7 +21,7 @@ import * as captcha from './captcha.js?v=83c39d113e';
 import { textBudget, textLength } from './budget.js?v=0d99de1d5b';
 import { serverError, videoError } from './errors.js?v=51450bce30';
 
-import * as EDGE from './edge.js?v=19ea939b8a';       // bords rongés selon l'âge (contour tiré de l'identifiant du dépôt)
+import * as EDGE from './edge.js?v=2ead68abf7';       // bords rongés selon l'âge (contour tiré de l'identifiant du dépôt)
 import * as STACK from './stack.js?v=083ef4cbab';     // mur fixe : un seul écran, les N dépôts les plus récents empilés
 
 /* ?future=N : le mur tel qu'il sera dans N jours (usure, bords, placement, mois). AFFICHAGE SEULEMENT : aucune écriture,
@@ -45,6 +45,7 @@ const viewBtn = $('#viewBtn');
 viewBtn.addEventListener('click', () => { setView(view === 'wall' ? 'list' : 'wall'); $('#about').close(); scrollTo(0, 0); });
 const viewLabel = () => { viewBtn.textContent = t(view === 'wall' ? 'viewList' : 'viewWall'); };
 function setView(v) {
+  stopVideo();
   view = v;
   try { localStorage.setItem('view', v); } catch {}
   viewLabel();
@@ -73,10 +74,10 @@ function showPrompt() {
 }
 
 /* ------------------------------------------------------------------ éléments */
-// une vidéo (ou un GIF converti) se comporte comme une photo partout, sauf dans l'agrandissement où elle joue
+// une vidéo (ou un GIF converti) se comporte comme une photo partout ; sur le mur, un toucher la lit sur place
 const visual = p => p.kind === 'image' || p.kind === 'video';
 // Le nom de la personne qui dépose n'apparaît QUE dans la vue List (décision de l'auteur) : ni sur le mur
-// (pas même pour les lecteurs d'écran), ni dans l'agrandissement.
+// (pas même pour les lecteurs d'écran), ni dans Keep.
 const label = (p, named) => named
   ? t(p.kind === 'video' ? 'videoBy' : p.kind === 'image' ? 'imageBy' : 'textBy', { name: p.name || t('anon') })
   : t(p.kind === 'video' ? 'videoItem' : p.kind === 'image' ? 'imageItem' : 'textItem');
@@ -109,11 +110,11 @@ function watch(root) {
 }
 
 /** Photo : cadre aux bonnes proportions tout de suite, image en fondu (≈ 220 ms) dès qu'elle est prête. */
-function photo(p, full) {
+function photo(p) {
   const img = document.createElement('img');
   img.crossOrigin = 'anonymous';                       // pixels lisibles par un canvas (Keep, js/fragment.js) ; avant src
   img.width = p.image.w; img.height = p.image.h;
-  img.alt = full ? label(p) : '';
+  img.alt = '';                                        // le libellé est sur le dépôt (aria-label)
   img.decoding = 'async';
   // noir et blanc + grain : appliqué par .photo (css/site.css) à toutes les photos déposées
   img.draggable = false;                               // ni glisser-déposer, ni « Enregistrer l'image » (voir plus bas)
@@ -122,14 +123,14 @@ function photo(p, full) {
   const done = () => ph.classList.add('is-loaded');
   img.addEventListener('load', done);                  // à chaque (re)chargement : l'image peut être libérée puis revenir
   img.addEventListener('error', done);
-  if (!full) img.style.aspectRatio = `${p.image.w} / ${p.image.h}`;   // cadre à la bonne forme, même image libérée (liste)
-  if (full) img.src = p.image.src; else img.dataset.src = p.image.thumb;   // miniature : à l'approche de l'écran (watch)
+  img.style.aspectRatio = `${p.image.w} / ${p.image.h}`;   // cadre à la bonne forme, même image libérée (liste)
+  img.dataset.src = p.image.thumb;                     // miniature : à l'approche de l'écran (watch)
   if (img.complete && img.naturalWidth) done();
   return ph;
 }
 
 /* Photos et vidéos : ni clic droit (« Enregistrer l'image sous… »), ni glisser-déposer vers le bureau, partout
- * (mur, liste, agrandissement, aperçu de Drop). L'appui long de l'iPhone est coupé en CSS (-webkit-touch-callout).
+ * (mur, liste, aperçu de Drop). L'appui long de l'iPhone est coupé en CSS (-webkit-touch-callout).
  * Une capture d'écran reste possible (voulu) ; Keep garde son image à partager. Le fichier stocké, lui, n'est plus
  * l'original (négatif fait sur le téléphone) : c'est ce qui protège vraiment, ceci n'est qu'un frein. */
 const guarded = e => e.target instanceof Element && e.target.closest('.photo, .vcanvas, .preview');
@@ -137,16 +138,17 @@ document.addEventListener('contextmenu', e => { if (guarded(e)) e.preventDefault
 document.addEventListener('dragstart', e => { if (guarded(e)) e.preventDefault(); });
 
 /*
- * Vidéo dans l'agrandissement : téléchargée seulement à l'ouverture, jouée muette, en boucle, neuve (négatif
- * déjà dans le fichier, aucune érosion). Avec « Réduire les animations » : pas de lecture automatique, un bouton ▶.
- * Arrêtée et libérée de la mémoire à la fermeture ou au passage à un autre dépôt (freeVideos).
- * Noir transparent comme les photos : un MP4 ne porte pas de transparence, donc chaque image est redessinée dans
- * un canvas (≤ 480 px) où les sombres deviennent transparents (BASE, même règle que #tone). La <video> reste
- * dessous, invisible (elle décode et donne les images).
+ * Vidéo sur le mur : un toucher la lit SUR PLACE, muette, UNE seule fois, puis elle revient à son image fixe.
+ * Jamais de lecture automatique (pas même sans « Réduire les animations ») : seulement au geste du visiteur.
+ * Le fichier n'est téléchargé qu'à ce moment-là ; une seule vidéo joue à la fois ; elle est libérée à la fin.
+ * Noir transparent et usure du palier comme les photos : un MP4 ne porte pas de transparence, donc chaque image
+ * est redessinée dans un canvas (≤ 480 px) où les sombres deviennent transparents (ALPHAS, mêmes valeurs que
+ * #tone / #erode1 … #erode4). La <video> reste dessous, invisible (elle décode et donne les images). Les bords
+ * rongés suivent : le clip-path est posé sur .photo.
  */
 // une table d'opacité par palier (0 = neuf : BASE ; 1 … 4 : ERODE), mêmes valeurs que les filtres #tone / #erode1 … #erode4
 const ALPHAS = [BASE, ...ERODE].map(e => new Uint8ClampedArray(256).map((_, v) => Math.round(alphaOf(v / 255, e) * 255)));
-/** Âge affiché d'un dépôt, partout (mur, liste, agrandissement) : seul Keep fige un instant, rien ne rajeunit. */
+/** Âge affiché d'un dépôt, partout (mur, liste, Keep) : rien ne rajeunit. */
 const ageOf = (p, now = wallNow()) => { const v = p.pending ? 1 : visibility(ageDays(p.approvedAt, now)); return { v, stage: stageOf(v) }; };
 function setAge(el, p, now) {
   const { v, stage } = ageOf(p, now);
@@ -171,32 +173,34 @@ function paintFrames(v, c, ALPHA) {
   v.addEventListener('loadeddata', draw);
   v.addEventListener('seeked', draw);
 }
-function player(p) {
-  const ph = document.createElement('span'); ph.className = 'photo is-video';
+let playing = null;                                   // .photo de la vidéo en cours de lecture
+function playInPlace(li, p) {
+  const ph = li.querySelector('.photo');
+  if (!ph || !p.image?.video || ph.querySelector('video')) return;   // déjà en lecture : rien
+  stopVideo();
   const v = document.createElement('video');
   v.crossOrigin = 'anonymous';
-  v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+  v.muted = true; v.loop = false; v.playsInline = true; v.preload = 'auto';
   v.disablePictureInPicture = true; v.setAttribute('controlslist', 'nodownload noplaybackrate');
   v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
-  v.width = p.image.w; v.height = p.image.h;
-  v.poster = p.image.thumb;
-  v.setAttribute('aria-label', label(p));
-  v.addEventListener('loadeddata', () => ph.classList.add('is-loaded'), { once: true });
   const c = document.createElement('canvas'); c.className = 'vcanvas'; c.width = p.image.w; c.height = p.image.h;
   c.setAttribute('aria-hidden', 'true');
-  ph.append(v, c);
-  paintFrames(v, c, ALPHAS[ageOf(p).stage]);       // noir transparent ET usure du palier, image par image
+  ph.classList.add('is-video'); ph.append(v, c);
+  paintFrames(v, c, ALPHAS[ageOf(p).stage]);           // noir transparent ET usure du palier, image par image
+  v.addEventListener('playing', () => ph.classList.add('is-playing'), { once: true });   // l'image fixe s'efface alors
+  v.addEventListener('ended', stopVideo, { once: true });                                 // une seule fois
+  v.addEventListener('error', stopVideo, { once: true });
+  playing = ph;
   v.src = p.image.video;
-  if (reducedMotion.matches) {                       // ▶ dans la capsule de commandes (verre), pas sur l'image
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'nav vplay'; b.textContent = t('play'); b.setAttribute('aria-label', t('playVideo'));
-    b.addEventListener('click', () => { b.remove(); v.play().catch(() => {}); });
-    $('#viewerCtrl').insertBefore(b, $('#viewerCtrl [data-close]'));
-  } else {
-    v.autoplay = true;
-    v.play().catch(() => {});                          // lecture muette : permise sans geste
-  }
-  return ph;
+  v.play().catch(stopVideo);                           // muette, au geste du visiteur
+}
+/** Arrête la vidéo en cours : elle est libérée et l'image fixe revient. */
+function stopVideo() {
+  if (!playing) return;
+  const ph = playing; playing = null;
+  freeVideos(ph);
+  ph.querySelectorAll('video, canvas.vcanvas').forEach(e => e.remove());
+  ph.classList.remove('is-video', 'is-playing');
 }
 /** Arrête et libère les vidéos sous `root` (l'image décodée et le fichier ne restent pas en mémoire). */
 function freeVideos(root) {
@@ -204,11 +208,11 @@ function freeVideos(root) {
   root.querySelectorAll('canvas.vcanvas').forEach(c => { c.width = c.height = 0; });   // libère l'image du canvas
 }
 
-function content(p, { full = false, font } = {}) {
+function content(p, { font } = {}) {
   if (visual(p)) {
-    const media = full && p.kind === 'video' && p.image.video ? player(p) : photo(p, full);
+    const media = photo(p);
     const fig = document.createElement('span'); fig.className = 'fig'; fig.append(media);
-    if (!full && p.kind === 'video') {                 // sur le mur et dans la liste : l'image fixe + un petit ▶
+    if (p.kind === 'video') {                          // sur le mur et dans la liste : l'image fixe + un petit ▶
       const m = document.createElement('span'); m.className = 'vmark'; m.textContent = '▶'; m.setAttribute('aria-hidden', 'true');
       media.append(m);
     }
@@ -253,9 +257,12 @@ function nodeFor(p, w, font) {
   const li = document.createElement('li');
   li.className = `item item--${p.kind === 'video' ? 'image item--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
   li.style.width = `${w}px`;
-  const b = document.createElement('button');
-  b.type = 'button'; b.className = 'item-hit';
-  b.setAttribute('aria-label', ariaOf(p));
+  // sur le mur, seule une vidéo réagit au toucher (lecture sur place) ; une photo ou un texte ne fait rien
+  const playable = p.kind === 'video' && !p.pending && !!p.image?.video;
+  const b = document.createElement(playable ? 'button' : 'div');
+  b.className = 'item-hit';
+  if (playable) { b.type = 'button'; b.setAttribute('aria-label', `${t('playVideo')} — ${ariaOf(p)}`); }
+  else { b.setAttribute('role', 'group'); b.setAttribute('aria-label', ariaOf(p)); }
   b.append(content(p, { font }));
   li.append(b);
   if (p.pending) { const tag = document.createElement('span'); tag.className = 'pending-tag'; tag.textContent = t('pending'); li.append(tag); }
@@ -275,6 +282,7 @@ function renderWall(all) {
   const list = all.slice(0, mobile ? STACK.STACK_N.mobile : STACK.STACK_N.desktop);
   const ids = new Set(list.map(p => p.id));
   for (const [id, n] of nodeCache) if (!ids.has(id)) { nodeCache.delete(id); n.li.remove(); }
+  if (playing && !playing.isConnected) stopVideo();
   wallEl.querySelectorAll('.stack-month').forEach(d => d.remove());
   const now = wallNow();
   wallNodes = list.map((p, i) => {
@@ -338,8 +346,9 @@ function renderList(list) {
     const i = open++;
     const li = document.createElement('li');
     li.className = `row row--${p.kind === 'video' ? 'image row--video' : p.kind}${p.pending ? ' is-pending' : ''}`;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'item-hit';
+    const b = document.createElement(p.pending ? 'div' : 'button');   // un dépôt en attente : rien à garder ni signaler
+    b.className = 'item-hit';
+    if (!p.pending) b.type = 'button';
     b.setAttribute('aria-label', ariaOf(p, true));
     b.append(content(p));
     const meta = document.createElement('p');
@@ -354,22 +363,21 @@ function renderList(list) {
 }
 
 /* ------------------------------------------------------------------ interaction
- * Un toucher ou un clic ouvre directement l'agrandissement. Au toucher, un léger retour (css : :active,
- * scale .985) reste visible ≈ 80 ms avant l'ouverture. Survol / focus : css (l'élément passe au-dessus,
- * monte de 6 px, retrouve toute sa visibilité).
+ * Il n'y a plus d'agrandissement. Sur le mur : toucher une vidéo la lit sur place ; une photo ou un texte, rien.
+ * Dans la liste : toucher un dépôt ouvre la feuille Keep (le dépôt seul, avec son usure du jour), où l'on peut
+ * aussi le signaler. Survol / focus sur ordinateur : css (l'élément passe au-dessus, monte de 6 px).
  */
-let lastPointer = 'mouse';
-addEventListener('pointerdown', e => { lastPointer = e.pointerType; }, { capture: true, passive: true });
-function openFrom(e, sel) {
-  const el = e.target.closest(sel);
-  if (!el) return;
-  if (!el.dataset.i) return;                          // dépôt expiré : une ligne de texte, rien à ouvrir
-  const i = +el.dataset.i, list = items().filter(p => !p.expired);
-  const go = () => openViewer(list, i);
-  if (lastPointer === 'touch' && !reducedMotion.matches && e.detail !== 0) setTimeout(go, 80); else go();
-}
-wallEl.addEventListener('click', e => openFrom(e, '.item'));
-listEl.addEventListener('click', e => openFrom(e, '.row'));
+wallEl.addEventListener('click', e => {
+  const li = e.target.closest('.item--video');
+  if (!li) return;
+  for (const n of nodeCache.values()) if (n.li === li) { if (!n.p.pending) playInPlace(li, n.p); return; }
+});
+listEl.addEventListener('click', e => {
+  const li = e.target.closest('.row');
+  if (!li || !li.dataset.i || li.classList.contains('is-pending')) return;   // expiré : une ligne ; en attente : rien
+  const p = items().filter(q => !q.expired)[+li.dataset.i];
+  if (p) openKeep(li, p);
+});
 
 addEventListener('resize', () => {
   if (view !== 'wall') return;
@@ -402,62 +410,39 @@ document.querySelectorAll('dialog').forEach(d => {
   new MutationObserver(sync).observe(d, { attributes: true, attributeFilter: ['open'] });
 });
 
-/* ------------------------------------------------------------------ agrandissement : précédent / suivant */
-let seq = [], at = 0;
-const current = () => seq[at];
-function openViewer(list, i) {
-  seq = list; at = i;
-  showViewer();
-  if (!$('#viewer').open) $('#viewer').showModal();
-}
-function showViewer() {
-  const p = current();
-  $('#viewerMeta').textContent = metaOf(p);
-  freeVideos($('#viewerBody'));
-  $('#viewerCtrl .vplay')?.remove();
-  setAge($('#viewerBody'), p);                          // agrandi, le dépôt garde son âge
-  $('#viewerBody').replaceChildren(content(p, { full: true }));
-  EDGE.wear($('#viewerBody'), p, ageOf(p).stage);
-  // passage d'un dépôt à l'autre : fondu enchaîné (durée 0 avec « Réduire les animations », tokens.css)
-  const vb = $('#viewerBody'); vb.classList.remove('is-swap'); void vb.offsetWidth; vb.classList.add('is-swap');
-  $('#prev').disabled = at <= 0; $('#next').disabled = at >= seq.length - 1;
-  const r = $('#report'); r.open = false; r.hidden = !!p.pending;          // un dépôt en attente ne se signale pas
+/* ------------------------------------------------------------------ Keep : le dépôt seul
+ * Depuis la liste : toucher un dépôt ouvre la feuille Keep et fabrique aussitôt l'image sur l'appareil
+ * (js/fragment.js, chargé seulement à ce moment-là) au format 4:5 (ou 9:16) : le dépôt seul, au centre, avec son
+ * usure du jour. Un second toucher la partage (menu natif : Enregistrer l'image, Instagram, LINE…) ou, sur
+ * ordinateur, la télécharge. Deux temps : le menu de partage exige un geste récent du visiteur, que la fabrication
+ * pourrait dépasser. Le signalement (Report) est dans la même feuille.
+ */
+const keepSheet = $('#keepSheet'), keepPanel = $('#keepPanel'), keepGo = $('#keepGo'), keepMsg = $('#keepMsg'), keepPreview = $('#keepPreview');
+const coarse = matchMedia('(pointer: coarse)');
+let keepFormat = '4:5', kept = null, keepJob = 0, keepPost = null, keepRow = null;
+const current = () => keepPost;
+function openKeep(li, p) {
+  stopVideo();
+  keepPost = p; keepRow = li;
+  const r = $('#report'); r.open = false;
   captcha.reset($('[data-captcha]', $('#reportForm')));
   $('#reportForm').reset(); $('#reportForm .form-msg').textContent = '';
   $('#reportForm button[type=submit]').disabled = false;
-  resetKeep();
-}
-/* ------------------------------------------------------------------ Keep : un fragment du mur
- * Dans l'agrandissement d'un dépôt du mur : « Keep » ouvre le choix du format (4:5 par défaut, ou 9:16) et
- * fabrique aussitôt l'image sur l'appareil (js/fragment.js, chargé seulement à ce moment-là). Un second
- * toucher la partage (menu natif : Enregistrer l'image, Instagram, LINE…) ou, sur ordinateur, la télécharge.
- * Deux temps : le menu de partage exige un geste récent du visiteur, que la fabrication pourrait dépasser.
- */
-const keepEl = $('#keep'), keepPanel = $('#keepPanel'), keepGo = $('#keepGo'), keepMsg = $('#keepMsg'), keepPreview = $('#keepPreview');
-const coarse = matchMedia('(pointer: coarse)');
-let keepFormat = '4:5', kept = null, keepJob = 0;
-/** Le dépôt est-il placé sur le mur (le fragment se prélève sur le mur tel qu'il est) ? */
-function keepNode(p) {
-  if (!p || p.pending || view !== 'wall') return null;
-  const n = nodeCache.get(p.id);
-  return n && n.li.isConnected && n.li.style.top ? n : null;
+  keepJob++; dropKept();
+  keepPreview.hidden = true; keepPreview.removeAttribute('src'); keepMsg.textContent = '';
+  if (!keepSheet.open) keepSheet.showModal();
+  makeKeep();
 }
 function dropKept() { if (kept?.url) URL.revokeObjectURL(kept.url); kept = null; }
-function resetKeep() {
-  keepJob++; dropKept();
-  keepPanel.hidden = true; $('#keepBtn').setAttribute('aria-expanded', 'false');
-  keepPreview.hidden = true; keepPreview.removeAttribute('src'); keepMsg.textContent = '';
-  keepEl.hidden = !keepNode(current());
-}
 const canShare = () => coarse.matches && !!kept && !!navigator.canShare?.({ files: [kept.file] });
 async function makeKeep() {
-  const job = ++keepJob, p = current(), n = keepNode(p);
-  if (!n) return;
+  const job = ++keepJob, p = current(), li = keepRow;
+  if (!p || !li) return;
   dropKept(); keepGo.disabled = true; keepPreview.hidden = true;
   keepMsg.textContent = t('making');
   try {
-    const { makeFragment, today } = await import('./fragment.js?v=d6fcff6248');
-    const out = await makeFragment({ li: n.li, wallEl, format: keepFormat, prompt: p.prompt || '' });
+    const { makeFragment, today } = await import('./fragment.js?v=46de538ba0');
+    const out = await makeFragment({ li, format: keepFormat, prompt: p.prompt || '' });
     if (job !== keepJob) return;                       // un autre format ou un autre dépôt entre-temps
     const name = `mood-${today().replaceAll('.', '-')}-${keepFormat.replace(':', 'x')}.jpg`;
     kept = { ...out, url: URL.createObjectURL(out.blob), file: new File([out.blob], name, { type: 'image/jpeg' }) };
@@ -474,11 +459,6 @@ function download() {
   a.href = kept.url; a.download = kept.file.name;
   document.body.append(a); a.click(); a.remove();
 }
-$('#keepBtn').addEventListener('click', () => {
-  const open = keepPanel.hidden;
-  keepPanel.hidden = !open; $('#keepBtn').setAttribute('aria-expanded', String(open));
-  if (open && !kept) makeKeep();
-});
 keepPanel.querySelectorAll('[data-format]').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.format === keepFormat && kept) return;
   keepFormat = b.dataset.format;
@@ -490,26 +470,7 @@ keepGo.addEventListener('click', () => {
   if (canShare()) navigator.share({ files: [kept.file] }).catch(e => { if (e.name !== 'AbortError') download(); });
   else download();
 });
-$('#viewer').addEventListener('close', () => {
-  keepJob++; dropKept(); freeVideos($('#viewerBody')); $('#viewerCtrl .vplay')?.remove();   // vidéo arrêtée et libérée tout de suite
-  setTimeout(() => { if (!$('#viewer').open) $('#viewerBody').replaceChildren(); }, 260);    // vidé après le fondu de fermeture
-});
-
-const step = d => { const j = at + d; if (j >= 0 && j < seq.length) { at = j; showViewer(); } };
-$('#prev').addEventListener('click', () => step(-1));
-$('#next').addEventListener('click', () => step(1));
-$('#viewer').addEventListener('keydown', e => {
-  if (e.target.closest('form')) return;                // flèches libres dans le formulaire de signalement
-  if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
-  if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
-});
-// balayage horizontal (passif : ne bloque jamais le défilement)
-let sx = 0, sy = 0;
-$('#viewerBody').addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
-$('#viewerBody').addEventListener('touchend', e => {
-  const p = e.changedTouches[0], dx = p.clientX - sx, dy = p.clientY - sy;
-  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
-}, { passive: true });
+keepSheet.addEventListener('close', () => { keepJob++; dropKept(); keepPreview.removeAttribute('src'); });
 
 $('#reportForm').addEventListener('submit', async e => {
   e.preventDefault();

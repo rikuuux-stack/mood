@@ -65,7 +65,7 @@ Le verre ne contient **pas** de `saturate()` : sur un mur entièrement gris, il 
 | « Mood » | Sans | 100 | 22 px | .3em |
 | Textes du mur | Sans | 200 | 12 à 16 px (`sizeFor`, inchangé) | 0 |
 | Interface sur blanc, mentions, Keep | Sans | 200 | 13 px | 0 |
-| **Texte sur verre** (Drop, ‹ › ▶ ×, Send, S/M/L) | Sans | **300** | 13 px | .1em pour Drop |
+| **Texte sur verre** (Drop, ×, Send, S/M/L) | Sans | **300** | 13 px | .1em pour Drop |
 | Champs de saisie | Sans | 200 | **16 px** | 0 |
 | Date, consigne, Kawara, ligne Keep, compteur | Mono | **300** | 11 px | 0 |
 | Repère vidéo | Mono | 300 | 10 px | 0 |
@@ -77,19 +77,18 @@ La graisse 300 se limite à un sous-ensemble latin des mots d'interface, qui res
 ### Où il s'applique, et seulement là
 
 1. **Capsules « Mood » et « Drop »**, fixées en haut. Elles flottent au-dessus du mur, qui tient dans un seul écran, et au-dessus de la liste qui défile. → *Lien : le visiteur regarde, le mur reste derrière.*
-2. **Commandes de l'agrandissement** (‹ › ×, et ▶ quand « Réduire les animations » empêche la lecture automatique), réunies dans une seule capsule, collée en haut à droite, au-dessus de l'image. → *Lien : on traverse les dépôts sans en couvrir aucun.*
-3. **Feuilles** Drop et Mood. → *Lien : on écrit ou on lit les règles devant le mur, sans le quitter.*
+2. **Feuilles** Drop, Mood et Keep. → *Lien : on écrit, on lit les règles ou on garde un dépôt devant le mur, sans le quitter.*
 
-L'agrandissement lui-même n'est pas en verre : il appartient au mur, il reste rectangulaire, sur `--panel`. Keep y reste en place, sous l'image, et n'est donc pas une feuille (une feuille dans l'agrandissement ferait une troisième couche de flou).
+Il n'y a plus d'agrandissement : on ne regarde pas un dépôt en grand. Sur le mur, toucher une photo ou un texte ne fait rien ; toucher une vidéo la lit sur place, sans son, une seule fois, puis elle redevient son image fixe (jamais de lecture automatique). Dans la liste, toucher un dépôt ouvre la feuille Keep, avec le signalement.
 
 ### Où il ne s'applique jamais
 
-Sur un dépôt (image, texte, vidéo), sur le repère ▶ d'une vidéo du mur (rectangulaire, en `mix-blend-mode: difference`), sur la liste ou les lignes Kawara, sur la consigne du mois, sur les boutons à l'intérieur d'une feuille (pas de verre sur du verre), sur l'aperçu Keep.
+Sur un dépôt (image, texte, vidéo, y compris une vidéo en cours de lecture), sur le repère ▶ d'une vidéo du mur (rectangulaire, en `mix-blend-mode: difference`), sur la liste ou les lignes Kawara, sur la consigne du mois, sur les boutons à l'intérieur d'une feuille (pas de verre sur du verre), sur l'aperçu Keep.
 
 ### CSS
 
 ```css
-/* capsule : Mood, Drop, commandes de l'agrandissement */
+/* capsule : Mood, Drop */
 .glass {
   background: var(--glass-fill);
   -webkit-backdrop-filter: blur(var(--glass-blur)) brightness(var(--glass-lift)) contrast(var(--glass-flatten));
@@ -143,12 +142,12 @@ Tout est déjà dans `tokens.css` : aucune règle de composant n'a besoin d'êtr
 ## 5. Grille, espacements, composition
 
 - **Le mur est fixe** (`stack.js`) : un seul écran, sans défilement. Seuls les dépôts les plus récents y sont, 16 sur iPhone et 40 sur ordinateur ; ils s'empilent, le plus récent au-dessus, et les textes passent toujours au-dessus des images pour rester lisibles. Les plus anciens sont enfouis : ils ne vivent plus que dans la liste. Placement déterministe (identifiant du dépôt et mois à Tokyo) : le même mur pour tous, sur un écran de même taille. → *Lien : le mur ne se parcourt pas, il se recouvre.*
-- **Les bords se rongent avec l'âge** (`edge.js`) : au dépôt, l'image est presque rectangulaire ; à chaque palier d'usure, de nouvelles morsures apparaissent et les coins partent en premier. Le contour est fait de segments droits et d'angles vifs, jamais arrondi (le rond reste au verre). Il est tiré de l'identifiant du dépôt : le même sur le mur, dans la liste, dans l'agrandissement et dans Keep. → *Lien : l'image s'use par le noir, et maintenant aussi par le bord.*
+- **Les bords se rongent avec l'âge** (`edge.js`) : au dépôt, l'image est presque rectangulaire ; à chaque palier d'usure, de nouvelles morsures apparaissent et les coins partent en premier. Le contour est fait de segments droits et d'angles vifs, jamais arrondi (le rond reste au verre). Il est tiré de l'identifiant du dépôt : le même sur le mur, dans la liste et dans Keep. → *Lien : l'image s'use par le noir, et maintenant aussi par le bord.*
 - **Suite d'espacements non uniforme** : 4 · 8 · 12 · 20 · 32 · 52. Aucun écart ne se répète entre deux niveaux. → *Lien : un rythme de strates, pas une grille de cartes.*
 - **Marges asymétriques** : 24 px à gauche et 12 px à droite sur ordinateur, 16 px et 8 px sur mobile (à 16/12, l'écart était imperceptible et ressemblait à une erreur). Elles s'appliquent à la ligne « Mood » / « Drop » et aux feuilles ; le mur garde son placement (`wall.js`). La capsule « Mood » s'aligne sur la marge gauche, la consigne s'aligne sur les lettres de « Mood », « Drop » se colle à droite. Rien n'est centré. Variante à marges égales : captures `marges-egales` de la PR.
 - **Mois** : l'écran est partagé en bandes horizontales, du mois le plus récent en haut au plus ancien en bas ; les bandes débordent un peu l'une sur l'autre et se fondent, sans filet. Le mot du mois (« OCT.2026 ») est écrit en Mono, petit, en `--muted`, au bord gauche de sa bande. Un seul mois à l'écran : rien n'est écrit.
 - **Feuilles** : sur mobile, elles montent du bas sur toute la largeur, avec des coins hauts de 22 px (c'est du verre, donc arrondi). Sur ordinateur, elles forment une colonne de 400 px **ancrée à droite**, à 72 px du haut, jamais au centre de l'écran, coins arrondis de 22 px. → *Lien : aucun moment « hero », la fenêtre se range sur le côté du mur.*
-- **Agrandissement** : rectangulaire, l'image prend la largeur moins les marges, avec la capsule ‹ › × en haut à droite (elle reste visible quand on fait défiler la fenêtre) et la date en mono en bas à gauche, hors du verre. **Aucun nom** : le nom de la personne qui dépose n'apparaît que dans la liste. L'image y garde **son âge** : seul Keep fige un instant.
+- **Keep** : une feuille, ouverte depuis la liste. Elle montre l'aperçu de l'image à garder : **le dépôt seul**, au centre d'un cadre blanc 4:5 ou 9:16 (≈ 42 % du cadre), avec son usure du jour (négatif, transparence du palier, bords rongés) et ses mots en entier, puis la ligne Mono du bas (« moodwall.pages.dev — date — consigne »). **Aucun nom**. Le signalement (Report) est en dessous, discret.
 
 ## 6. Mouvement
 
@@ -157,11 +156,10 @@ Tout est déjà dans `tokens.css` : aucune règle de composant n'a besoin d'êtr
 | Ce qui bouge | Comment | Durée | Courbe | Pourquoi |
 |---|---|---|---|---|
 | Ouverture d'une feuille | opacité 0→1 et montée de 10 px | 240 ms | `--ease-out` | On pose une vitre, on ne lance pas une animation. |
-| Ouverture de l'agrandissement | opacité 0→1, sans montée | 240 ms | `--ease-out` | Il appartient au mur : il apparaît, il ne monte pas. |
 | Fermeture | opacité 1→0 | 180 ms | `--ease-in` | Partir doit être plus court qu'arriver. |
-| Dépôt suivant ou précédent | fondu enchaîné | 180 ms | `--ease-out` | On passe d'une trace à l'autre sans glisser. |
 | Apparition d'une image | opacité | 240 ms | `--ease-out` | Déjà en place (`.photo img`). |
-| Toucher d'un dépôt | `scale(.985)` sur `:active` | 120 ms | linéaire | Accuser réception, seulement au doigt. |
+| Toucher d'une vidéo du mur | `scale(.985)` sur `:active` | 120 ms | linéaire | Accuser réception, seulement au doigt ; une photo ou un texte ne réagit pas. |
+| Vidéo du mur | lue sur place, une fois, au toucher | sa durée | — | Le seul mouvement du mur, et seulement au geste du visiteur. |
 
 On n'anime **jamais** `backdrop-filter`, car l'iPhone recalculerait le flou à chaque image. On anime l'opacité de la feuille, pas son flou.
 

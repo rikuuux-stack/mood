@@ -45,7 +45,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; 
 .id { all: unset; cursor: pointer; font-weight: var(--w-thin); font-size: var(--fs-mark); line-height: 1; }
 .id-name { display: inline-block; letter-spacing: var(--track-mark); margin-right: calc(-1 * var(--track-mark)); }
 
-/* verre : capsule (Mood, Drop, commandes de l'agrandissement) — seulement là (docs/mood-da.md, section 4).
+/* verre : capsule (Mood, Drop) — seulement là (docs/mood-da.md, section 4).
    Jamais sur un dépôt, jamais sur du verre, jamais d'animation du flou. */
 .glass {
   background: var(--glass-fill);
@@ -99,11 +99,11 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
   transition: opacity .2s ease, transform .14s ease;
 }
 /* érosion (js/wall.js, setAge dans js/main.js) : --v = 1 (neuf) … 0,3 (très ancien) ; --w = usure, 0 … 1 (plancher).
-   Le même âge partout : mur (.item), liste (.row), agrandissement (.viewer-body). Seul Keep fige un instant. */
-.item, .row, .viewer-body { --w: calc((1 - var(--v, 1)) / .7); }
+   Le même âge partout : mur (.item), liste (.row), et Keep qui le relit. */
+.item, .row { --w: calc((1 - var(--v, 1)) / .7); }
 /* images (négatif) : les pixels SOMBRES deviennent transparents par paliers (.age-1 … .age-4 → filtres
    #erode1 … #erode4, index.html) ; il finit par ne rester que les parties claires, on voit à travers.
-   Aucun retour à neuf, ni au survol, ni à l'ouverture en grand. Vidéo agrandie : même palier, dans le canvas. */
+   Aucun retour à neuf, ni au survol, ni dans la liste. Vidéo lue sur le mur : même palier, dans le canvas. */
 .photo.is-loaded { background: transparent; }
 .age-1 .photo img { filter: url(#erode1); }
 .age-2 .photo img { filter: url(#erode2); }
@@ -119,37 +119,39 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 .age-3 .photo.is-neg img { filter: url(#erode3N); }
 .age-4 .photo.is-neg img { filter: url(#erode4N); }
 /* textes et commentaires : toujours lisibles ; à peine adoucis avec l'âge (#111 → #4a4a4a : contraste ≥ 8,8:1 sur blanc) */
-.item .sticker, .item .caption, .row .sticker, .row .caption, .viewer-body .sticker, .viewer-body .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
+.item .sticker, .item .caption, .row .sticker, .row .caption { color: color-mix(in srgb, #4a4a4a calc(100% * var(--w)), var(--fg)); }
 /* ordinateur : au survol ou au focus, l'élément passe au-dessus et monte de 6 px (son âge ne change pas) */
 @media (hover: hover) {
   .item:hover, .item:focus-within { z-index: 100000 !important; transform: translateY(-6px) scale(1.015); }
 }
 .item:focus-within { z-index: 100000 !important; }
-/* toucher : léger retour avant l'ouverture */
-@media (hover: none) { .item:active { transform: scale(.985); transition-duration: .08s; } }
+/* toucher : léger retour, seulement sur une vidéo (la seule qui réagit sur le mur : elle se lit sur place) */
+@media (hover: none) { .item--video:active { transform: scale(.985); transition-duration: .08s; } }
 /* apparition en fondu quand l'image est prête (js/main.js : reveal) ; disparition des dépôts retirés */
 .item.is-out { opacity: 0; pointer-events: none; transition: opacity .4s ease; }
 @media (prefers-reduced-motion: reduce) { .item { transition: none; } .item:hover, .item:focus-within, .item:active { transform: none !important; } }
-.item-hit { all: unset; cursor: pointer; display: block; width: 100%; height: 100%; }
+.item-hit { all: unset; display: block; width: 100%; height: 100%; }
+button.item-hit { cursor: pointer; }                 /* une vidéo du mur, un dépôt de la liste ; une photo ou un texte du mur : rien */
 .item-hit:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; box-shadow: 0 0 0 6px var(--bg); }
 .fig { display: block; }
 .item--image .photo img { width: 100%; height: 100%; object-fit: cover; }
 
-/* photos : NÉGATIF noir et blanc, pour TOUT ce qui est déposé (mur, liste, agrandissement, aperçu).
+/* photos : NÉGATIF noir et blanc, pour TOUT ce qui est déposé (mur, liste, Keep, aperçu).
    Appliqué à l'affichage : les fichiers restent intacts, le traitement est le même pour tous. */
 .photo { position: relative; display: block; overflow: hidden; background: var(--photo-bg); }
 .photo img { display: block; filter: url(#tone); opacity: 0; transition: opacity .22s ease; }   /* négatif N&B + courbe (filtre SVG dans index.html) */
 /* le cadre (aux bonnes proportions) est là tout de suite ; l'image y apparaît en fondu quand elle est prête */
 .photo.is-loaded img { opacity: 1; }
-/* vidéo : sur le mur et dans la liste, l'image fixe + un petit ▶ discret ; dans l'agrandissement, la vidéo
+/* vidéo : sur le mur et dans la liste, l'image fixe + un petit ▶ discret ; lue sur le mur au toucher, la vidéo
    (négatif noir et blanc et courbe déjà DANS le fichier : aucun filtre pendant la lecture — Safari / iOS
    n'applique pas les filtres SVG aux vidéos, WebKit bug 184601) */
 .vmark { position: absolute; left: 6px; bottom: 5px; z-index: 1; font-size: 10px; line-height: 1; color: #fff; mix-blend-mode: difference; pointer-events: none; }
-/* la <video> décode, invisible ; on voit le canvas où chaque image a son noir transparent (js/main.js, paintFrames) */
+/* vidéo lue SUR le mur (js/main.js, playInPlace) : la <video> décode, invisible ; on voit le canvas, à la place
+   de l'image fixe, où chaque image a son noir transparent et l'usure du palier (paintFrames). Bords : clip-path de .photo */
 .photo.is-video video { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
-.photo.is-video .vcanvas { display: block; max-width: 100%; max-height: 70dvh; width: auto; height: auto; filter: none; }
-/* ▶ du mur (.vmark) : il appartient au mur, rectangulaire, sans verre, en « difference ».
-   ▶ de l'agrandissement (« Réduire les animations ») : un bouton de la capsule de commandes (.viewer-ctrl .vplay). */
+.photo.is-video .vcanvas { position: absolute; inset: 0; width: 100%; height: 100%; filter: none; }
+.photo.is-playing img, .photo.is-playing .vmark { visibility: hidden; }
+/* ▶ du mur et de la liste (.vmark) : il appartient au mur, rectangulaire, sans verre, en « difference ». */
 @media (prefers-reduced-motion: reduce) { .photo img { transition: none; } }
 
 /* textes : posés à nu sur le fond ; jamais superposés à quoi que ce soit */
@@ -183,20 +185,13 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
   overscroll-behavior: contain;
 }
 .dlg::backdrop { background: var(--veil); }   /* voile sans flou : une seule couche floue à la fois */
-.dlg--drop, .dlg--about { width: min(520px, calc(100vw - 24px)); }
+.dlg--drop, .dlg--about, .dlg--keep { width: min(520px, calc(100vw - 24px)); }
 .dlg h2 { margin: 0; font-size: 1.15rem; font-weight: var(--light); letter-spacing: .06em; }
 #aboutTitle { font-weight: 100; letter-spacing: .32em; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.viewer-meta { margin: 0; font: var(--w-mono) var(--fs-meta)/1.5 var(--mono); color: var(--muted); }
-.viewer-body .photo { display: table; margin: 0 auto; }
-.viewer-body img { max-width: 100%; max-height: 70dvh; width: auto; height: auto; }
-.viewer-body .sticker { font-size: clamp(14px, 1.6vw, 18px); }
-.viewer-body .caption { font-size: 13px; max-width: 40em; margin: 0 auto; }
-.viewer-body .sticker-text, .viewer-body .caption-text { -webkit-line-clamp: unset; display: block; }
 
 @media (max-width: 639px) {
   .dlg { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; padding: 12px var(--gutter) calc(18px + var(--safe-b)); }
-  .viewer-body img, .viewer-body .photo.is-video .vcanvas { max-height: 60dvh; }
 }
 
 /* feuilles de verre : Drop et Mood (docs/mood-da.md). Le mur se voit derrière (voile 60 %, feuille 45 %).
@@ -219,7 +214,7 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 }
 
 /* mouvement : seulement quand le visiteur agit. Ouverture : fondu + montée de 10 px (feuilles), 240 ms ;
-   fermeture : fondu 180 ms ; passage d'un dépôt à l'autre : fondu enchaîné 180 ms. Jamais le flou n'est animé.
+   fermeture : fondu 180 ms. Jamais le flou n'est animé.
    « Réduire les animations » : durées à 0 (tokens.css). Navigateurs sans @starting-style : ouverture directe. */
 .dlg {
   transition: opacity var(--dur-2) var(--ease-in), translate var(--dur-2) var(--ease-in),
@@ -231,22 +226,6 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
   .dlg[open] { opacity: 0; }
   .sheet[open] { translate: 0 var(--rise); }
 }
-.viewer-body.is-swap { animation: swap var(--dur-2) var(--ease-out); }
-@keyframes swap { from { opacity: 0; } }
-
-/* agrandissement : rectangulaire (il appartient au mur) ; une capsule de verre ‹ › (▶) × en haut à droite,
-   au-dessus de l'image ; nom · date en mono en bas à gauche, hors du verre */
-.viewer-ctrl {
-  position: sticky; top: 0; z-index: 2;
-  display: flex; width: max-content; margin: 0 0 calc(-1 * var(--hit)) auto;
-  padding: 0 var(--s-1); gap: 0;
-}
-.viewer-ctrl .nav { width: 40px; height: var(--hit); font-size: 18px; font-weight: var(--w-glass); border-radius: var(--radius-glass); }
-.viewer-ctrl .nav:focus-visible { outline-offset: -4px; }
-.viewer-body:has(> .sticker) { padding-top: calc(var(--hit) + var(--s-2)); }   /* un texte : la capsule ne le couvre pas */
-.viewer-ctrl .nav:disabled { color: var(--fg); opacity: .3; }
-.dlg--viewer .viewer-meta { margin: var(--s-2) 0 0; }
-
 /* panneau « à propos » */
 .prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 16px 0; padding-block: 8px; border-block: var(--line) solid var(--rule); }
 .langs { display: flex; gap: 14px; }
@@ -254,11 +233,8 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 .langs .link[aria-pressed="true"] { opacity: 1; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .mail { font-size: 1rem; }
 
-/* signalement : discret */
-/* Keep : fragment du mur à garder / partager (même style discret que les autres libellés courts) */
-.keep { margin-top: 10px; }
-#keepBtn { font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
-.keep-panel { display: grid; gap: 10px; justify-items: start; margin-top: 6px; }
+/* feuille Keep (depuis la liste) : le dépôt seul à garder / partager ; signalement discret en dessous */
+.keep-panel { display: grid; gap: 10px; justify-items: start; }
 .keep-formats { display: flex; gap: 18px; }
 .keep-formats .link { font: var(--w-mono) var(--fs-meta)/1 var(--mono); color: var(--muted); }
 .keep-formats .link[aria-pressed="true"] { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
@@ -315,11 +291,6 @@ html:has(#convert:not([hidden])) .sheet { -webkit-backdrop-filter: none; backdro
 /* panneau Mood : manifeste */
 .manifesto { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 14px; line-height: 1.5; }
 .hint.small { font-size: 11px; }
-
-/* agrandissement : précédent / suivant */
-.nav { all: unset; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; font-size: 20px; color: var(--fg); }
-.nav:disabled { color: var(--rule); cursor: default; }
-.nav:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 /* vidéo dans Drop : curseur « Start » et progression de la conversion — gris seulement */
 .start { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
