@@ -25,10 +25,13 @@
        gris le plus sombre que produit le traitement des images, images empilées : x = 0,303 (sRGB)
          (point fixe de x = a·g + (1 − a)·x, a = 1 − 6,67 × (0,45 − g), g du négatif entre 0 et 0,76) ;
        le flou ne change pas un aplat ; brightness(1,1) puis contrast(,9) : c = (min(1, 1,1·x) − 0,5) × 0,9 + 0,5 = 0,450 ;
-       remplissage f : fond = f + (1 − f) × c → f = 0,30 : 0,545, soit 5,5:1 pour --fg (minimum demandé : 4,5:1).
-       (Avant le retour de l'iPhone : 48 %, 8,0:1 — jugé trop opaque par l'auteur.) */
-  --glass-fill:        rgb(255 255 255 / .30);  /* capsule : 5,5:1 pour --fg au-dessus du gris visible le plus sombre */
-  --glass-fill-sheet:  rgb(255 255 255 / .60);  /* feuille : le mur se voit à travers ; pire cas : --fg 15,7:1, --muted-sheet 6,7:1 */
+       remplissage f : fond = f + (1 − f) × c. Ce calcul est OPTIMISTE : le navigateur assombrit davantage.
+       MESURE dans Chromium (capsule au-dessus d'un aplat #4d4d4d, pixel le plus sombre sous le texte) :
+         20 % : 3,81:1 · 21 % : 3,93 · 24 % : 4,22 · 26 % : 4,46 · 27 % : 4,59 · 30 % : 4,91.
+       27 % est donc le plus bas qui garde le minimum demandé par l'auteur (4,5:1).
+       (Historique, retours de l'iPhone : 48 % → 30 % → 27 %.) */
+  --glass-fill:        rgb(255 255 255 / .27);  /* capsule : 4,59:1 mesuré pour --fg au-dessus du gris visible le plus sombre (limite) */
+  --glass-fill-sheet:  rgb(255 255 255 / .45);  /* feuille : mesuré au pire --fg 13,3:1, --muted-sheet 5,7:1 */
   --glass-blur:        12px;
   --glass-blur-sheet:  20px;
   --glass-lift:        1.1;                     /* brightness() : éclaircit le mur sous le verre, sans teinte */
@@ -39,8 +42,8 @@
     inset 0 1px 0 var(--glass-rim-light),
     inset 0 0 0 1px var(--glass-rim-dark);      /* reflet intérieur, pas d'ombre portée */
   --veil:              rgb(255 255 255 / .60);  /* ::backdrop des fenêtres, sans flou : le mur se devine derrière la feuille */
-  /* feuille (60 %) au-dessus du voile (60 %), pire cas : fond 0,917 → --fg 15,7:1 ; --muted #555 n'y ferait que 6,2:1,
-     d'où --muted-sheet (#505050 : 6,7:1), utilisé seulement dans les feuilles. Minimum demandé : 4,5:1. */
+  /* feuille (45 %) au-dessus du voile (60 %), MESURÉ au pire (aplat #4d4d4d dessous) : --fg 13,3:1 ;
+     --muted-sheet #505050 : 5,7:1 (#555 : 5,2:1). Minimum demandé : 4,5:1 ; rien à foncer. */
   --muted-sheet:       #505050;
   --radius-glass:      999px;                   /* le rond est réservé au verre */
   --radius-sheet:      22px;                    /* coins hauts des feuilles sur mobile */
