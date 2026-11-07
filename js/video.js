@@ -22,7 +22,7 @@
  */
 import { negative } from './wall.js?v=10fdf5c535';
 import { inspectMp4, checkVideo } from './mp4.js?v=53a1dd24ca';
-import { stripMetadata } from './image.js?v=0bde9bbfaf';
+import { stripMetadata, toNegative } from './image.js?v=4cbe9f94a9';
 
 export const VIDEO = { side: 480, fps: 24, bitrate: 300_000, maxDuration: 60, maxBytes: 4 * 1024 * 1024, posterSide: 800 };
 export class VideoError extends Error {
@@ -56,9 +56,11 @@ const canvas = (w, h) => {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   return { c, g: c.getContext('2d', { willReadFrequently: true }) };
 };
-// Safari (iPhone) ajoute un bloc Exif à tout JPEG qu'il fabrique : on le retire (le serveur refuse les métadonnées)
-const jpeg = c => new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new VideoError('eVideoUnsupported', 'poster'))), 'image/jpeg', 0.85))
-  .then(stripMetadata);
+// Image fixe (poster) : mise en NÉGATIF ici, comme les photos (l'original en couleur ne quitte pas l'appareil),
+// puis JPEG sans métadonnées (Safari ajoute un bloc Exif à tout JPEG qu'il fabrique ; le serveur les refuse).
+const jpeg = c => { toNegative(c.getContext('2d', { willReadFrequently: true }), c.width, c.height);
+  return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new VideoError('eVideoUnsupported', 'poster'))), 'image/jpeg', 0.85))
+    .then(stripMetadata); };
 const aborted = signal => { if (signal?.aborted) throw new VideoError('canceled'); };
 
 /* ------------------------------------------------------------------ encodeur (WebCodecs, sinon MediaRecorder) */
@@ -172,7 +174,7 @@ async function openDecodable(MB, input, track, file) {
     },
     async convert({ start = 0, onProgress, signal } = {}) {
       const len = Math.min(VIDEO.maxDuration, duration - start);
-      // poster : l'image au point de départ, en couleur (traitée à l'affichage comme une photo)
+      // poster : l'image au point de départ, mise en négatif sur l'appareil (comme une photo)
       const [pw, ph] = posterSize(w0, h0);
       const ps = new MB.CanvasSink(track, { width: pw, height: ph, fit: 'fill' });
       const pf = await ps.getCanvas(start);

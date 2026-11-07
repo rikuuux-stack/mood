@@ -12,6 +12,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 export const mode = new URLSearchParams(location.search).has('mock') ? 'mock' : CONFIG.mode;
 
 const headers = () => ({ apikey: CONFIG.supabaseAnonKey, Authorization: `Bearer ${CONFIG.supabaseAnonKey}` });
+/** Fichier stocké déjà en négatif (déposé depuis la correction « fix-original », ou converti par tools/negate-existing.mjs). */
+export const isNeg = path => /\.neg\.(jpg|jpeg)$/.test(path || '');
 const publicUrl = path => `${CONFIG.supabaseUrl}/storage/v1/object/public/published/${encodeURIComponent(path)}`;
 
 /** Erreur serveur → code traduisible (js/strings.js : e<Code>). */
@@ -92,9 +94,10 @@ export async function fetchPosts({ offset = 0, limit = CONFIG.wall.batch } = {})
     // expiré (à 180 jours, si l'auteur l'active) : ses fichiers sont supprimés, seule sa ligne reste (vue List, texte seul)
     expired: (p.kind === 'image' || p.kind === 'video') && !p.image_path,
     // vidéo : image fixe (thumb_path) partout ; le fichier vidéo (image_path) seulement à l'ouverture
+    // neg : fichier DÉJÀ en négatif (fait sur le téléphone, nom en « .neg. ») → à l'affichage, seulement transparence et usure
     image: !p.image_path ? null : p.kind === 'video'
-      ? { src: publicUrl(p.thumb_path), thumb: publicUrl(p.thumb_path), video: publicUrl(p.image_path), w: p.width, h: p.height }
-      : { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height },
+      ? { src: publicUrl(p.thumb_path), thumb: publicUrl(p.thumb_path), video: publicUrl(p.image_path), w: p.width, h: p.height, neg: isNeg(p.thumb_path) }
+      : { src: publicUrl(p.image_path), thumb: publicUrl(p.thumb_path), w: p.width, h: p.height, neg: isNeg(p.image_path) },
   }));
   if (offset === 0) save({ posts });
   return posts;
